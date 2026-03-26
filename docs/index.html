@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>git-fi</title>
+  <meta name="description" content="A git plugin that maintains a temporary integration branch for early conflict detection">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
+  <meta http-equiv="content-language" content="en">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dracula-prism@2/css/dracula-prism.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsify-themeable@0/dist/css/theme-simple-dark.min.css">
+  <style>
+    :root {
+      --sidebar-width: 280px;
+      --base-background-color: #121212;
+      --base-color: #F0F0F0;
+      --sidebar-background: #0D0D0D;
+      --sidebar-nav-link-color--active: #6F43D6;
+      --sidebar-nav-link-border-color--active: #6F43D6;
+      --sidebar-name-color: #FFFFFF;
+      --link-color: #6F43D6;
+      --link-color--hover: #8B6AE0;
+      --heading-color: #FFFFFF;
+      --blockquote-border-color: #3A3A3A;
+      --code-inline-background: #1E1E1E;
+      --code-inline-color: #E0D4FF;
+      --code-theme-background: #1A1A1A;
+      --search-input-border-color: #3A3A3A;
+      --search-result-keyword-color: #6F43D6;
+      --notice-tip-border-color: #6F43D6;
+      --notice-important-border-color: #FF5252;
+      --table-row-even-background: #1A1A1A;
+    }
+    sup.footnote-ref {
+      margin-left: 0.15em;
+    }
+    .markdown-section pre[data-lang="text"]::after {
+      display: none !important;
+    }
+    .mermaid .taskText { fill: #F0F0F0 !important; }
+    .mermaid .taskTextOutsideRight { fill: #F0F0F0 !important; }
+    .mermaid .sectionTitle { fill: #F0F0F0 !important; }
+    .mermaid .titleText { fill: #F0F0F0 !important; }
+    .mermaid .grid .tick text { fill: #3A3A3A !important; }
+    @media screen and (min-width: 768px) {
+      .sidebar-toggle {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body class="notranslate" translate="no">
+  <div id="app"></div>
+  <script>
+    window.$docsify = {
+      name: 'git-fi',
+      nameLink: '/',
+      repo: 'https://github.com/gettyimages/git-fi',
+      loadSidebar: true,
+      subMaxLevel: 2,
+      sidebarDisplayLevel: 1,
+      homepage: 'home.md',
+      auto2top: true,
+      alias: {
+        '/.*/_sidebar.md': '/_sidebar.md'
+      },
+      search: {
+        placeholder: 'Search',
+        noData: 'No results',
+        depth: 5
+      },
+      mermaidConfig: {
+        querySelector: '.mermaid',
+        theme: 'dark'
+      }
+    }
+  </script>
+  <!-- Docsify core -->
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/docsify.min.js"></script>
+  <!-- Plugins -->
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/plugins/search.min.js"></script>
+  <!-- Prism languages -->
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-json.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-powershell.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-typescript.min.js"></script>
+  <!-- Mermaid -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'dark',
+      look: 'handDrawn'
+    });
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify-mermaid@2/dist/docsify-mermaid.js"></script>
+  <!-- Copy Code -->
+  <script src="https://cdn.jsdelivr.net/npm/docsify-copy-code@3/dist/docsify-copy-code.min.js"></script>
+  <!-- Flexible Alerts -->
+  <script src="https://cdn.jsdelivr.net/npm/docsify-plugin-flexible-alerts@1/dist/docsify-plugin-flexible-alerts.min.js"></script>
+  <!-- Footnotes -->
+  <script src="https://cdn.jsdelivr.net/npm/@sy-records/docsify-footnotes@2/dist/index.min.js"></script>
+</body>
+</html>

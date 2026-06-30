@@ -1,0 +1,253 @@
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { basename } from "node:path";
+import type { Options } from "./types.js";
+import { abort, makeStyle, bulletList, createSpinner } from "./style.js";
+
+let fetchDone = false;
+
+interface GitOpts {
+  quiet?: boolean;
+  debug?: boolean;
+  showErrors?: boolean;
+  allowFailure?: boolean;
+}
+
+export function git(
+  args: string[],
+  {
+    quiet = true,
+    debug = false,
+    showErrors = false,
+    allowFailure = false,
+  }: GitOpts = {}
+): string | null {
+  const stderrDest = debug || showErrors ? "pipe" : "ignore";
+  if (debug) {
+    process.stderr.write(`+ git ${args.join(" ")}\n`);
+  }
+  try {
+    const out = execFileSync("git", args, {
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", stderrDest],
+      maxBuffer: 50 * 1024 * 1024,
+    });
+    return out.trimEnd();
+  } catch (err) {
+    if (allowFailure) return null;
+    throw err;
+  }
+}
+
+export function gitLines(args: string[], gitOpts?: GitOpts): string[] {
+  const out = git(args, gitOpts);
+  if (out === null || out === "") return [];
+  return out.split("\n");
+}
+
+export function gitExitCode(args: string[], gitOpts: GitOpts = {}): number {
+  try {
+    git(args, gitOpts);
+    return 0;
+  } catch (err: unknown) {
+    return (err as { status?: number }).status ?? 1;
+  }
+}
+
+export function preflightChecks(opts: Options): void {
+  if (!existsSync(".git")) {
+    abort("No .git directory found.", opts);
+  }
+
+  const verStr = git(["--version"]) ?? "";
+  const match = verStr.match(/(\d+\.\d+\.\d+)/);
+  if (match) {
+    const parts = match[1].split(".").map(Number);
+    const ver = parts[0] * 10000 + parts[1] * 100 + parts[2];
+    if (ver < 25000) {
+      abort(
+        `git version ${match[1]} is too old, please upgrade to at least 2.50.0.`,
+        opts
+      );
+    }
+  }
+
+  const pushDefault = git(["config", "push.default"], { allowFailure: true });
+  if (pushDefault === "upstream" || pushDefault === "tracking") {
+    abort(
+      "Your default git push config is set to a hazardous option.",
+      opts
+    );
+  }
+}
+
+export async function ensureFetched(opts: Options): Promise<void> {
+  if (fetchDone) return;
+  fetchDone = true;
+  const spin = createSpinner("Fetching from origin...", opts);
+  try {
+    const fetchArgs = ["fetch", "--prune", "origin"];
+    if (!opts.debug) fetchArgs.splice(1, 0, "--quiet");
+    git(fetchArgs, { debug: opts.debug });
+  } finally {
+    spin.stop();
+  }
+}
+
+export function defaultBranch(): string {
+  const ref = git(["symbolic-ref", "refs/remotes/origin/HEAD"], {
+    allowFailure: true,
+  });
+  if (ref !== null) return basename(ref);
+  for (const candidate of ["main", "master"]) {
+    if (
+      git(["rev-parse", "--verify", `origin/${candidate}`], {
+        allowFailure: true,
+      }) !== null
+    ) {
+      return candidate;
+    }
+  }
+  return "main";
+}
+
+export type CommitFormat = "brief" | "legacy";
+
+export function detectCommitFormat(commitMsg: string): CommitFormat {
+  if (/Merge remote-tracking branch(es)? '/.test(commitMsg)) return "legacy";
+  return "brief";
+}
+
+export function parseBranchList(commitMsg: string, defBranch: string): string[] {
+  if (detectCommitFormat(commitMsg) === "legacy") {
+    const branches: string[] = [];
+    const re = /'origin\/([^']+)'/g;
+    let m;
+    while ((m = re.exec(commitMsg)) !== null) {
+      const name = `origin/${m[1]}`;
+      if (name !== `origin/${defBranch}` && name !== "origin/fi") branches.push(name);
+    }
+    return [...new Set(branches)];
+  }
+
+  const match = commitMsg.match(/^\(([^)]+)\)@\[/m);
+  if (match) {
+    return [
+      ...new Set(
+        match[1]
+          .split(",")
+          .map((b) => `origin/${b.trim()}`)
+          .filter((b) => b !== `origin/${defBranch}`)
+      ),
+    ];
+  }
+  if (/^@\[[0-9a-f]+\]/m.test(commitMsg)) {
+    return [];
+  }
+  return [];
+}
+
+export function currentFiBranches(defBranch: string): string[] {
+  const msg = git(["log", "-1", "--format=%B", "origin/fi"], {
+    allowFailure: true,
+  });
+  if (msg === null) return [];
+  return parseBranchList(msg, defBranch);
+}
+
+export function resolveBranchName(name: string): string {
+  if (!name.startsWith("origin/")) return `origin/${name}`;
+  return name;
+}
+
+export function currentBranchName(): string | null {
+  return git(["symbolic-ref", "--short", "HEAD"], { allowFailure: true });
+}
+
+export function resolveBranches(
+  names: string[],
+  action: string,
+  opts: Options
+): string[] {
+  let resolved = names.map(resolveBranchName);
+
+  if (resolved.length === 0 && (action === "add" || action === "remove")) {
+    const cur = currentBranchName();
+    if (!cur || ["main", "master", "fi", "HEAD"].includes(cur)) {
+      abort("No branch was specified.", opts);
+    }
+    resolved = [resolveBranchName(cur)];
+  }
+
+  if (action === "add" || action === "force") {
+    const missing: string[] = [];
+    for (const b of resolved) {
+      if (git(["rev-parse", "--verify", b], { allowFailure: true }) === null) {
+        missing.push(b);
+      }
+    }
+    if (missing.length > 0) {
+      const s = makeStyle(opts);
+      process.stderr.write(
+        `${s.redBold("the following branches do not exist on origin:")}\n`
+      );
+      process.stderr.write(bulletList(missing, opts));
+      process.exit(1);
+    }
+  }
+
+  return resolved;
+}
+
+export function allRemoteBranches(defBranch: string): string[] {
+  const lines = gitLines([
+    "branch",
+    "-r",
+    "--format=%(refname:short)",
+  ]);
+  return lines.filter(
+    (b) =>
+      !b.includes("->") &&
+      b !== "origin/HEAD" &&
+      b !== "origin/fi" &&
+      b !== `origin/${defBranch}`
+  );
+}
+
+export function remoteBranchesNoMergedSince(
+  defBranch: string,
+  sinceMonths: number = 3
+): string[] {
+  const since = new Date();
+  since.setMonth(since.getMonth() - sinceMonths);
+  const sinceStr = since.toISOString().slice(0, 10);
+
+  const lines = gitLines([
+    "branch",
+    "-r",
+    "--no-merged", `origin/${defBranch}`,
+    "--sort=-committerdate",
+    "--format=%(refname:short)",
+  ]);
+
+  const candidates = lines.filter(
+    (b) =>
+      !b.includes("->") &&
+      b !== "origin/HEAD" &&
+      b !== "origin/fi" &&
+      b !== `origin/${defBranch}`
+  );
+
+  return candidates.filter((b) => {
+    const date = git(["log", "-1", "--format=%ci", b], { allowFailure: true });
+    if (!date) return false;
+    return date.slice(0, 10) >= sinceStr;
+  });
+}
+
+export function isInteractive(_opts: Options): boolean {
+  return (
+    process.stdin.isTTY === true &&
+    process.stdout.isTTY === true
+  );
+}

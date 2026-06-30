@@ -3,6 +3,11 @@ name: Release
 on:
   push:
     tags: ["v*"]
+    # TEMPORARY: exercise the publish pipeline (dry-run) from the release-prep
+    # branch before merging. Remove this `branches:` line before merge so the
+    # workflow only publishes on a v* tag.
+    branches: ["initial-implementation"]
+  workflow_dispatch:
 
 jobs:
   publish:
@@ -30,7 +35,22 @@ jobs:
 
       - run: npm ci
 
-      # prepublishOnly runs `npm test` as the release gate before publishing.
-      - run: npm publish --provenance --access public
+      # Confirms NPM_API_TOKEN authenticates against the registry.
+      - name: Verify npm auth
+        run: npm whoami
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_API_TOKEN }}
+
+      # On a v* tag: real publish. prepublishOnly runs `npm test` as the gate.
+      - name: Publish
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_API_TOKEN }}
+
+      # Otherwise (branch push / manual run): validate packaging without uploading.
+      - name: Publish (dry run)
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        run: npm publish --dry-run --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_API_TOKEN }}

@@ -30,6 +30,10 @@ npm install -g .   # or: yarn global add file:.
 
 The `prepare` script compiles TypeScript on install, so `git fi` is ready right after.
 
+### Upgrading from an older git-fi
+
+`git fi` runs whichever `git-fi` comes first on your `PATH`. An older install — such as the legacy Ruby gem — can shadow a freshly installed npm version. Run `which -a git-fi`; if more than one path is listed, remove the older one (e.g. `gem uninstall git-fi`) so `git fi` resolves to the version you intend.
+
 ## Development
 
 ```bash

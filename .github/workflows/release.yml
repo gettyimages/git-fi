@@ -3,10 +3,6 @@ name: Release
 on:
   push:
     tags: ["v*"]
-    # TEMPORARY: exercise the publish pipeline (dry-run) from the release-prep
-    # branch before merging. Remove this `branches:` line before merge so the
-    # workflow only publishes on a v* tag.
-    branches: ["initial-implementation"]
   workflow_dispatch:
 
 jobs:

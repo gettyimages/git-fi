@@ -45,7 +45,8 @@ flowchart TD
 | `OPT-03` | `--json`    | `-j`  | Structured JSON output for `list` (see [JSON Output](#json-output))       |
 | `OPT-04` | `--select`  | `-s`  | Interactive branch picker for `--add` / `--remove` (requires TTY)         |
 | `OPT-05` | `--version` | `-V`  | Print the current version string to stdout and exit 0                     |
-| `OPT-06` | `--help`    | `-h`  | Print a usage summary to stdout and exit 0; direct to the public wiki for full details |
+| `OPT-06` | `--help`    | `-h`  | Print a usage summary to stdout and exit 0; direct to the documentation site for full details |
+| `OPT-08` | `--yes`     | `-y`  | Bootstrap `fi` without the confirmation prompt (see `MG-15`); intended for CI and scripts |
 
 `OPT-07` If `--bare` is specified with any action other than `list`, then git-fi shall abort with an error.
 
@@ -302,7 +303,7 @@ flowchart TD
 2. `MG-02` If uncommitted changes exist, then git-fi shall abort with `Your index is dirty`.
 3. `MG-03` git-fi shall capture a snapshot of untracked files via `git ls-files --other --exclude-standard`.
 4. `MG-04` git-fi shall run `git fetch --quiet --prune origin` (if not already done).
-5. `MG-05` If no `origin/fi` ref exists after fetch, then git-fi shall display a bootstrap confirmation prompt. This prompt shall always be shown and cannot be suppressed. If the user does not enter `y`, then git-fi shall abort. Example:
+5. `MG-05` If no `origin/fi` ref exists after fetch, then git-fi shall require confirmation before bootstrapping. Unless `--yes` is given (`OPT-08`, `MG-15`), git-fi shall display a bootstrap confirmation prompt; if the user does not enter `y`, then git-fi shall abort. Example:
 
    ```text
    Bootstrap path/to/repo with fi capability?
@@ -315,6 +316,8 @@ flowchart TD
    ```
 
    `MG-14` git-fi shall include a `See:` line in the bootstrap prompt (MG-05) linking to the git-fi project README (`https://github.com/gettyimages/git-fi`) so users unfamiliar with fi can understand the tool before confirming.
+
+   `MG-15` Bootstrapping requires explicit confirmation. If `--yes` (`OPT-08`) is given, git-fi shall bootstrap without prompting. Otherwise the prompt (MG-05) requires an interactive terminal: if no `origin/fi` ref exists after fetch and either stdin or stdout is not a TTY, then git-fi shall abort without prompting: `Bootstrapping fi requires confirmation; re-run with --yes or from an interactive terminal.` This keeps an unattended process from creating and force-pushing a new fi branch with no explicit confirmation. Once `origin/fi` exists, every command operates non-interactively.
 
 6. `MG-06` When branches in the list no longer exist on origin, git-fi shall remove them and warn on stderr: `Ignoring branches that no longer exist:`
 7. `MG-07` When a branch is already an ancestor of the default branch, git-fi shall warn on stderr: `X already in main`

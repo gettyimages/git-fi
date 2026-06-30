@@ -58,12 +58,9 @@ These branches are still included in `fi` but the warning helps teams identify s
 
 ## CI Mode
 
-When running inside a CI pipeline (`CI=true`), git-fi adjusts its behavior:
+When running inside a CI pipeline (`CI=true`), git-fi includes pipeline context (build ID and triggering ref) in the `fi` commit message for traceability.
 
-- Bootstrap confirmation is skipped automatically
-- Commit messages include pipeline context for traceability
-
-The typical CI use case is a post-build job that runs `git fi -g` after a successful feature branch build, keeping the integration branch continuously up to date.
+The typical CI use case is a post-build job that runs `git fi -g` after a successful feature branch build, keeping the integration branch continuously up to date. Since `fi` already exists by then, that job runs non-interactively. To create `fi` for the first time from a pipeline, pass `--yes` (`-y`) so the bootstrap confirmation — which otherwise needs a terminal — is skipped.
 
 See [CI Integration](/ci-integration) for full details.
 

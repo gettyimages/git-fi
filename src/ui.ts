@@ -36,7 +36,7 @@ function renderPicker(
   cursor: number,
   ciData?: Map<string, CIResult>
 ): number {
-  const s = makeStyle({ debug: false, bare: false, json: false, select: false });
+  const s = makeStyle({ debug: false, bare: false, json: false, select: false, yes: false });
   const lines: string[] = [];
   lines.push(`\x1b[1m${title}\x1b[0m`);
   lines.push("");

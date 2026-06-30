@@ -26,6 +26,8 @@ git-fi will:
 3. Merge `origin/my-feature` into it
 4. Push `fi` to origin
 
+The first time you run this in a repository that has no `fi` branch yet, git-fi asks you to confirm bootstrapping it. In CI or scripts, pass `--yes` (`-y`) to bootstrap without the prompt. Once `fi` exists, every command runs non-interactively.
+
 ### 3. Add more branches
 
 ```bash

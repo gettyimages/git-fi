@@ -14,6 +14,7 @@ function parseArgs(argv: string[]) {
     bare: false,
     json: false,
     select: false,
+    yes: false,
   };
   let action: string | null = null;
   let filterPattern: string | undefined;
@@ -36,6 +37,10 @@ function parseArgs(argv: string[]) {
       case "--select":
       case "-s":
         opts.select = true;
+        break;
+      case "--yes":
+      case "-y":
+        opts.yes = true;
         break;
       case "--version":
       case "-V":
@@ -61,10 +66,11 @@ function parseArgs(argv: string[]) {
           `  -b, --bare      Machine-readable output (space-separated branch names)\n` +
           `  -j, --json      Structured JSON output for list\n` +
           `  -s, --select    Interactive branch picker\n` +
+          `  -y, --yes       Bootstrap fi without the confirmation prompt (for CI/scripts)\n` +
           `  -V, --version   Print version and exit\n` +
           `  -h, --help      Show this help\n` +
           `\n` +
-          `Full documentation: https://github.com/gettyimages/git-fi/wiki\n`
+          `Full documentation: https://gettyimages.github.io/git-fi/\n`
         );
         process.exit(0);
       case "--add":

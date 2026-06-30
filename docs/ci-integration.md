@@ -33,10 +33,7 @@ If the GitLab API is unreachable or returns an error, git-fi falls back to listi
 
 ## Pipeline Context
 
-When git-fi runs inside a CI pipeline (`CI=true`), it adjusts its behavior:
-
-- Bootstrap confirmation is skipped (auto-creates `fi`)
-- Commit messages include pipeline context:
+When git-fi runs inside a CI pipeline (`CI=true`), commit messages include pipeline context:
 
 ```text
 Re-merge fi branch triggered by build 12345 due to commit on feature-auth. Was originally: --- ...

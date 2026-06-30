@@ -3,6 +3,7 @@ export interface Options {
   bare: boolean;
   json: boolean;
   select: boolean;
+  yes: boolean;
 }
 
 export interface CIResult {

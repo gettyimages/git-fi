@@ -1,6 +1,6 @@
 {
   "name": "git-fi",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Git plugin that maintains a temporary integration branch for early conflict detection",
   "type": "module",
   "bin": {
@@ -10,15 +10,20 @@
     "start": "tsx src/index.ts",
     "build": "tsc",
     "prepare": "tsc",
-    "test": "echo 'no tests yet'"
+    "test": "tsc && node --import tsx --test test/*.test.ts",
+    "prepublishOnly": "npm test"
   },
   "files": [
     "dist"
   ],
   "license": "MIT",
+  "homepage": "https://gettyimages.github.io/git-fi/",
   "repository": {
     "type": "git",
     "url": "https://github.com/gettyimages/git-fi.git"
+  },
+  "bugs": {
+    "url": "https://github.com/gettyimages/git-fi/issues"
   },
   "keywords": [
     "git",

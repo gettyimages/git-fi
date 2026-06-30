@@ -2,14 +2,14 @@
 
 Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 
-**Last updated:** 2026-04-02
+**Last updated:** 2026-06-30
 
 ## Summary
 
 | Status  | Count |
 |---------|-------|
-| Covered | 61    |
-| Total   | 61    |
+| Covered | 63    |
+| Total   | 63    |
 
 ## Pre-flight Checks
 
@@ -29,8 +29,9 @@ Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 | OPT-03 | `--json`    | Covered | `src/index.ts:32-34`   |
 | OPT-04 | `--select`  | Covered | `src/index.ts:36-38`   |
 | OPT-05 | `--version` | Covered | `src/index.ts:40-43`   |
-| OPT-06 | `--help`    | Covered | `src/index.ts:44-69`   |
-| OPT-07 | `--bare` list-only | Covered | `src/index.ts:134-135` |
+| OPT-06 | `--help`    | Covered | `src/index.ts:44-73`   |
+| OPT-07 | `--bare` list-only | Covered | `src/index.ts:138-139` |
+| OPT-08 | `--yes`     | Covered | `src/index.ts:41-43`   |
 
 ## Terminal Output
 
@@ -114,6 +115,7 @@ Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 | MG-12 | Cleanup                  | Covered | `src/merge.ts:390-397`, `src/merge.ts:419-426` |
 | MG-13 | CI commit message        | Covered | `src/merge.ts:46-57`      |
 | MG-14 | Bootstrap link           | Covered | `src/ui.ts:140`           |
+| MG-15 | Bootstrap confirmation / `--yes` | Covered | `src/merge.ts:128-145` |
 
 ## Branch List Storage
 

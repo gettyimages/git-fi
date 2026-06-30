@@ -13,6 +13,7 @@ import {
   defaultBranch,
   currentBranchName,
   detectCommitFormat,
+  isInteractive,
   type CommitFormat,
 } from "./git.js";
 import { confirm } from "./ui.js";
@@ -124,7 +125,13 @@ export async function mergeProcess(
     }
   }
 
-  if (fiExistsAfterFetch === null) {
+  if (fiExistsAfterFetch === null && !opts.yes) {
+    if (!isInteractive(opts)) {
+      abort(
+        "Bootstrapping fi requires confirmation; re-run with --yes or from an interactive terminal.",
+        opts
+      );
+    }
     const repoPath = process.cwd();
     const remoteUrl =
       git(["remote", "get-url", "origin"], { allowFailure: true }) || repoPath;

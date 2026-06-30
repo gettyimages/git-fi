@@ -6,7 +6,21 @@ A git plugin that maintains a temporary integration branch named `fi`. Merge mul
 
 ## Install
 
-Requires Node.js >= 18 and git >= 2.50.0.
+git-fi is a git subcommand: once the `git-fi` binary is on your `PATH`, invoke it as `git fi`. Requires Node.js >= 18 and git >= 2.50.0.
+
+### From npm
+
+```bash
+npm install -g git-fi
+```
+
+Or run it without installing:
+
+```bash
+npx git-fi --help
+```
+
+### From source
 
 ```bash
 git clone https://github.com/gettyimages/git-fi.git
@@ -14,12 +28,17 @@ cd git-fi
 npm install -g .   # or: yarn global add file:.
 ```
 
+The `prepare` script compiles TypeScript on install, so `git fi` is ready right after.
+
 ## Development
 
 ```bash
 npm start -- -a my-branch   # run from source via tsx
 npm run build               # compile TypeScript to dist/
+npm test                    # build, then run the integration suite
 ```
+
+The test suite drives the compiled binary against throwaway git repositories (a bare `origin` plus a working clone), so it exercises real `git fetch`/`merge`/`push` behavior end-to-end.
 
 The implementation follows [SPEC.md](SPEC.md), which defines every requirement with a unique ID and includes mermaid diagrams for the major flows.
 

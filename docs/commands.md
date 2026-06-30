@@ -115,6 +115,7 @@ Shows only branches currently in `fi`. Select which to remove.
 | `-b` | `--bare` | Machine-readable output (space-separated, no decoration) |
 | `-j` | `--json` | Structured JSON output (list command only) |
 | `-s` | `--select` | Interactive branch picker (requires TTY) |
+| `-y` | `--yes` | Bootstrap `fi` without the confirmation prompt (for CI/scripts) |
 
 ## Branch Name Resolution
 

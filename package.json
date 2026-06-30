@@ -1,5 +1,5 @@
 {
-  "name": "git-fi",
+  "name": "@gettyimages/git-fi",
   "version": "1.0.0",
   "description": "Git plugin that maintains a temporary integration branch for early conflict detection",
   "type": "module",
@@ -16,6 +16,9 @@
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "license": "MIT",
   "homepage": "https://gettyimages.github.io/git-fi/",
   "repository": {

@@ -11,13 +11,13 @@ git-fi is a git subcommand: once the `git-fi` binary is on your `PATH`, invoke i
 ### From npm
 
 ```bash
-npm install -g git-fi
+npm install -g @gettyimages/git-fi
 ```
 
 Or run it without installing:
 
 ```bash
-npx git-fi --help
+npx @gettyimages/git-fi --help
 ```
 
 ### From source

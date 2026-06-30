@@ -4,9 +4,10 @@ import type { Options } from "./types.js";
 import { abort } from "./style.js";
 import { preflightChecks, ensureFetched } from "./git.js";
 import { cmdList, cmdAdd, cmdRemove, cmdForce, cmdAgain, cmdPrune, cmdAbort, cmdSelect } from "./commands.js";
+import { notifyUpdate } from "./update-check.js";
 
 const require = createRequire(import.meta.url);
-const { version } = require("../package.json");
+const { name, version } = require("../package.json");
 
 function parseArgs(argv: string[]) {
   const opts: Options = {
@@ -149,6 +150,7 @@ async function main() {
   const { opts, action, branches, filterPattern } = parseArgs(argv);
 
   preflightChecks(opts);
+  notifyUpdate(name, version, opts);
 
   if (action !== "list") {
     await ensureFetched(opts);

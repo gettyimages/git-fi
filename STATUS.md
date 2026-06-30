@@ -8,8 +8,8 @@ Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 
 | Status  | Count |
 |---------|-------|
-| Covered | 63    |
-| Total   | 63    |
+| Covered | 67    |
+| Total   | 67    |
 
 ## Pre-flight Checks
 
@@ -163,3 +163,12 @@ Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 | ID     | Description        | Status  | Location              |
 |--------|--------------------|---------|-----------------------|
 | PLT-01 | Stderr suppression | Covered | `src/git.ts:25-26`    |
+
+## Update Notification
+
+| ID     | Description              | Status  | Location                       |
+|--------|--------------------------|---------|--------------------------------|
+| UPD-01 | Deferred update notice   | Covered | `src/update-check.ts:48-57`    |
+| UPD-02 | Throttled background check | Covered | `src/update-check.ts:59-69`, `src/update-worker.ts` |
+| UPD-03 | Suppression conditions   | Covered | `src/update-check.ts:27-36`    |
+| UPD-04 | Cache location           | Covered | `src/update-check.ts:10-13`    |

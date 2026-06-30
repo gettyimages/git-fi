@@ -14,7 +14,9 @@ git-fi is a git subcommand: once the `git-fi` binary is on your `PATH`, invoke i
 npm install -g @gettyimages/git-fi
 ```
 
-Or run it without installing:
+This puts `git-fi` on your `PATH`, which is what makes the `git fi` subcommand work. Upgrade the same way — re-running it installs the latest published version.
+
+To preview without installing — note this runs as `npx @gettyimages/git-fi`, **not** `git fi`:
 
 ```bash
 npx @gettyimages/git-fi --help

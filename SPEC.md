@@ -456,8 +456,10 @@ These are standard [GitLab predefined variables](https://docs.gitlab.com/ci/vari
 | Variable | Purpose |
 |----------|---------|
 | `GITLAB_ACCESS_TOKEN` | When set (and non-empty), enables GitLab CI status display in `list`. If set to an empty string, abort with a clear error. |
-| `GIT_FI_NO_HINTS` | When set, suppresses the hint about `GITLAB_ACCESS_TOKEN` |
+| `GIT_FI_NO_HINTS` | When set, suppresses the hint about `GITLAB_ACCESS_TOKEN` and the update notice (`UPD-03`) |
+| `NO_UPDATE_NOTIFIER` | When set, suppresses the update notice (`UPD-03`) |
 | `NO_COLOR` | When set, disables all color output ([no-color.org](https://no-color.org)) |
+| `XDG_CACHE_HOME` | Base directory for the update-check cache (`UPD-04`); defaults to `~/.cache` |
 
 ## JSON Output
 
@@ -486,3 +488,12 @@ These are standard [GitLab predefined variables](https://docs.gitlab.com/ci/vari
 ## Platform Compatibility
 
 - `PLT-01` git-fi shall suppress stderr from git commands. When `--debug` is set or `show_errors` is explicitly requested, git-fi shall allow stderr output.
+
+## Update Notification
+
+git-fi notifies the user when a newer version has been published to npm, without ever blocking or delaying a command.
+
+- `UPD-01` When a newer published version than the running one is known from the cache, git-fi shall print a one-line update notice to stderr on a successful run (exit code `0`), naming the current and latest versions and the `npm install -g` upgrade command.
+- `UPD-02` git-fi shall refresh the cached latest version in a detached background process, throttled to at most once per 24 hours via the cache's `checkedAt` timestamp. The check shall be best-effort: a registry error, timeout, or spawn failure leaves the cache untouched and never surfaces or delays the command.
+- `UPD-03` git-fi shall suppress both the notice and the background check when stdout is not a TTY, when `$CI` is set, when `--json` or `--bare` is used, or when `$GIT_FI_NO_HINTS` or `$NO_UPDATE_NOTIFIER` is set.
+- `UPD-04` The cache shall live at `$XDG_CACHE_HOME/git-fi/update-check.json`, falling back to `~/.cache/git-fi/update-check.json`.

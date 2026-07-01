@@ -56,7 +56,13 @@ export function gitExitCode(args: string[], gitOpts: GitOpts = {}): number {
 
 export function preflightChecks(opts: Options): void {
   if (!existsSync(".git")) {
-    abort("No .git directory found.", opts);
+    const s = makeStyle(opts);
+    const url = "https://gettyimages.github.io/git-fi/#/";
+    process.stderr.write(`${s.redBold("No .git directory found.")}\n`);
+    process.stderr.write(
+      `${s.dim("git fi runs inside a git repository — see")} ${s.link(url, url)}\n`
+    );
+    process.exit(1);
   }
 
   const verStr = git(["--version"]) ?? "";

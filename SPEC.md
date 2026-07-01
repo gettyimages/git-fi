@@ -18,7 +18,7 @@ git-fi is invoked as a git subcommand. It must be run from the repository root (
 
 Before any command executes, git-fi runs the following pre-flight checks:
 
-1. `PF-01` If no `.git` directory exists in the current working directory, then git-fi shall abort with: `No .git directory found.`
+1. `PF-01` If no `.git` directory exists in the current working directory, then git-fi shall abort with `No .git directory found.` followed by a line pointing to the documentation site (`https://gettyimages.github.io/git-fi/#/`) for newcomers.
 2. `PF-02` If the git version is below 2.50.0, then git-fi shall abort with: `git version X is too old, please upgrade to at least 2.50.0.`
 3. `PF-03` If `git config push.default` is `upstream` or `tracking`, then git-fi shall abort with: `Your default git push config is set to a hazardous option.`
 4. `PF-04` git-fi shall run `git fetch --quiet --prune origin` once per invocation, memoizing to avoid redundant fetches.

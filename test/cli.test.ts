@@ -34,10 +34,11 @@ describe("argument handling (no repo required)", () => {
     assert.match(r.stdout, /Usage: git fi/);
   });
 
-  test("aborts outside a git repository", () => {
+  test("aborts outside a git repository and points to the docs", () => {
     const r = runFi([], dir);
     assert.equal(r.status, 1);
     assert.match(r.stderr, /No \.git directory found\./);
+    assert.match(r.stderr, /gettyimages\.github\.io\/git-fi/);
   });
 
   test("unknown option aborts", () => {

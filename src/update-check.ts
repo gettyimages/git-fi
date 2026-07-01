@@ -59,8 +59,7 @@ export function notifyUpdate(name: string, current: string, opts: Options): void
 
   if (latest && isNewer(latest, current)) {
     const s = makeStyle(opts);
-    process.on("exit", (code) => {
-      if (code !== 0) return;
+    process.on("exit", () => {
       process.stderr.write(
         `\n${s.yellow("Update available")} ${s.dim(current)} → ${s.greenBold(latest!)}\n` +
           `Run ${s.bold(`npm install -g ${name}`)} to update.\n`

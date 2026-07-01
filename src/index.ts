@@ -149,8 +149,10 @@ async function main() {
   const argv = process.argv.slice(2);
   const { opts, action, branches, filterPattern } = parseArgs(argv);
 
-  preflightChecks(opts);
+  // Before preflight: an update notice should surface even when the command
+  // aborts (wrong directory, no fi branch, etc.), not only on a clean run.
   notifyUpdate(name, version, opts);
+  preflightChecks(opts);
 
   if (action !== "list") {
     await ensureFetched(opts);

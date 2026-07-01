@@ -493,7 +493,7 @@ These are standard [GitLab predefined variables](https://docs.gitlab.com/ci/vari
 
 git-fi notifies the user when a newer version has been published to npm, without ever blocking or delaying a command.
 
-- `UPD-01` When a newer published version than the running one is known from the cache, git-fi shall print a one-line update notice to stderr on a successful run (exit code `0`), naming the current and latest versions and the `npm install -g` upgrade command.
+- `UPD-01` When a newer published version than the running one is known from the cache, git-fi shall print a one-line update notice to stderr as it exits — regardless of exit code, and even when a pre-flight check aborts the command — naming the current and latest versions and the `npm install -g` upgrade command. The check runs before the pre-flight checks so a wrong-directory or other early abort still surfaces it.
 - `UPD-02` git-fi shall refresh the cached latest version in a detached background process, throttled to at most once per 24 hours via the cache's `checkedAt` timestamp. The check shall be best-effort: a registry error, timeout, or spawn failure leaves the cache untouched and never surfaces or delays the command.
 - `UPD-03` git-fi shall suppress both the notice and the background check when stdout is not a TTY, when `$CI` is set, when `--json` or `--bare` is used, or when `$GIT_FI_NO_HINTS` or `$NO_UPDATE_NOTIFIER` is set.
 - `UPD-04` The cache shall live at `$XDG_CACHE_HOME/git-fi/update-check.json`, falling back to `~/.cache/git-fi/update-check.json`.

@@ -2,49 +2,37 @@
 
 A git plugin that maintains a temporary integration branch named `fi`. Merge multiple in-progress feature branches together to detect conflicts early and test features in collaboration — before they land on `main`.
 
-**[Documentation](https://gettyimages.github.io/git-fi/)** | **[Specification](SPEC.md)**
+**[Documentation & install](https://gettyimages.github.io/git-fi/#/quickstart)** | **[Specification](SPEC.md)**
 
-## Install
+This README is for working on git-fi itself. To install and use it, see the [documentation site](https://gettyimages.github.io/git-fi/#/quickstart).
 
-git-fi is a git subcommand: once the `git-fi` binary is on your `PATH`, invoke it as `git fi`. Requires Node.js >= 18 and git >= 2.50.0.
+## Local development
 
-### From npm
-
-```bash
-npm install -g @gettyimages/git-fi
-```
-
-This puts `git-fi` on your `PATH`, which is what makes the `git fi` subcommand work. Upgrade the same way — re-running it installs the latest published version.
-
-To preview without installing — note this runs as `npx @gettyimages/git-fi`, **not** `git fi`:
-
-```bash
-npx @gettyimages/git-fi --help
-```
-
-### From source
+Requires Node.js >= 18 and git >= 2.50.0.
 
 ```bash
 git clone https://github.com/gettyimages/git-fi.git
 cd git-fi
-npm install -g .   # or: yarn global add file:.
+npm install                 # dev dependencies (tsx, typescript)
 ```
 
-The `prepare` script compiles TypeScript on install, so `git fi` is ready right after.
-
-### Upgrading from an older git-fi
-
-`git fi` runs whichever `git-fi` comes first on your `PATH`. An older install — such as the legacy Ruby gem — can shadow a freshly installed npm version. Run `which -a git-fi`; if more than one path is listed, remove the older one (e.g. `gem uninstall git-fi`) so `git fi` resolves to the version you intend.
-
-## Development
+Day-to-day, git-fi runs straight from source — no global install needed:
 
 ```bash
-npm start -- -a my-branch   # run from source via tsx
+npm start -- --help         # run src/ directly via tsx
 npm run build               # compile TypeScript to dist/
 npm test                    # build, then run the integration suite
 ```
 
-The test suite drives the compiled binary against throwaway git repositories (a bare `origin` plus a working clone), so it exercises real `git fetch`/`merge`/`push` behavior end-to-end.
+`npm test` is the primary feedback loop: it drives the compiled binary against throwaway git repositories (a bare `origin` plus a working clone), exercising real `git fetch`/`merge`/`push` behavior end-to-end.
+
+To try your local build as the `git fi` subcommand in another repository, install the checkout globally:
+
+```bash
+npm install -g .            # puts your build on PATH as `git fi`
+```
+
+The published package — `npm install -g @gettyimages/git-fi`, documented on the [docs site](https://gettyimages.github.io/git-fi/#/quickstart) — is the official install for end users. Reach for it here mainly to test the distribution itself; local development runs from source.
 
 The implementation follows [SPEC.md](SPEC.md), which defines every requirement with a unique ID and includes mermaid diagrams for the major flows.
 
@@ -52,7 +40,9 @@ The implementation follows [SPEC.md](SPEC.md), which defines every requirement w
 
 ```text
 SPEC.md        Behavioral specification
+STATUS.md      Requirement coverage
 src/           TypeScript implementation
+test/          Integration suite (Node test runner)
 docs/          Docsify documentation site
 ```
 

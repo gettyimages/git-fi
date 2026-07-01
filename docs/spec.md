@@ -1,1 +1,1 @@
-[SPEC.md](../SPEC.md ':include')
+[SPEC.md](spec-body.md ':include')

@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" role="img" aria-label="git-fi: many strands of in-progress work converging and focusing into a single point of integration.">
+  <defs>
+    <radialGradient id="gf-halo" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1030 150) scale(360)">
+      <stop offset="0" stop-color="#E8A862" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#E8A862" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="gf-strand" x1="440" y1="0" x2="1030" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#E8A862" stop-opacity="0.04"/>
+      <stop offset="0.65" stop-color="#E8A862" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#F4C893" stop-opacity="0.95"/>
+    </linearGradient>
+    <filter id="gf-glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="gf-grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="420" fill="#16130F"/>
+  <rect width="1200" height="420" fill="url(#gf-halo)"/>
+
+  <!-- brand block -->
+  <text x="76" y="214" fill="#FBF7EF" font-family="'Fraunces',Georgia,serif" font-size="82" font-weight="600" letter-spacing="-1">git-fi</text>
+  <path d="M80 236 H200" stroke="#E8A862" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- convergence field: strands of work focusing to a single point of integration -->
+  <g fill="none" stroke="url(#gf-strand)" stroke-linecap="round">
+    <path d="M440 100 C610 100 880 140 1030 150" stroke-width="1.4"/>
+    <path d="M440 126 C610 126 880 145 1030 150" stroke-width="1.8"/>
+    <path d="M440 152 C610 152 880 150 1030 150" stroke-width="1.4"/>
+    <path d="M440 178 C610 178 880 156 1030 150" stroke-width="2.3"/>
+    <path d="M440 204 C610 204 880 161 1030 150" stroke-width="1.5"/>
+    <path d="M440 230 C610 230 880 166 1030 150" stroke-width="1.9"/>
+    <path d="M440 256 C610 256 880 171 1030 150" stroke-width="1.4"/>
+    <path d="M440 282 C610 282 880 176 1030 150" stroke-width="2.2"/>
+    <path d="M440 308 C610 308 880 182 1030 150" stroke-width="1.5"/>
+    <path d="M440 334 C610 334 880 187 1030 150" stroke-width="1.7"/>
+    <path d="M440 360 C610 360 880 192 1030 150" stroke-width="1.3"/>
+  </g>
+
+  <!-- point of integration -->
+  <circle cx="1030" cy="150" r="26" fill="none" stroke="#E8A862" stroke-width="1.2" opacity="0.35"/>
+  <circle cx="1030" cy="150" r="12" fill="#F4C893" filter="url(#gf-glow)"/>
+
+  <rect width="1200" height="420" filter="url(#gf-grain)" opacity="0.07"/>
+</svg>

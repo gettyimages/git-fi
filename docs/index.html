@@ -6,45 +6,216 @@
   <meta name="description" content="A git plugin that maintains a temporary integration branch for early conflict detection">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
   <meta http-equiv="content-language" content="en">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Hanken+Grotesk:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dracula-prism@2/css/dracula-prism.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsify-themeable@0/dist/css/theme-simple-dark.min.css">
   <style>
+    /*
+     * "Darkroom" theme — editorial photographic monochrome with a safelight-amber
+     * accent. All foreground/background pairs verified for WCAG 2.1 AA (>= 4.5:1
+     * for text, >= 3:1 for UI). The prior purple accent (#6F43D6) failed at ~3.1:1.
+     */
     :root {
-      --sidebar-width: 280px;
-      --base-background-color: #121212;
-      --base-color: #F0F0F0;
-      --sidebar-background: #0D0D0D;
-      --sidebar-nav-link-color--active: #6F43D6;
-      --sidebar-nav-link-border-color--active: #6F43D6;
-      --sidebar-name-color: #FFFFFF;
-      --link-color: #6F43D6;
-      --link-color--hover: #8B6AE0;
-      --heading-color: #FFFFFF;
-      --blockquote-border-color: #3A3A3A;
-      --code-inline-background: #1E1E1E;
-      --code-inline-color: #E0D4FF;
-      --code-theme-background: #1A1A1A;
-      --search-input-border-color: #3A3A3A;
-      --search-result-keyword-color: #6F43D6;
-      --notice-tip-border-color: #6F43D6;
-      --notice-important-border-color: #FF5252;
-      --table-row-even-background: #1A1A1A;
+      color-scheme: dark;
+
+      --gf-canvas: #16130F;
+      --gf-sidebar: #100D0A;
+      --gf-elevated: #1C1812;
+      --gf-text: #ECE6DB;
+      --gf-heading: #FBF7EF;
+      --gf-muted: #B6AC9C;
+      --gf-accent: #E8A862;
+      --gf-accent-hover: #F4C893;
+      --gf-divider: #2A241C;
+      --gf-border: #8C7E68;
+
+      --copy-btn-bg: rgba(236, 230, 219, 0.08);
+      --copy-btn-bg-hover: rgba(236, 230, 219, 0.16);
+      --copy-btn-fg: #B6AC9C;
+      --copy-btn-success-bg: rgba(232, 168, 98, 0.18);
+      --copy-btn-success-fg: #F4C893;
+      --icon-clipboard: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='9' y='9' width='13' height='13' rx='2'/%3E%3Cpath d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/%3E%3C/svg%3E");
+      --icon-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
+
+      --base-font-family: 'Hanken Grotesk', system-ui, -apple-system, sans-serif;
+      --base-font-size: 16.5px;
+      --base-line-height: 1.7;
+      --heading-font-family: 'Fraunces', Georgia, 'Times New Roman', serif;
+      --heading-font-weight: 600;
+      --code-font-family: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+      --code-font-size: 0.86em;
+
+      --sidebar-width: 290px;
+      --base-background-color: var(--gf-canvas);
+      --base-color: var(--gf-text);
+      --sidebar-background: var(--gf-sidebar);
+      --sidebar-nav-link-color: var(--gf-muted);
+      --sidebar-nav-link-color--active: var(--gf-accent);
+      --sidebar-nav-link-border-color--active: var(--gf-accent);
+      --sidebar-nav-link-text-decoration--active: none;
+      --sidebar-name-color: var(--gf-heading);
+      --link-color: var(--gf-accent);
+      --link-color--hover: var(--gf-accent-hover);
+      --heading-color: var(--gf-heading);
+      --blockquote-border-color: var(--gf-accent);
+      --blockquote-color: var(--gf-muted);
+      --code-inline-background: var(--gf-elevated);
+      --code-inline-color: #F0CFA0;
+      --code-theme-background: #0F0D0A;
+      --search-input-border-color: var(--gf-border);
+      --search-result-keyword-color: var(--gf-accent);
+      --notice-tip-border-color: var(--gf-accent);
+      --notice-important-border-color: #F4C893;
+      --table-row-even-background: var(--gf-elevated);
+      --table-cell-border-color: var(--gf-divider);
+      --border-color: var(--gf-divider);
     }
-    sup.footnote-ref {
-      margin-left: 0.15em;
+
+    /* Atmosphere: a faint safelight glow over warm black. Kept low-opacity so
+       body text stays at ~15:1. */
+    body {
+      background:
+        radial-gradient(1100px 460px at 50% -8%, rgba(232, 168, 98, 0.07), transparent 60%),
+        var(--gf-canvas);
     }
-    .markdown-section pre[data-lang="text"]::after {
-      display: none !important;
+
+    /* Editorial heading treatment */
+    .markdown-section h1 {
+      font-family: var(--heading-font-family);
+      font-weight: 700;
+      letter-spacing: -0.015em;
+      font-size: 2.6rem;
     }
-    .mermaid .taskText { fill: #F0F0F0 !important; }
-    .mermaid .taskTextOutsideRight { fill: #F0F0F0 !important; }
-    .mermaid .sectionTitle { fill: #F0F0F0 !important; }
-    .mermaid .titleText { fill: #F0F0F0 !important; }
-    .mermaid .grid .tick text { fill: #3A3A3A !important; }
+    .markdown-section h2 { letter-spacing: -0.01em; }
+    .app-name-link {
+      font-family: var(--heading-font-family) !important;
+      font-weight: 700 !important;
+      letter-spacing: -0.01em;
+    }
+
+    /* Warm code surfaces (dracula tokens on a darkroom-matched background) */
+    .markdown-section pre,
+    .markdown-section pre > code,
+    .markdown-section code[class*="language-"],
+    .markdown-section pre[class*="language-"] {
+      background: #0F0D0A !important;
+      font-family: var(--code-font-family);
+    }
+    .markdown-section pre { border: 1px solid var(--gf-divider); border-radius: 10px; }
+
+    /* The hero banner on the home page */
+    .gf-hero {
+      display: block;
+      width: 100%;
+      height: auto;
+      border: 1px solid var(--gf-divider);
+      border-radius: 14px;
+      margin: 0.5rem 0 2.75rem;
+      box-shadow: 0 24px 60px -28px rgba(0, 0, 0, 0.8);
+    }
+
+    /* Visible focus ring (keyboard accessibility, >= 3:1) */
+    a:focus-visible,
+    .sidebar-nav a:focus-visible,
+    button:focus-visible,
+    input:focus-visible {
+      outline: 2px solid var(--gf-accent);
+      outline-offset: 2px;
+      border-radius: 3px;
+    }
+
+    sup.footnote-ref { margin-left: 0.15em; }
+
+    /* Hide docsify-themeable's language label — the copy button owns the corner */
+    .markdown-section pre[data-lang]::after { display: none !important; }
+
+    /* Copy button: restyle the plugin's text label into a clipboard glyph that
+       flips to a green-amber check on copy (ported from the docsify skill's
+       canonical template). Scoped under .markdown-section to outrank the plugin. */
+    .markdown-section .docsify-copy-code-button {
+      top: 8px;
+      right: 8px;
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      background: var(--copy-btn-bg);
+      opacity: 0;
+      transition: opacity 0.2s ease, background 0.2s ease;
+    }
+    .markdown-section pre:hover .docsify-copy-code-button,
+    .markdown-section .docsify-copy-code-button:focus { opacity: 1; }
+    .markdown-section .docsify-copy-code-button:hover { background: var(--copy-btn-bg-hover); }
+    .markdown-section .docsify-copy-code-button span { display: none; }
+    .markdown-section .docsify-copy-code-button::after {
+      content: "";
+      width: 15px;
+      height: 15px;
+      background-color: var(--copy-btn-fg);
+      -webkit-mask: var(--icon-clipboard) center / contain no-repeat;
+              mask: var(--icon-clipboard) center / contain no-repeat;
+      transition: background-color 0.2s ease;
+    }
+    .markdown-section .docsify-copy-code-button.success {
+      opacity: 1;
+      background: var(--copy-btn-success-bg);
+    }
+    .markdown-section .docsify-copy-code-button.success::after {
+      background-color: var(--copy-btn-success-fg);
+      -webkit-mask-image: var(--icon-check);
+              mask-image: var(--icon-check);
+    }
+
+    /* Alignment: keep tables and diagrams flush-left with the prose so the
+       reading column doesn't jump left/center/left while scrolling. */
+    .markdown-section table { display: table; width: auto; margin-left: 0; margin-right: auto; }
+    .markdown-section .mermaid { text-align: left; }
+    .markdown-section .mermaid svg { margin-left: 0 !important; margin-right: auto !important; max-width: 100% !important; height: auto !important; }
+
+    /* Search: the default match highlight is amber text on a yellow fill
+       (unreadable). Use dark text on the amber accent instead. */
+    .search .matching-post .search-keyword,
+    .search .search-keyword {
+      color: #16130F !important;
+      background: var(--gf-accent) !important;
+      padding: 0 3px;
+      border-radius: 3px;
+      font-style: normal;
+    }
+    /* Seat the clear (x) button inside the input's right edge instead of
+       letting it sit as a static block past the input, and restyle its icon. */
+    .search .input-wrap { position: relative; }
+    .search .clear-button {
+      position: absolute;
+      top: 50%;
+      right: 8px;
+      transform: translateY(-50%);
+      width: auto;
+      height: auto;
+      padding: 0;
+      margin: 0;
+      cursor: pointer;
+    }
+    .search input { padding-right: 34px; }
+    .search .clear-button svg circle { fill: transparent !important; }
+    .search .clear-button svg path { stroke: var(--gf-muted) !important; }
+    .search .clear-button:hover svg path { stroke: var(--gf-accent) !important; }
+
+    /* Mermaid: warm-paper text on the darkroom canvas */
+    .mermaid .taskText,
+    .mermaid .taskTextOutsideRight,
+    .mermaid .sectionTitle,
+    .mermaid .titleText { fill: #ECE6DB !important; }
+    .mermaid .grid .tick text { fill: #322B22 !important; }
+
     @media screen and (min-width: 768px) {
-      .sidebar-toggle {
-        display: none;
-      }
+      .sidebar-toggle { display: none; }
     }
   </style>
 </head>
@@ -53,7 +224,9 @@
   <script>
     window.$docsify = {
       name: 'git-fi',
-      nameLink: '/',
+      // nameLink is intentionally omitted: Docsify defaults it to
+      // location.pathname, which is the correct base on a project Pages
+      // subpath (/git-fi/). An explicit '/' pointed at the domain root and 404'd.
       repo: 'https://github.com/gettyimages/git-fi',
       loadSidebar: true,
       subMaxLevel: 2,
@@ -70,7 +243,9 @@
       },
       mermaidConfig: {
         querySelector: '.mermaid',
-        theme: 'dark'
+        theme: 'dark',
+        flowchart: { useMaxWidth: false },
+        gitGraph: { useMaxWidth: false }
       }
     }
   </script>
@@ -89,7 +264,9 @@
     mermaid.initialize({
       startOnLoad: false,
       theme: 'dark',
-      look: 'handDrawn'
+      look: 'handDrawn',
+      flowchart: { useMaxWidth: false },
+      gitGraph: { useMaxWidth: false }
     });
   </script>
   <script src="https://cdn.jsdelivr.net/npm/docsify-mermaid@2/dist/docsify-mermaid.js"></script>

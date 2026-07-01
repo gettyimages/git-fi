@@ -23,6 +23,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # The spec lives at the repo root (spec-driven tooling looks for it there);
+      # copy it into docs/ so the :include in spec.md resolves on the deployed site.
+      - name: Copy spec into docs
+        run: cp SPEC.md docs/spec-body.md
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -1,6 +1,24 @@
 # Quick Start
 
-See the [README](https://github.com/gettyimages/git-fi#install) for installation instructions.
+## Install
+
+git-fi is a git subcommand: once the `git-fi` binary is on your `PATH`, invoke it as `git fi`. Requires Node.js >= 18 and git >= 2.50.0.
+
+```bash
+npm install -g @gettyimages/git-fi
+```
+
+This puts `git-fi` on your `PATH`, which is what makes the `git fi` subcommand work. Upgrade the same way — re-running it installs the latest published version. To preview without installing (this runs as `npx @gettyimages/git-fi`, **not** `git fi`):
+
+```bash
+npx @gettyimages/git-fi --help
+```
+
+### Upgrading from an older git-fi
+
+`git fi` runs whichever `git-fi` comes first on your `PATH`. An older install — such as the legacy Ruby gem — can shadow a freshly installed npm version. Run `which -a git-fi`; if more than one path is listed, remove the older one (e.g. `gem uninstall git-fi`) so `git fi` resolves to the version you intend.
+
+> Working on git-fi itself? The [README](https://github.com/gettyimages/git-fi#readme) covers running from source.
 
 ## Your First Integration
 

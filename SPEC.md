@@ -1,4 +1,4 @@
-# git-fi Specification (DRAFT)
+# git-fi Specification
 
 ## Overview
 

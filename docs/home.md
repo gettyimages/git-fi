@@ -1,3 +1,5 @@
+<img class="gf-hero" src="hero.svg" alt="git-fi: feature branches curving into a single fi integration branch, where conflicts surface early before reaching main.">
+
 # git-fi
 
 A git plugin that maintains a temporary integration branch named `fi`. Merge multiple in-progress feature branches together to detect conflicts early and test features in collaboration — before they land on `main`.
@@ -87,7 +89,7 @@ flowchart TD
   traditional ~~~ gitfi
   style T6 fill:#5c1a1a,stroke:#FF5252,stroke-width:2px,color:#FF5252
   style F4 fill:#4a2800,stroke:#FF9800,stroke-width:2px,color:#FF9800
-  style gitfi fill:#1a1a2e,stroke:#6F43D6,stroke-width:2px
+  style gitfi fill:#1C1812,stroke:#E8A862,stroke-width:2px
 ```
 
 With [traditional CI](https://martinfowler.com/articles/continuousIntegration.html), integration issues surface after merging to `main`. With git-fi, they surface before — while the work is still in progress and easier to fix.
@@ -106,20 +108,24 @@ With [traditional CI](https://martinfowler.com/articles/continuousIntegration.ht
 
 ```mermaid
 %%{ init: { 'look': 'handDrawn' } }%%
-flowchart LR
-  subgraph "Merge Train"
+flowchart TB
+  subgraph mt["Merge Trains — serialize ready PRs into main"]
     direction LR
-    D1[Develop] --> R1[PR Ready]
-    R1 --> Q1[Enter Queue]
-    Q1 --> T1[Test in queue]
-    T1 --> C1{Conflict found}
+    ta["PR A"] -->|"test A"| tb["PR B"] -->|"test A + B"| tc["PR C"] -->|"test A + B + C"| tm["main"]
   end
-  subgraph "git-fi"
+  subgraph gf["git-fi — merge in-flight work into a throwaway branch"]
     direction LR
-    D2[Develop] --> A2[Add to fi]
-    A2 --> T2[Test in fi]
-    T2 --> C2{Conflict found}
+    ga["wip: auth"] --> hub(("fi"))
+    gb["wip: search"] --> hub
+    gc["wip: api"] --> hub
+    hub -->|"conflicts surface early"| gx["discarded"]
+    gm["main — untouched"]
   end
+  mt ~~~ gf
+  style tm fill:#1C1812,stroke:#B6AC9C,stroke-width:2px,color:#ECE6DB
+  style hub fill:#1C1812,stroke:#E8A862,stroke-width:2px,color:#F4C893
+  style gx fill:#16130F,stroke:#2A241C,color:#7C7264
+  style gm fill:#16130F,stroke:#2A241C,color:#7C7264
 ```
 
 A PR passes all checks on its own branch. Another PR merges to `main`. The first PR now has an integration bug that only appears when both changes coexist. Merge trains catch this at merge time; git-fi catches it during development. They are complementary — git-fi for early feedback, merge trains for safe landing.
@@ -133,6 +139,7 @@ Tools like [Graphite](https://graphite.com/guides/stacked-diffs), [ghstack](http
 | **Relationship** | Linear dependency chain | Independent branches |
 | **Conflict model** | Each PR against its parent | All branches merged together |
 | **Use case** | Large features split into reviewable chunks | Multiple independent features tested together |
+| **Dropping a change** | Revert ripples up the stack — rebase everything above | `git fi -r branch` — nothing else moves |
 
 **Stacked PRs:**
 
@@ -170,6 +177,8 @@ gitGraph
   checkout fi
   merge feature-c
 ```
+
+Because a stack is a dependency chain, reverting or dropping a lower change — a bug, a descoped or cancelled feature — ripples upward: every PR above it has to be rebased or reworked. git-fi branches are independent, so dropping one is `git fi -r <branch>` and the rest are untouched.
 
 Stacked PRs solve "this PR is too big." git-fi solves "these PRs don't know about each other."
 

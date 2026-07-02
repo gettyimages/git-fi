@@ -12,12 +12,20 @@ import {
   ensureFetched,
   defaultBranch,
   currentBranchName,
-  detectCommitFormat,
   isInteractive,
   type CommitFormat,
 } from "./git.js";
 import { confirm } from "./ui.js";
 import { detectGitlabProject } from "./gitlab.js";
+
+// Commit-message format written when bootstrapping a brand-new fi branch (no
+// The format git-fi writes for *every* fi commit during the migration rollout
+// — bootstrap, empty, or existing alike (BL-04); an existing fi branch's format
+// is not preserved. git-fi still *reads* both the preferred terse format
+// (BL-01) and the legacy git-merge format (BL-03) regardless of this setting.
+// It stays "legacy" so downstream consumers that parse the fi commit message
+// keep working; scheduled to switch to "terse" after the rollout (~2026-09).
+const DEFAULT_WRITE_FORMAT: CommitFormat = "legacy";
 
 function buildLegacyMessage(branches: string[]): string {
   const shortNames = branches.map((b) => b.replace(/^origin\//, ""));
@@ -32,7 +40,7 @@ function buildLegacyMessage(branches: string[]): string {
   return `Merge remote-tracking branches ${quoted.join(", ")} and ${last} into fi`;
 }
 
-function buildBriefSignature(branches: string[], defBranch: string): string {
+function buildTerseSignature(branches: string[], defBranch: string): string {
   const baseHash = git(["rev-parse", "--short", `origin/${defBranch}`])!;
   const shortNames = branches.map((b) => b.replace(/^origin\//, ""));
   if (shortNames.length === 0) return `@[${baseHash}]`;
@@ -52,13 +60,13 @@ function buildCommitMessage(
       "";
     const signature = format === "legacy"
       ? buildLegacyMessage(branches)
-      : buildBriefSignature(branches, defBranch);
+      : buildTerseSignature(branches, defBranch);
     const preamble = `Re-merge fi branch triggered by build ${pipelineId} due to commit on ${refName}. Was originally: --- ${previousMsg.trim()}`;
     return `${preamble}\n\n${signature}`;
   }
 
   if (format === "legacy") return buildLegacyMessage(branches);
-  return buildBriefSignature(branches, defBranch);
+  return buildTerseSignature(branches, defBranch);
 }
 
 const ACTION_INITIAL: Record<string, string> = {
@@ -115,15 +123,12 @@ export async function mergeProcess(
     allowFailure: true,
   });
 
-  let commitFormat: CommitFormat = "brief";
-  if (fiExistsAfterFetch !== null) {
-    const existingMsg = git(["log", "-1", "--format=%B", "origin/fi"], {
-      allowFailure: true,
-    });
-    if (existingMsg) {
-      commitFormat = detectCommitFormat(existingMsg);
-    }
-  }
+  // During the rollout git-fi always writes the legacy format — bootstrap,
+  // empty, or existing fi alike (BL-04). Reading still accepts both formats
+  // (parseBranchList), so terse branches written by other versions are
+  // understood; only the *written* format is pinned. Flip DEFAULT_WRITE_FORMAT
+  // to switch everything to terse once downstream consumers are ready.
+  const commitFormat: CommitFormat = DEFAULT_WRITE_FORMAT;
 
   if (fiExistsAfterFetch === null && !opts.yes) {
     if (!isInteractive(opts)) {

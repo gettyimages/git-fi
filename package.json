@@ -1,20 +1,24 @@
 {
   "name": "@gettyimages/git-fi",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Git plugin that maintains a temporary integration branch for early conflict detection",
   "type": "module",
   "bin": {
     "git-fi": "./dist/index.js"
   },
+  "man": "./man/git-fi.1",
   "scripts": {
     "start": "tsx src/index.ts",
-    "build": "tsc",
+    "gen:docs": "node --import tsx scripts/gen-docs.ts",
+    "build": "tsc && npm run gen:docs",
     "prepare": "tsc",
     "test": "tsc && node --import tsx --test test/*.test.ts",
     "prepublishOnly": "npm test"
   },
   "files": [
-    "dist"
+    "dist",
+    "man",
+    "completions"
   ],
   "publishConfig": {
     "access": "public"

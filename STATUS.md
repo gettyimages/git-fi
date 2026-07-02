@@ -2,14 +2,14 @@
 
 Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 
-**Last updated:** 2026-06-30
+**Last updated:** 2026-07-02
 
 ## Summary
 
 | Status  | Count |
 |---------|-------|
-| Covered | 67    |
-| Total   | 67    |
+| Covered | 95    |
+| Total   | 95    |
 
 ## Pre-flight Checks
 
@@ -18,7 +18,8 @@ Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 | PF-01 | Repository root            | Covered | `src/git.ts:58-59`        |
 | PF-02 | Git version                | Covered | `src/git.ts:62-73`        |
 | PF-03 | Push config                | Covered | `src/git.ts:75-81`        |
-| PF-04 | Fetch                      | Covered | `src/git.ts:84-95`        |
+| PF-04 | Fetch                      | Covered | `src/git.ts:90-108`       |
+| PF-05 | `GIT_FI_NO_FETCH` skips fetch | Covered | `src/git.ts:92-98`     |
 
 ## Global Options
 
@@ -28,10 +29,26 @@ Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 | OPT-02 | `--bare`    | Covered | `src/index.ts:28-30`   |
 | OPT-03 | `--json`    | Covered | `src/index.ts:32-34`   |
 | OPT-04 | `--select`  | Covered | `src/index.ts:36-38`   |
-| OPT-05 | `--version` | Covered | `src/index.ts:40-43`   |
-| OPT-06 | `--help`    | Covered | `src/index.ts:44-73`   |
-| OPT-07 | `--bare` list-only | Covered | `src/index.ts:138-139` |
-| OPT-08 | `--yes`     | Covered | `src/index.ts:41-43`   |
+| OPT-05 | `--version` | Covered | `src/index.ts:47-50`   |
+| OPT-06 | `--help`    | Covered | `src/index.ts:51-54`, `src/help.ts:46-77` |
+| OPT-07 | `--bare` list-only | Covered | `src/index.ts:126-127` |
+| OPT-08 | `--yes`     | Covered | `src/index.ts:43-46`   |
+
+## Help & Documentation
+
+| ID     | Description          | Status  | Location                  |
+|--------|----------------------|---------|---------------------------|
+| HLP-01 | `help` subcommand    | Covered | `src/index.ts:86-91`      |
+| HLP-02 | Man page             | Covered | `man/git-fi.1` (generated), `package.json:9`, `scripts/gen-docs.ts:33-50` |
+
+## Shell Completion
+
+| ID     | Description                 | Status  | Location                  |
+|--------|-----------------------------|---------|---------------------------|
+| CMP-01 | bash + zsh completion       | Covered | `scripts/completion/git-fi.bash.tmpl`, `scripts/completion/git-fi.zsh.tmpl` |
+| CMP-02 | Action-aware branch offering| Covered | `scripts/completion/git-fi.bash.tmpl:9-42`, `scripts/completion/git-fi.zsh.tmpl:21-51` |
+| CMP-03 | Offline membership          | Covered | `scripts/completion/git-fi.bash.tmpl:16-18`, `src/git.ts:92-98` |
+| CMP-04 | `install-completions` subcommand | Covered | `src/install-completions.ts`, `src/index.ts:102-113` |
 
 ## Terminal Output
 
@@ -60,7 +77,7 @@ Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 
 | ID    | Description          | Status  | Location                  |
 |-------|----------------------|---------|---------------------------|
-| LS-01 | Precondition check   | Covered | `src/commands.ts:36-41`   |
+| LS-01 | Precondition check + bootstrap hint | Covered | `src/commands.ts:36-49` |
 | LS-02 | Bare mode            | Covered | `src/commands.ts:59-61`   |
 | LS-03 | Normal mode / CI     | Covered | `src/commands.ts:83-105`  |
 | LS-04 | Hint suppression     | Covered | `src/commands.ts:109-118` |
@@ -74,8 +91,8 @@ Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 |--------|-----------------------------|---------|---------------------------|
 | SEL-01 | `--select` with `--add`     | Covered | `src/commands.ts:129-153` |
 | SEL-02 | `--select` with `--remove`  | Covered | `src/commands.ts:170-198` |
-| SEL-03 | TTY requirement             | Covered | `src/index.ts:126-127`    |
-| SEL-04 | Invalid combinations        | Covered | `src/index.ts:122-123`    |
+| SEL-03 | TTY requirement             | Covered | `src/index.ts:118-119`    |
+| SEL-04 | Invalid combinations        | Covered | `src/index.ts:114-115`    |
 | SEL-05 | Empty selection exits       | Covered | `src/commands.ts:146-148` |
 | SEL-06 | Standalone unified picker   | Covered | `src/commands.ts:276-323` |
 
@@ -121,9 +138,10 @@ Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 
 | ID    | Description           | Status  | Location                |
 |-------|-----------------------|---------|-------------------------|
-| BL-01 | Brief format          | Covered | `src/merge.ts:34-39`    |
-| BL-02 | Parsing               | Covered | `src/git.ts:121-148`    |
-| BL-03 | Legacy format         | Covered | `src/git.ts:116-119`    |
+| BL-01 | Preferred (terse) format | Covered | `src/merge.ts:43-48`  |
+| BL-02 | Parsing (reads both)  | Covered | `src/git.ts:139-166`    |
+| BL-03 | Legacy format + read detection | Covered | `src/git.ts:130-137` |
+| BL-04 | Write format pinned to legacy for rollout | Covered | `src/merge.ts:28`, `src/merge.ts:127-131` |
 
 ## Formatting
 
@@ -147,7 +165,7 @@ Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 
 | ID    | Description           | Status  | Location                  |
 |-------|-----------------------|---------|---------------------------|
-| JS-01 | JSON only for list    | Covered | `src/index.ts:130-131`    |
+| JS-01 | JSON only for list    | Covered | `src/index.ts:122-123`    |
 | JS-02 | JSON to stdout        | Covered | `src/commands.ts:64-80`   |
 | JS-03 | CI array conditional  | Covered | `src/commands.ts:69-77`   |
 

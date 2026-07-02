@@ -22,6 +22,7 @@ Before any command executes, git-fi runs the following pre-flight checks:
 2. `PF-02` If the git version is below 2.50.0, then git-fi shall abort with: `git version X is too old, please upgrade to at least 2.50.0.`
 3. `PF-03` If `git config push.default` is `upstream` or `tracking`, then git-fi shall abort with: `Your default git push config is set to a hazardous option.`
 4. `PF-04` git-fi shall run `git fetch --quiet --prune origin` once per invocation, memoizing to avoid redundant fetches.
+5. `PF-05` Where `GIT_FI_NO_FETCH` is set, git-fi shall skip the fetch (`PF-04`) on read-only operations (`list`) and operate on the already-fetched remote-tracking refs. Shell completion sets this so tab-completion stays offline. Mutating operations always fetch regardless, so an integration merge never builds on stale refs. (All environment variables are catalogued in [Environment Variables](#environment-variables).)
 
 ```mermaid
 %%{ init: { 'look': 'handDrawn' } }%%
@@ -49,6 +50,22 @@ flowchart TD
 | `OPT-08` | `--yes`     | `-y`  | Bootstrap `fi` without the confirmation prompt (see `MG-15`); intended for CI and scripts |
 
 `OPT-07` If `--bare` is specified with any action other than `list`, then git-fi shall abort with an error.
+
+## Help & Documentation
+
+`HLP-01` When `help` is given as the sole argument, git-fi shall print the usage summary to stdout and exit 0. (git routes the `--help` flag to `man git-fi`; the bare `help` word and `-h` reach git-fi directly, providing a man-independent path to the summary.)
+
+`HLP-02` git-fi shall ship a man page (`git-fi.1`, declared via the package `man` field) so that `git fi --help` — which git routes to `man git-fi` — displays the manual.
+
+## Shell Completion
+
+`CMP-01` git-fi shall provide shell completion for bash and zsh, discovered by git for the `git fi` subcommand, completing the action/option flags and branch-name arguments.
+
+`CMP-02` When completing a branch argument, git-fi's completion shall offer: for `--add`, origin branches not already in fi; for `--remove`, only branches currently in fi; and otherwise all branches eligible to add (excluding `HEAD`, `fi`, and the default branch).
+
+`CMP-03` git-fi's completion shall determine fi membership without a network fetch (via `GIT_FI_NO_FETCH`, `PF-05`), so completion stays offline and fast.
+
+`CMP-04` git-fi shall provide an `install-completions [bash|zsh]` subcommand that prints the completion script for the given shell — or the shell detected from `$SHELL` — to stdout, for sourcing (e.g. `source <(git fi install-completions bash)`). If no supported shell is given or detected, then git-fi shall abort with usage guidance.
 
 ## Terminal Output
 
@@ -161,7 +178,7 @@ flowchart TD
 
 ### list (default)
 
-`LS-01` If `origin/fi` does not exist, then git-fi shall abort with: `there is no fi branch for this project.`
+`LS-01` If `origin/fi` does not exist, then git-fi shall abort with `there is no fi branch for this project.` followed by a line explaining how to bootstrap it (`git fi --add <branch>`, or `--yes` in CI) and a link to the documentation site.
 
 **Behavior:**
 
@@ -339,7 +356,7 @@ flowchart TD
 
 ### Commit Message
 
-The commit message uses the format `(branch-a, branch-b)@[shorthash]` where `shorthash` is the short hash of the default branch tip. This format is parsed by BL-01 for round-tripping (see [Branch List Storage](#branch-list-storage)).
+git-fi supports two commit-message formats for the fi branch: the **preferred** terse format (`BL-01`) and a **legacy** git-merge format (`BL-03`). git-fi reads and round-trips either one (`BL-02`, `BL-03`); which one it *writes* is governed by `BL-04`. In the terse format, `shorthash` is the short hash of the default branch tip.
 
 **CI mode** — see [CI Integration](#ci-integration) for the commit message format when running in a pipeline.
 
@@ -385,7 +402,7 @@ You can delete these by running:
 
 ## Branch List Storage
 
-`BL-01` git-fi shall store the list of branches merged into fi in the fi branch's commit message using the format `(branch-a, branch-b)@[shorthash]`. When no branches are present, git-fi shall use the format `@[shorthash]`. Branch names shall be stored without the `origin/` prefix.
+`BL-01` The **preferred** commit-message format (**terse**) encodes the branch list in the fi branch's commit message as `(branch-a, branch-b)@[shorthash]`. When no branches are present, the format is `@[shorthash]`. Branch names are stored without the `origin/` prefix. (When git-fi writes this format is governed by `BL-04`.)
 
 `BL-02` When reading the branch list, git-fi shall parse the commit message of `origin/fi` using the regex pattern `\(([^)]+)\)@\[` and split on commas. git-fi shall prepend the `origin/` prefix during parsing and filter out the default branch.
 
@@ -397,7 +414,13 @@ You can delete these by running:
 Merge remote-tracking branches 'origin/86b8nre6n_New_endpoint_to_complete_cko_flow_order', 'origin/Try-fix_get_api_orders_for_company' and 'origin/prorated-sub-checkout-successful' into fi
 ```
 
-When parsing the fi branch's commit message, if this legacy format is detected — a message matching `Merge remote-tracking branch(es) 'origin/<branch>'...into fi` — git-fi shall extract branch names from the quoted `'origin/<name>'` segments and shall continue using the legacy format for subsequent commit messages in the same repository. When the preferred brief format (BL-01) is detected, git-fi shall use that instead. When no `origin/fi` exists (bootstrap), git-fi shall use the preferred brief format.
+When parsing the fi branch's commit message, if this legacy format is detected — a message matching `Merge remote-tracking branch(es) 'origin/<branch>'...into fi` — git-fi shall extract branch names from the quoted `'origin/<name>'` segments. Detection is used only for *reading*; which format git-fi *writes* is defined in `BL-04`.
+
+### Write-Format Selection
+
+`BL-04` During the migration rollout, git-fi shall write the **legacy** format (`BL-03`) for every fi commit — bootstrap, empty, or existing — regardless of the format of the current `fi` commit message. Regardless of the write format, git-fi shall read and round-trip both formats (`BL-02`, `BL-03`). The write format is a single switch (the *default write format*, `DEFAULT_WRITE_FORMAT` in `src/merge.ts`).
+
+> **Rollout note.** git-fi writes `legacy` for now so downstream consumers that parse the fi commit message keep working unchanged. The switch to writing the preferred terse format (`BL-01`) is scheduled for after the rollout window (~2026-09) — a one-line change to the default write format. Reading is unaffected by the switch; both formats are always accepted.
 
 ## Default Branch Detection
 
@@ -441,7 +464,7 @@ Re-merge fi branch triggered by build <CI_PIPELINE_ID> due to commit on <CI_COMM
 (branch-a, branch-b)@[shorthash]
 ```
 
-The trailing signature line ensures that BL-01 round-tripping works even when the previous commit message is embedded in the `Was originally:` preamble.
+The trailing signature line — written in the current write format (`BL-04`; the example above shows the preferred terse format) — ensures round-tripping works (`BL-02`, `BL-03`) even when the previous commit message is embedded in the `Was originally:` preamble.
 
 | Variable             | Purpose                                                        |
 |----------------------|----------------------------------------------------------------|
@@ -457,6 +480,7 @@ These are standard [GitLab predefined variables](https://docs.gitlab.com/ci/vari
 |----------|---------|
 | `GITLAB_ACCESS_TOKEN` | When set (and non-empty), enables GitLab CI status display in `list`. If set to an empty string, abort with a clear error. |
 | `GIT_FI_NO_HINTS` | When set, suppresses the hint about `GITLAB_ACCESS_TOKEN` and the update notice (`UPD-03`) |
+| `GIT_FI_NO_FETCH` | When set, skips the fetch on read-only operations (`list`) and operates on already-fetched remote-tracking refs (`PF-05`); set by shell completion to stay offline. Mutating operations always fetch. |
 | `NO_UPDATE_NOTIFIER` | When set, suppresses the update notice (`UPD-03`) |
 | `NO_COLOR` | When set, disables all color output ([no-color.org](https://no-color.org)) |
 | `XDG_CACHE_HOME` | Base directory for the update-check cache (`UPD-04`); defaults to `~/.cache` |

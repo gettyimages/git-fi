@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import type { Options } from "./types.js";
 import { abort, makeStyle, bulletList, createSpinner } from "./style.js";
+import { DOCS_URL } from "./help.js";
 
 let fetchDone = false;
 
@@ -57,7 +58,7 @@ export function gitExitCode(args: string[], gitOpts: GitOpts = {}): number {
 export function preflightChecks(opts: Options): void {
   if (!existsSync(".git")) {
     const s = makeStyle(opts);
-    const url = "https://gettyimages.github.io/git-fi/#/";
+    const url = `${DOCS_URL}#/`;
     process.stderr.write(`${s.redBold("No .git directory found.")}\n`);
     process.stderr.write(
       `${s.dim("git fi runs inside a git repository — see")} ${s.link(url, url)}\n`
@@ -87,8 +88,20 @@ export function preflightChecks(opts: Options): void {
   }
 }
 
-export async function ensureFetched(opts: Options): Promise<void> {
+// `allowSkip` is passed only on the read-only list path. GIT_FI_NO_FETCH may
+// then operate on already-fetched remote-tracking refs (shell completion sets
+// it so tab-completion stays offline). Mutating paths (add/remove/force/again/
+// prune/abort) never pass it, so they always fetch — an integration merge must
+// never silently build on stale refs, whatever the environment holds.
+export async function ensureFetched(
+  opts: Options,
+  allowSkip = false
+): Promise<void> {
   if (fetchDone) return;
+  if (allowSkip && process.env.GIT_FI_NO_FETCH) {
+    fetchDone = true;
+    return;
+  }
   fetchDone = true;
   const spin = createSpinner("Fetching from origin...", opts);
   try {
@@ -117,26 +130,39 @@ export function defaultBranch(): string {
   return "main";
 }
 
-export type CommitFormat = "brief" | "legacy";
+export type CommitFormat = "terse" | "legacy";
 
+// Read-side only: classify an existing fi commit message so parseBranchList
+// can extract the branch list from either format. This does not choose what
+// git-fi writes — that is pinned to legacy during the rollout (see
+// DEFAULT_WRITE_FORMAT / BL-04 in src/merge.ts).
 export function detectCommitFormat(commitMsg: string): CommitFormat {
   if (/Merge remote-tracking branch(es)? '/.test(commitMsg)) return "legacy";
-  return "brief";
+  return "terse";
 }
 
 export function parseBranchList(commitMsg: string, defBranch: string): string[] {
-  if (detectCommitFormat(commitMsg) === "legacy") {
+  // The CI commit message (MG-13) is `<preamble>\n\n<signature>`, where the
+  // preamble embeds the previous fi message ("Was originally: ---") — which can
+  // itself quote branch names or carry an old signature line. git-fi always
+  // appends the signature it just wrote as the final paragraph, so parse only
+  // that paragraph; otherwise branches removed in this operation resurface from
+  // the embedded history and accumulate across CI re-merges.
+  const sep = commitMsg.lastIndexOf("\n\n");
+  const sig = sep === -1 ? commitMsg : commitMsg.slice(sep + 2);
+
+  if (detectCommitFormat(sig) === "legacy") {
     const branches: string[] = [];
     const re = /'origin\/([^']+)'/g;
     let m;
-    while ((m = re.exec(commitMsg)) !== null) {
+    while ((m = re.exec(sig)) !== null) {
       const name = `origin/${m[1]}`;
       if (name !== `origin/${defBranch}` && name !== "origin/fi") branches.push(name);
     }
     return [...new Set(branches)];
   }
 
-  const match = commitMsg.match(/^\(([^)]+)\)@\[/m);
+  const match = sig.match(/^\(([^)]+)\)@\[/m);
   if (match) {
     return [
       ...new Set(
@@ -147,7 +173,7 @@ export function parseBranchList(commitMsg: string, defBranch: string): string[] 
       ),
     ];
   }
-  if (/^@\[[0-9a-f]+\]/m.test(commitMsg)) {
+  if (/^@\[[0-9a-f]+\]/m.test(sig)) {
     return [];
   }
   return [];

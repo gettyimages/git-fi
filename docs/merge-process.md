@@ -76,13 +76,13 @@ This means a single conflicting branch doesn't block the rest.
 
 ### 8. Commit and push
 
-The resulting merge is committed with a message listing all included branches:
+The resulting merge is committed with a message that records the branches included in `fi`, so the list round-trips on the next run. git-fi currently writes the **legacy** standard git merge message:
 
 ```text
-(feature-auth, feature-search, bugfix-nav)@[a1b2c3d]
+Merge remote-tracking branches 'origin/feature-auth', 'origin/feature-search' and 'origin/bugfix-nav' into fi
 ```
 
-The `fi` branch is then force-pushed to origin.
+git-fi also *reads* a compact **terse** format (`(feature-auth, feature-search, bugfix-nav)@[a1b2c3d]`), so `fi` branches written by other versions are still understood; it will switch to *writing* terse after the migration rollout. The `fi` branch is then force-pushed to origin.
 
 ### 9. Summary
 

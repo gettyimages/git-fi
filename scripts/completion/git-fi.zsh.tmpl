@@ -1,0 +1,55 @@
+#compdef git-fi
+# GENERATED_BANNER
+_git-fi() {
+  _arguments -s -S \
+@@ARG_SPECS@@
+    '*: :__git_fi_branches'
+}
+
+__git_fi_remote_branches() {
+  # Mirror git-fi's own filter: drop HEAD, the fi branch itself, and the
+  # default branch (you don't add the base branch to fi). Resolve the default
+  # the same way defaultBranch() does — origin/HEAD, else probe main, master.
+  local def c
+  def=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)
+  def=${def#origin/}
+  if [[ -z $def ]]; then
+    for c in main master; do
+      git rev-parse --verify --quiet "origin/$c" >/dev/null 2>&1 && { def=$c; break; }
+    done
+  fi
+  git for-each-ref --format='%(refname:lstrip=3)' refs/remotes/origin 2>/dev/null \
+    | grep -vxE "HEAD|fi|${def:-main}"
+}
+__git_fi_in_fi() {
+  GIT_FI_NO_FETCH=1 git-fi --bare 2>/dev/null | tr ' ' '\n' | grep -v '^$'
+}
+
+# Action-aware: --add offers origin branches not yet in fi, --remove offers
+# only branches currently in fi, everything else offers all origin branches.
+__git_fi_branches() {
+  local -a branches
+  local action="" w
+  for w in $words; do
+    case $w in
+      -a|--add) action=add ;;
+      -r|--remove) action=remove ;;
+    esac
+  done
+
+  if [[ $action == remove ]]; then
+    branches=(${(f)"$(__git_fi_in_fi)"})
+  elif [[ $action == add ]]; then
+    local -a allb infib
+    allb=(${(f)"$(__git_fi_remote_branches)"})
+    infib=(${(f)"$(__git_fi_in_fi)"})
+    branches=(${allb:|infib})
+  else
+    branches=(${(f)"$(__git_fi_remote_branches)"})
+    # No action flag yet: this position also accepts a subcommand word.
+    local -a subcommands=(help install-completions)
+    _describe -t commands 'command' subcommands
+  fi
+
+  _describe -t branches 'branch' branches
+}

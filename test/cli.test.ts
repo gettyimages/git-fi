@@ -64,6 +64,36 @@ describe("argument handling (no repo required)", () => {
     assert.equal(r.status, 1);
     assert.match(r.stderr, /--bare is only valid with the list/);
   });
+
+  test("--help lists the install-completions command", () => {
+    const r = runFi(["--help"], dir);
+    assert.equal(r.status, 0);
+    assert.match(r.stdout, /install-completions <bash\|zsh>/);
+  });
+
+  test("install-completions bash prints the bash script (CMP-04)", () => {
+    const r = runFi(["install-completions", "bash"], dir);
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /_git_fi \(\) \{/);
+  });
+
+  test("install-completions zsh prints the zsh script (CMP-04)", () => {
+    const r = runFi(["install-completions", "zsh"], dir);
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /#compdef git-fi/);
+  });
+
+  test("install-completions detects the shell from $SHELL", () => {
+    const r = runFi(["install-completions"], dir, { SHELL: "/bin/bash" });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /_git_fi \(\) \{/);
+  });
+
+  test("install-completions aborts on an unsupported shell", () => {
+    const r = runFi(["install-completions"], dir, { SHELL: "/usr/bin/fish" });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /install-completions <bash\|zsh>/);
+  });
 });
 
 describe("preflight checks", () => {
@@ -116,6 +146,63 @@ describe("non-interactive bootstrap (MG-15)", () => {
       "origin/fi should exist after --yes bootstrap"
     );
     assert.deepEqual(listedBranches(sb), ["feature-a"]);
+  });
+});
+
+describe("commit message format (BL-01..BL-04)", () => {
+  const fiMessage = (sb: Sandbox) =>
+    sb.git(["log", "-1", "--format=%B", "origin/fi"]);
+
+  test("always writes the legacy format during the rollout (BL-04)", () => {
+    const sb = makeSandbox();
+    try {
+      sb.pushBranch("feature-a", "a.txt", "a\n");
+      sb.pushBranch("feature-b", "b.txt", "b\n");
+
+      // Fresh bootstrap → legacy.
+      const r = runFi(["--add", "feature-a", "--yes"], sb.work);
+      assert.equal(r.status, 0, r.stderr);
+      assert.match(
+        fiMessage(sb),
+        /Merge remote-tracking branch.*'origin\/feature-a'.*into fi/
+      );
+      assert.deepEqual(listedBranches(sb), ["feature-a"]);
+
+      // A subsequent op stays legacy and still round-trips.
+      const r2 = runFi(["--add", "feature-b"], sb.work);
+      assert.equal(r2.status, 0, r2.stderr);
+      assert.match(fiMessage(sb), /Merge remote-tracking branches .*into fi/);
+      assert.deepEqual(listedBranches(sb), ["feature-a", "feature-b"]);
+    } finally {
+      sb.cleanup();
+    }
+  });
+
+  test("reads a terse-format fi; writes stay legacy, not terse (BL-02/BL-04)", () => {
+    const sb = makeSandbox();
+    try {
+      sb.pushBranch("feature-a", "a.txt", "a\n");
+      sb.pushBranch("feature-b", "b.txt", "b\n");
+
+      // Seed origin/fi with a terse message, as an older git-fi would write.
+      const base = sb.git(["rev-parse", "--short", "origin/main"]);
+      sb.git(["checkout", "--quiet", "-B", "fi", "origin/main"]);
+      sb.git(["commit", "--allow-empty", "--quiet", "-m", `(feature-a)@[${base}]`]);
+      sb.git(["push", "--quiet", "-f", "origin", "fi"]);
+      sb.git(["checkout", "--quiet", "main"]);
+      sb.git(["fetch", "--quiet", "origin"]);
+
+      // git-fi reads the terse branch list.
+      assert.deepEqual(listedBranches(sb), ["feature-a"]);
+
+      // But a write does NOT continue terse — it rewrites in legacy.
+      const r = runFi(["--add", "feature-b"], sb.work);
+      assert.equal(r.status, 0, r.stderr);
+      assert.match(fiMessage(sb), /Merge remote-tracking branches .*into fi/);
+      assert.deepEqual(listedBranches(sb), ["feature-a", "feature-b"]);
+    } finally {
+      sb.cleanup();
+    }
   });
 });
 

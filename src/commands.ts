@@ -14,6 +14,7 @@ import {
 import { fetchGitlabCI, printCITable, detectGitlabProject, fetchFiPipeline, STATUS_EMOJI } from "./gitlab.js";
 import { mergeProcess } from "./merge.js";
 import { pickBranches } from "./ui.js";
+import { DOCS_URL } from "./help.js";
 
 async function fetchPickerCI(
   branches: string[],
@@ -37,7 +38,14 @@ export async function cmdList(
     allowFailure: true,
   });
   if (fiExists === null) {
-    abort(`there is no ${s.fi()} branch for this project.`, opts);
+    process.stderr.write(
+      `${s.redBold(`there is no ${s.fi()} branch for this project.`)}\n`
+    );
+    process.stderr.write(
+      `${s.dim("Bootstrap one with")} ${s.bold("git fi --add <branch>")}` +
+        ` ${s.dim(`(add --yes for CI). Docs: ${DOCS_URL}`)}\n`
+    );
+    process.exit(1);
   }
 
   const defBranch = defaultBranch();

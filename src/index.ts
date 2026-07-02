@@ -5,6 +5,8 @@ import { abort } from "./style.js";
 import { preflightChecks, ensureFetched } from "./git.js";
 import { cmdList, cmdAdd, cmdRemove, cmdForce, cmdAgain, cmdPrune, cmdAbort, cmdSelect } from "./commands.js";
 import { notifyUpdate } from "./update-check.js";
+import { renderHelp } from "./help.js";
+import { installCompletions } from "./install-completions.js";
 
 const require = createRequire(import.meta.url);
 const { name, version } = require("../package.json");
@@ -49,30 +51,7 @@ function parseArgs(argv: string[]) {
         process.exit(0);
       case "--help":
       case "-h":
-        process.stdout.write(
-          `Usage: git fi [options] [<branch>...]\n` +
-          `\n` +
-          `Maintain a temporary integration branch for early conflict detection.\n` +
-          `\n` +
-          `Actions:\n` +
-          `  -a, --add       Add branch(es) to fi\n` +
-          `  -r, --remove    Remove branch(es) from fi\n` +
-          `  -f, --force     Replace fi contents with only the given branch(es)\n` +
-          `  -g, --again     Re-merge all branches currently in fi\n` +
-          `  -p, --prune     Remove dead/already-merged branches from fi\n` +
-          `  -A, --abort     Re-pull fi from origin\n` +
-          `\n` +
-          `Options:\n` +
-          `  -d, --debug     Print git commands as they execute\n` +
-          `  -b, --bare      Machine-readable output (space-separated branch names)\n` +
-          `  -j, --json      Structured JSON output for list\n` +
-          `  -s, --select    Interactive branch picker\n` +
-          `  -y, --yes       Bootstrap fi without the confirmation prompt (for CI/scripts)\n` +
-          `  -V, --version   Print version and exit\n` +
-          `  -h, --help      Show this help\n` +
-          `\n` +
-          `Full documentation: https://gettyimages.github.io/git-fi/\n`
-        );
+        process.stdout.write(renderHelp());
         process.exit(0);
       case "--add":
       case "-a":
@@ -105,12 +84,31 @@ function parseArgs(argv: string[]) {
         action = "abort";
         break;
       default:
+        // `git fi help` — git only intercepts the `--help`/`-h` flags (routing
+        // them to `man git-fi`), so this bare word reaches us and gives a
+        // man-independent path to the same help text.
+        if (arg === "help" && !action && branches.length === 0) {
+          process.stdout.write(renderHelp());
+          process.exit(0);
+        }
         if (arg.startsWith("-")) {
           abort(`Unknown option: ${arg}`, opts);
         }
         branches.push(arg);
         break;
     }
+  }
+
+  // `git fi install-completions [bash|zsh]` — a subcommand word (git only
+  // intercepts flags), so it reaches us. The optional shell follows as the
+  // second positional.
+  if (!action && branches[0] === "install-completions") {
+    return {
+      opts,
+      action: "install-completions",
+      branches: branches.slice(1),
+      filterPattern,
+    };
   }
 
   if (!action && branches.length === 0 && !opts.select) action = "list";
@@ -149,6 +147,13 @@ async function main() {
   const argv = process.argv.slice(2);
   const { opts, action, branches, filterPattern } = parseArgs(argv);
 
+  // Runs anywhere (no repo needed) and must not touch stdout beyond the script,
+  // so handle it before the update notice and pre-flight checks.
+  if (action === "install-completions") {
+    installCompletions(branches[0], opts);
+    return;
+  }
+
   // Before preflight: an update notice should surface even when the command
   // aborts (wrong directory, no fi branch, etc.), not only on a clean run.
   notifyUpdate(name, version, opts);
@@ -160,7 +165,7 @@ async function main() {
 
   switch (action) {
     case "list":
-      await ensureFetched(opts);
+      await ensureFetched(opts, true);
       await cmdList(opts, filterPattern);
       break;
     case "add":

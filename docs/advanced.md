@@ -36,6 +36,26 @@ This is the command to reach for when:
 
 Does not accept branch arguments.
 
+## prune
+
+Remove branches from `fi` that no longer exist on origin (dead) or that have already been merged into the default branch.
+
+```bash
+git fi -p
+```
+
+Dead and already-merged branches are also cleaned up automatically during any merge (see [Dead Branch Pruning](#dead-branch-pruning) below); `-p` is the explicit command to tidy `fi` without otherwise changing the list. If there's nothing to prune, git-fi prints `Nothing to prune.` and makes no commit. Does not accept branch arguments.
+
+## abort
+
+Re-pull `origin/fi` from origin, discarding any local ref state.
+
+```bash
+git fi -A
+```
+
+Use this when your local view of `fi` has drifted from the remote (for example, someone else rebuilt it) and you want to resync. Unlike the other actions, `abort` does not run the merge process — it only re-fetches `origin/fi`. If `origin/fi` doesn't exist, git-fi aborts with `origin/fi does not exist — nothing to re-pull`. Does not accept branch arguments.
+
 ## Dead Branch Pruning
 
 During any merge operation, git-fi automatically detects branches that no longer exist on the remote. These "dead" branches are pruned from the `fi` branch list and a warning is printed:
@@ -77,11 +97,15 @@ flowchart TD
   B -- -r --> REM[remove: subtract from branch list]
   B -- -f --> FRC[force: replace branch list]
   B -- -g --> AGN[again: keep branch list as-is]
+  B -- -p --> PRN[prune: drop dead and merged branches]
+  B -- -A --> ABT[abort: re-pull fi from origin]
   ADD --> M[Merge Process]
   REM --> M
   FRC --> M
   AGN --> M
+  PRN --> M
   L --> OUT[Print branch list]
+  ABT --> OUT2[Re-pull only, no merge]
 ```
 
-All mutation commands feed into the same [Merge Process](/merge-process). The only difference is how the branch list is computed before merging begins.
+Every mutation command except `abort` feeds into the same [Merge Process](/merge-process); the only difference is how the branch list is computed before merging begins. `abort` is the exception — it re-pulls `origin/fi` without merging.

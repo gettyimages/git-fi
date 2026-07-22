@@ -79,7 +79,7 @@ The first time you run this in a repository that has no `fi` branch yet, git-fi 
 git fi -a another-feature
 ```
 
-Now `fi` contains both branches merged together. If they conflict, git-fi tells you immediately.
+Now `fi` contains both branches merged together. If they conflict, git-fi reports it and aborts without changing `fi` on the remote.
 
 ### 4. Remove a branch
 

@@ -17,26 +17,30 @@ Set the `GITLAB_ACCESS_TOKEN` environment variable to enable pipeline status:
 export GITLAB_ACCESS_TOKEN="glpat-xxxxxxxxxxxxxxxxxxxx"
 ```
 
-When set, `git fi` (list mode) shows the pipeline status of each branch:
+When set, `git fi` (list mode) shows each branch's pipeline status in a table, followed by a line for the `fi` branch's own pipeline:
 
 ```text
- * feature-auth    OK
- * feature-search  RUN
- * bugfix-nav      FAIL
+Branch         │ Date       │ Author │ Pipeline
+───────────────┼────────────┼────────┼──────────
+feature-auth   │ 2026-03-30 │ Alice  │ 11111 ✅
+feature-search │ 2026-03-30 │ Bob    │ 22222 ⏳
+fi: #12345 ⏳
 ```
 
 ### Status Indicators
 
-| Indicator | Meaning |
-|-----------|---------|
-| `OK` | Pipeline succeeded |
-| `FAIL` | Pipeline failed |
-| `RUN` | Pipeline is running |
-| `TIME` | Pipeline timed out |
-| `MISS` | No pipeline found |
-| `SKIP` | Pipeline was skipped |
+Each pipeline's GitLab status maps to an emoji:
 
-If the GitLab API is unreachable or returns an error, git-fi falls back to listing branches without status indicators.
+| Emoji | GitLab status | Meaning |
+|-------|---------------|---------|
+| ✅ | `success` | Pipeline succeeded |
+| ❌ | `failed` | Pipeline failed |
+| ⏰ | `timeout` | Pipeline timed out |
+| ⏳ | `running`, `pending` | Pipeline running or queued |
+| ➖ | `missing` | No pipeline found (or branch deleted) |
+| ⏭️ | `skipped` | Pipeline skipped |
+
+If `GITLAB_ACCESS_TOKEN` is unset, the list shows only a `Branch` column and the `fi:` line is omitted. A per-branch HTTP 404 (e.g. a deleted branch) is shown as `missing`; any other GitLab API error aborts with a message suggesting you unset `GITLAB_ACCESS_TOKEN` to use basic mode.
 
 ## Pipeline context in CI
 

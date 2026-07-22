@@ -36,14 +36,21 @@ With `--json` (`-j`), output is a structured JSON object:
 
 ```json
 {
+  "command": "list",
   "branches": ["feature-auth", "feature-search", "bugfix-nav"],
   "ci": [
-    { "branch": "feature-auth", "status": "OK", "url": "..." }
+    {
+      "branch": "feature-auth",
+      "status": "success",
+      "author": "Alice",
+      "date": "2026-03-30",
+      "branchMissing": false
+    }
   ]
 }
 ```
 
-The `ci` array is present only when `GITLAB_ACCESS_TOKEN` is set. `--json` is only valid with the `list` command.
+The `ci` array is present only when `GITLAB_ACCESS_TOKEN` is set; `status` is the raw GitLab pipeline status (`success`, `failed`, `running`, `pending`, `skipped`, ...). `--json` is only valid with the `list` command.
 
 ### Filtering
 
@@ -112,10 +119,12 @@ Shows only branches currently in `fi`. Select which to remove.
 | Flag | Long | Description |
 |------|------|-------------|
 | `-d` | `--debug` | Show git commands as they execute |
-| `-b` | `--bare` | Machine-readable output (space-separated, no decoration) |
+| `-b` | `--bare` | Machine-readable output (space-separated, no decoration; list command only) |
 | `-j` | `--json` | Structured JSON output (list command only) |
 | `-s` | `--select` | Interactive branch picker (requires TTY) |
 | `-y` | `--yes` | Bootstrap `fi` without the confirmation prompt (for CI/scripts) |
+| `-V` | `--version` | Print version and exit |
+| `-h` | `--help` | Show help |
 
 ## Branch Name Resolution
 

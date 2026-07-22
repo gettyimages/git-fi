@@ -16,13 +16,15 @@ flowchart TD
   F --> G[Prune dead branches]
   G --> H[Warn about merged branches]
   H --> I[Create fi from default branch]
-  I --> J{Merge each branch}
-  J -- success --> K[Commit and push fi]
-  J -- conflict --> L[Record failure and continue]
-  K --> M[Restore untracked files]
-  L --> M
-  M --> N[Return to original branch]
-  N --> O[Print summary]
+  I --> J[Merge all branches in one merge]
+  J --> K{Merge clean?}
+  K -- yes --> L[Commit and force-push fi]
+  K -- no --> M[Reset hard and abort]
+  L --> N[Restore original branch, delete local fi]
+  M --> N
+  N --> O{Merge succeeded?}
+  O -- yes --> P[Print branch list table]
+  O -- no --> Q[Print failed branches and abort message]
 ```
 
 ## Step by Step
@@ -66,13 +68,12 @@ Branches that have already been merged to the default branch are flagged with a 
 
 ### 7. Merge execution
 
-git-fi creates a fresh `fi` branch from `origin/main` (or `origin/master`), then merges each branch sequentially. If a branch fails to merge:
+git-fi creates a fresh `fi` branch from `origin/main` (or `origin/master`), then merges **all** the branches together in a single `git merge --no-commit --no-ff`. It's all-or-nothing:
 
-- The conflict is recorded
-- The merge is aborted
-- The remaining branches continue
+- If every branch integrates cleanly, git-fi commits and force-pushes `fi`.
+- If **any** branch conflicts, git-fi resets the working tree (`git reset --hard`) and aborts. No `fi` is pushed — the remote is left untouched.
 
-This means a single conflicting branch doesn't block the rest.
+Because the branches are merged in one combined merge, git can't attribute a conflict to a single branch, so a failure reports the whole set it was merging (see [Conflict Handling](#conflict-handling)).
 
 ### 8. Commit and push
 
@@ -84,32 +85,35 @@ Merge remote-tracking branches 'origin/feature-auth', 'origin/feature-search' an
 
 git-fi also *reads* a compact **terse** format (`(feature-auth, feature-search, bugfix-nav)@[a1b2c3d]`), so `fi` branches written by other versions are still understood; it will switch to *writing* terse after the migration rollout. The `fi` branch is then force-pushed to origin.
 
-### 9. Summary
+### 9. Output
 
-After completion, git-fi prints a summary:
+On success, git-fi prints the branch list table (identical to `list` output, including the `fi` pipeline line when `GITLAB_ACCESS_TOKEN` is set), so you see the final state without running a separate command:
 
 ```text
-== SUMMARY ==
- * feature-auth
- * feature-search
- * bugfix-nav
+Branch         │ Date       │ Author │ Pipeline
+───────────────┼────────────┼────────┼──────────
+feature-auth   │ 2026-03-30 │ Alice  │ 11111 ✅
+feature-search │ 2026-03-30 │ Bob    │ 22222 ✅
 ```
 
-If any branches failed to merge, they're listed separately:
+On failure, git-fi prints the branches it was merging and aborts without pushing:
 
 ```text
-FAILED:
- * feature-broken
+Failed trying to merge branch(es):
+
+ * feature-auth
+ * feature-search
+
+Aborted due to merge failures
 ```
 
 ## Conflict Handling
 
-When a branch conflicts during the merge:
+All selected branches are merged together in one `git merge`, which git treats atomically — either every branch integrates or none does. So when any branch conflicts:
 
-1. The merge is aborted (`git merge --abort`)
-2. The branch is added to the failure list
-3. Remaining branches are still merged
-4. The final `fi` branch contains all successful merges
-5. Failed branches are reported in the summary
+1. The merge is aborted and the working tree is reset (`git reset --hard`).
+2. git-fi lists the branches it was trying to merge. Because it's a combined merge, git can't single out which branch caused the conflict, so the whole set is reported.
+3. Any untracked files created by the failed merge are listed with `rm` commands to remove them.
+4. git-fi restores your original branch, deletes the local `fi`, and exits with `Aborted due to merge failures`. **No `fi` is pushed** — the remote stays as it was.
 
-This non-blocking approach means one bad branch doesn't prevent the rest of the team from using `fi`.
+To get a clean `fi` again, drop the offending branch (`git fi -r <branch>`) or resolve the conflict on the feature branch and re-run (`git fi -g`).

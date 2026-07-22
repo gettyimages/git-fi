@@ -30,9 +30,9 @@ export const ACTIONS: Flag[] = [
 
 export const OPTIONS: Flag[] = [
   { long: "debug", short: "d", desc: "Print git commands as they execute" },
-  { long: "bare", short: "b", desc: "Machine-readable output (space-separated branch names)" },
-  { long: "json", short: "j", desc: "Structured JSON output for list" },
-  { long: "select", short: "s", desc: "Interactive branch picker" },
+  { long: "bare", short: "b", desc: "Machine-readable output (space-separated branch names; list only)" },
+  { long: "json", short: "j", desc: "Structured JSON output (list only)" },
+  { long: "select", short: "s", desc: "Interactive branch picker (requires a TTY)" },
   { long: "yes", short: "y", desc: "Bootstrap fi without the confirmation prompt (for CI/scripts)" },
   { long: "version", short: "V", desc: "Print version and exit" },
   { long: "help", short: "h", desc: "Show this help" },

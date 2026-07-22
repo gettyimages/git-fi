@@ -9,9 +9,9 @@ _git-fi() {
     '(-p --prune)'{-p,--prune}'[Remove dead/already-merged branches from fi]' \
     '(-A --abort)'{-A,--abort}'[Re-pull fi from origin]' \
     '(-d --debug)'{-d,--debug}'[Print git commands as they execute]' \
-    '(-b --bare)'{-b,--bare}'[Machine-readable output (space-separated branch names)]' \
-    '(-j --json)'{-j,--json}'[Structured JSON output for list]' \
-    '(-s --select)'{-s,--select}'[Interactive branch picker]' \
+    '(-b --bare)'{-b,--bare}'[Machine-readable output (space-separated branch names; list only)]' \
+    '(-j --json)'{-j,--json}'[Structured JSON output (list only)]' \
+    '(-s --select)'{-s,--select}'[Interactive branch picker (requires a TTY)]' \
     '(-y --yes)'{-y,--yes}'[Bootstrap fi without the confirmation prompt (for CI/scripts)]' \
     '(-V --version)'{-V,--version}'[Print version and exit]' \
     '(-h --help)'{-h,--help}'[Show this help]' \

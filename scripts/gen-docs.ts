@@ -1,7 +1,8 @@
-// Generates the man page and shell completions from src/help.ts so the flag
-// list has a single source of truth. Run via `npm run gen:docs` (wired into
-// `npm run build`). The generated files under man/ and completions/ are
-// committed — do not hand-edit them.
+// Generates the man page, shell completions, and the docs reference tables from
+// src/help.ts so the flag list has a single source of truth. Run via
+// `npm run gen:docs` (wired into `npm run build`). The generated files under
+// man/ and completions/, and the marked table regions in docs/, are committed —
+// do not hand-edit them.
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -68,6 +69,37 @@ const zshSpec = (f: Flag): string =>
 const argSpecs = [...ACTIONS, ...OPTIONS].map((f) => zshSpec(f) + " \\").join("\n");
 const zsh = template("git-fi.zsh.tmpl", GENERATED).replace("@@ARG_SPECS@@", argSpecs);
 
+// --- docs reference tables -------------------------------------------------
+//
+// The prose docs under docs/ are hand-written, but their flag/action reference
+// tables duplicate the metadata above. Stamp those tables in place between
+// `<!-- BEGIN GENERATED: <name> -->` / `<!-- END GENERATED: <name> -->` markers
+// so a new flag can't go missing from the docs the way it can't from the man
+// page. Everything outside the markers is left untouched.
+
+function mdTable(flags: Flag[]): string {
+  const rows = flags.map((f) => `| \`-${f.short}\` | \`--${f.long}\` | ${f.desc} |`);
+  return ["| Flag | Long | Description |", "|------|------|-------------|", ...rows].join("\n");
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Replace the body between the named BEGIN/END markers in a docs file. */
+function injectTable(relPath: string, name: string, body: string): void {
+  const file = join(root, relPath);
+  const begin = `<!-- BEGIN GENERATED: ${name} -->`;
+  const end = `<!-- END GENERATED: ${name} -->`;
+  const region = new RegExp(`${escapeRegExp(begin)}[\\s\\S]*?${escapeRegExp(end)}`);
+  const src = readFileSync(file, "utf8");
+  if (!region.test(src)) {
+    throw new Error(`generated markers "${name}" not found in ${relPath} — add them or fix the name`);
+  }
+  const replacement = `${begin}\n<!-- ${GENERATED} -->\n\n${body}\n\n${end}`;
+  writeFileSync(file, src.replace(region, replacement));
+}
+
 // --- write -----------------------------------------------------------------
 
 mkdirSync(join(root, "man"), { recursive: true });
@@ -76,4 +108,9 @@ writeFileSync(join(root, "man", "git-fi.1"), man);
 writeFileSync(join(root, "completions", "git-fi.bash"), bash);
 writeFileSync(join(root, "completions", "_git-fi"), zsh);
 
-process.stdout.write("Generated man/git-fi.1, completions/git-fi.bash, completions/_git-fi\n");
+injectTable("docs/commands.md", "actions", mdTable(ACTIONS));
+injectTable("docs/commands.md", "options", mdTable(OPTIONS));
+
+process.stdout.write(
+  "Generated man/git-fi.1, completions/git-fi.bash, completions/_git-fi, docs/commands.md tables\n"
+);

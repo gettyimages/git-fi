@@ -1,24 +1,47 @@
 name: Release
 
+# Cutting a release: publish a GitHub Release whose tag is vMAJOR.MINOR.PATCH,
+# with the release notes in the body. This workflow derives the version from
+# the tag, writes it into package.json and CHANGELOG.md on main, publishes to
+# npm, and pushes the "Release vX.Y.Z" commit back to main. Tag the latest main
+# so the published package matches what lands on the branch.
+#
+# workflow_dispatch runs a packaging dry-run only (no version bump, no publish).
+
 on:
-  push:
-    tags: ["v*"]
+  release:
+    types: [published]
   workflow_dispatch:
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # create GitHub Releases
+      contents: write # push the Release commit back to main
       id-token: write # npm provenance
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org
           cache: npm
+
+      - name: Resolve version from the release tag
+        id: version
+        if: github.event_name == 'release'
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
+          if ! echo "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Release tag '$tag' is not vMAJOR.MINOR.PATCH"
+            exit 1
+          fi
+          echo "value=$version" >> "$GITHUB_OUTPUT"
 
       - run: npm ci
 
@@ -28,13 +51,40 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_API_TOKEN }}
 
-      # Publish to npm on a v* tag. Idempotent: skip if the version is already
-      # published, so a tag can be re-pushed (e.g. to backfill a Release)
-      # without failing on a version conflict. prepublishOnly runs the tests.
-      - name: Publish to npm
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Bump package.json to the release version
+        if: github.event_name == 'release'
+        run: npm version "${{ steps.version.outputs.value }}" --no-git-tag-version --allow-same-version
+
+      # Prepend the release body to CHANGELOG.md, inserted after the marker line.
+      # NOTES comes in through the environment so arbitrary markdown needs no
+      # shell escaping.
+      - name: Update CHANGELOG.md
+        if: github.event_name == 'release'
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+          NOTES: ${{ github.event.release.body }}
         run: |
-          VERSION="$(node -p "require('./package.json').version")"
+          date="$(date -u +%Y-%m-%d)"
+          {
+            printf '## v%s (%s)\n\n' "$VERSION" "$date"
+            printf '%s\n' "${NOTES:-_No release notes._}"
+          } > "$RUNNER_TEMP/entry.md"
+          awk '
+            { print }
+            /^<!-- releases below -->$/ && !done {
+              print ""
+              while ((getline line < (ENVIRON["RUNNER_TEMP"] "/entry.md")) > 0) print line
+              done = 1
+            }
+          ' CHANGELOG.md > CHANGELOG.next
+          mv CHANGELOG.next CHANGELOG.md
+
+      # Idempotent: skip if the version is already published, so a release can be
+      # re-run without failing on a version conflict. prepublishOnly runs tests.
+      - name: Publish to npm
+        if: github.event_name == 'release'
+        run: |
+          VERSION="${{ steps.version.outputs.value }}"
           if npm view "@gettyimages/git-fi@${VERSION}" version >/dev/null 2>&1; then
             echo "@gettyimages/git-fi@${VERSION} already published — skipping npm publish."
           else
@@ -43,23 +93,22 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_API_TOKEN }}
 
-      # Create a GitHub Release with auto-generated notes for the tag.
-      # Idempotent: skip if a Release already exists for this tag.
-      - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Commit version and changelog to main
+        if: github.event_name == 'release'
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG already exists — skipping."
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json CHANGELOG.md
+          if git diff --cached --quiet; then
+            echo "No version or changelog changes to commit."
           else
-            gh release create "$TAG" --verify-tag --generate-notes --title "$TAG"
+            git commit -m "Release v${{ steps.version.outputs.value }}"
+            git push origin main
           fi
-        env:
-          GH_TOKEN: ${{ github.token }}
 
-      # Non-tag runs (workflow_dispatch): validate packaging without uploading.
+      # workflow_dispatch: validate packaging without uploading.
       - name: Publish (dry run)
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        if: github.event_name == 'workflow_dispatch'
         run: npm publish --dry-run --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_API_TOKEN }}

@@ -8,7 +8,7 @@ This README is for working on git-fi itself. To install and use it, see the [doc
 
 ## Local development
 
-Requires Node.js >= 18 and git >= 2.50.0.
+Requires Node.js >= 18 and git >= 2.39.0.
 
 ```bash
 git clone https://github.com/gettyimages/git-fi.git

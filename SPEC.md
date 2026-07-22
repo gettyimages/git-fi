@@ -19,7 +19,7 @@ git-fi is invoked as a git subcommand. It must be run from the repository root (
 Before any command executes, git-fi runs the following pre-flight checks:
 
 1. `PF-01` If no `.git` directory exists in the current working directory, then git-fi shall abort with `No .git directory found.` followed by a line pointing to the documentation site (`https://gettyimages.github.io/git-fi/#/`) for newcomers.
-2. `PF-02` If the git version is below 2.50.0, then git-fi shall abort with: `git version X is too old, please upgrade to at least 2.50.0.`
+2. `PF-02` If the git version is below 2.39.0, then git-fi shall abort with: `git version X is too old, please upgrade to at least 2.39.0.`
 3. `PF-03` If `git config push.default` is `upstream` or `tracking`, then git-fi shall abort with: `Your default git push config is set to a hazardous option.`
 4. `PF-04` git-fi shall run `git fetch --quiet --prune origin` once per invocation, memoizing to avoid redundant fetches.
 5. `PF-05` Where `GIT_FI_NO_FETCH` is set, git-fi shall skip the fetch (`PF-04`) on read-only operations (`list`) and operate on the already-fetched remote-tracking refs. Shell completion sets this so tab-completion stays offline. Mutating operations always fetch regardless, so an integration merge never builds on stale refs. (All environment variables are catalogued in [Environment Variables](#environment-variables).)
@@ -29,7 +29,7 @@ Before any command executes, git-fi runs the following pre-flight checks:
 flowchart TD
     A[git fi invoked] --> B{.git exists?}
     B -- no --> B1[ABORT: No .git directory found]
-    B -- yes --> C{git >= 2.50.0?}
+    B -- yes --> C{git >= 2.39.0?}
     C -- no --> C1[ABORT: git version too old]
     C -- yes --> D{push.default safe?}
     D -- no --> D1[ABORT: hazardous push config]

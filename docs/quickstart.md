@@ -2,7 +2,7 @@
 
 ## Install
 
-git-fi is a git subcommand: once the `git-fi` binary is on your `PATH`, invoke it as `git fi`. Requires Node.js >= 18 and git >= 2.50.0.
+git-fi is a git subcommand: once the `git-fi` binary is on your `PATH`, invoke it as `git fi`. Requires Node.js >= 18 and git >= 2.39.0.
 
 ```bash
 npm install -g @gettyimages/git-fi

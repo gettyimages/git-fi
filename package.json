@@ -13,7 +13,9 @@
     "build": "tsc && npm run gen:docs",
     "prepare": "tsc",
     "test": "tsc && node --import tsx --test test/*.test.ts",
-    "prepublishOnly": "npm test"
+    "prepublishOnly": "npm test",
+    "trial:on": "bash scripts/trial.sh on",
+    "trial:off": "bash scripts/trial.sh off"
   },
   "files": [
     "dist",

@@ -1,8 +1,9 @@
 import { test, before, after, describe } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { runFi, makeSandbox, type Sandbox } from "./helpers.ts";
 
@@ -93,6 +94,29 @@ describe("argument handling (no repo required)", () => {
     const r = runFi(["install-completions"], dir, { SHELL: "/usr/bin/fish" });
     assert.equal(r.status, 1);
     assert.match(r.stderr, /install-completions <bash\|zsh>/);
+  });
+});
+
+describe("generated completions (CMP-01a)", () => {
+  const read = (name: string) =>
+    readFileSync(fileURLToPath(new URL(`../completions/${name}`, import.meta.url)), "utf8");
+
+  test("the git-native completer reads $words, not COMP_WORDS", () => {
+    // git's zsh wrapper leaves COMP_WORDS unset, so action detection must read
+    // the command line from git's portable $words array (see CMP-01a).
+    for (const name of ["git-fi.bash", "_git_fi"]) {
+      const src = read(name);
+      assert.match(src, /for w in "\$\{words\[@\]\}"/, `${name} should iterate $words`);
+      assert.doesNotMatch(src, /\$\{?COMP_WORDS/, `${name} should not expand COMP_WORDS`);
+    }
+  });
+
+  test("_git_fi is fpath-autoloadable and shares the bash body", () => {
+    const zfp = read("_git_fi");
+    assert.match(zfp.split("\n")[0], /^#autoload$/, "first line must be #autoload for compinit");
+    // The two git-native files must define the same function so they can't drift.
+    const body = (s: string) => s.slice(s.indexOf("_git_fi () {"));
+    assert.equal(body(zfp), body(read("git-fi.bash")));
   });
 });
 

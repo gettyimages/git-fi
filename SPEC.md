@@ -61,7 +61,9 @@ flowchart TD
 
 `CMP-01` git-fi shall provide shell completion for bash and zsh, discovered by git for the `git fi` subcommand, completing the action/option flags and branch-name arguments.
 
-`CMP-02` When completing a branch argument, git-fi's completion shall offer: for `--add`, origin branches not already in fi; for `--remove`, only branches currently in fi; and otherwise all branches eligible to add (excluding `HEAD`, `fi`, and the default branch).
+`CMP-01a` git-fi shall provide completion for both providers that dispatch `git fi`: zsh's built-in `_git` (which calls `_git-fi`) and git's own completion wrapper (which calls `_git_fi` under ksh emulation, in bash and in zsh). The `_git_fi` completer shall read the command line from git's `$words`/`$cur` — not bash's `COMP_WORDS`, which git's zsh wrapper leaves unset — so action-aware completion (`CMP-02`) works under both shells.
+
+`CMP-02` At the command position (no action flag yet), git-fi's completion shall offer the action/option flags and subcommands, not a branch list. When completing a branch argument, it shall offer: for `--add`, origin branches not already in fi (excluding `HEAD`, `fi`, and the default branch); for `--remove`, only branches currently in fi.
 
 `CMP-03` git-fi's completion shall determine fi membership without a network fetch (via `GIT_FI_NO_FETCH`, `PF-05`), so completion stays offline and fast.
 

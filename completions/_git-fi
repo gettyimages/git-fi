@@ -37,8 +37,11 @@ __git_fi_in_fi() {
   GIT_FI_NO_FETCH=1 git-fi --bare 2>/dev/null | tr ' ' '\n' | grep -v '^$'
 }
 
-# Action-aware: --add offers origin branches not yet in fi, --remove offers
-# only branches currently in fi, everything else offers all origin branches.
+# Action-aware branch argument: --add offers origin branches not yet in fi,
+# --remove offers only branches currently in fi. With no action flag yet, this
+# position offers only the subcommands (the actions/options come from the
+# _arguments spec above); a bare positional is just a list-filter pattern, so
+# it does not dump the branch list.
 __git_fi_branches() {
   local -a branches
   local action="" w
@@ -51,17 +54,15 @@ __git_fi_branches() {
 
   if [[ $action == remove ]]; then
     branches=(${(f)"$(__git_fi_in_fi)"})
+    _describe -t branches 'branch' branches
   elif [[ $action == add ]]; then
     local -a allb infib
     allb=(${(f)"$(__git_fi_remote_branches)"})
     infib=(${(f)"$(__git_fi_in_fi)"})
     branches=(${allb:|infib})
+    _describe -t branches 'branch' branches
   else
-    branches=(${(f)"$(__git_fi_remote_branches)"})
-    # No action flag yet: this position also accepts a subcommand word.
     local -a subcommands=(help install-completions)
     _describe -t commands 'command' subcommands
   fi
-
-  _describe -t branches 'branch' branches
 }

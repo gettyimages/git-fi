@@ -27,9 +27,14 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           registry-url: https://registry.npmjs.org
           cache: npm
+
+      # Tokenless trusted publishing needs npm >= 11.5.1; the version bundled
+      # with Node ships older, so pull the latest npm explicitly.
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@latest
 
       - name: Resolve version from the release tag
         id: version

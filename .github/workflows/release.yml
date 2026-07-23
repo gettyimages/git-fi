@@ -45,12 +45,6 @@ jobs:
 
       - run: npm ci
 
-      # Confirms NPM_API_TOKEN authenticates against the registry.
-      - name: Verify npm auth
-        run: npm whoami
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_API_TOKEN }}
-
       - name: Bump package.json to the release version
         if: github.event_name == 'release'
         run: npm version "${{ steps.version.outputs.value }}" --no-git-tag-version --allow-same-version
@@ -90,8 +84,6 @@ jobs:
           else
             npm publish --provenance --access public
           fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_API_TOKEN }}
 
       - name: Commit version and changelog to main
         if: github.event_name == 'release'
@@ -110,5 +102,3 @@ jobs:
       - name: Publish (dry run)
         if: github.event_name == 'workflow_dispatch'
         run: npm publish --dry-run --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_API_TOKEN }}

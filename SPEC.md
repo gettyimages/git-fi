@@ -63,11 +63,13 @@ flowchart TD
 
 `CMP-01` git-fi shall provide shell completion for bash and zsh, discovered by git for the `git fi` subcommand, completing the action/option flags and branch-name arguments.
 
-`CMP-02` When completing a branch argument, git-fi's completion shall offer: for `--add`, origin branches not already in fi; for `--remove`, only branches currently in fi; and otherwise all branches eligible to add (excluding `HEAD`, `fi`, and the default branch).
+`CMP-02` git-fi shall provide completion for both providers that dispatch `git fi`: zsh's built-in `_git` (which calls `_git-fi`) and git's own completion wrapper (which calls `_git_fi` under ksh emulation, in bash and in zsh). The `_git_fi` completer shall read the command line from git's `$words`/`$cur` — not bash's `COMP_WORDS`, which git's zsh wrapper leaves unset — so action-aware completion (`CMP-03`) works under both shells.
 
-`CMP-03` git-fi's completion shall determine fi membership without a network fetch (via `GIT_FI_NO_FETCH`, `PF-05`), so completion stays offline and fast.
+`CMP-03` At the command position (no action flag yet), git-fi's completion shall offer the action/option flags and subcommands, not a branch list. When completing a branch argument, it shall offer: for `--add`, origin branches not already in fi (excluding `HEAD`, `fi`, and the default branch); for `--remove`, only branches currently in fi.
 
-`CMP-04` git-fi shall provide an `install-completions [bash|zsh]` subcommand that prints the completion script for the given shell — or the shell detected from `$SHELL` — to stdout, for sourcing (e.g. `source <(git fi install-completions bash)`). If no supported shell is given or detected, then git-fi shall abort with usage guidance.
+`CMP-04` git-fi's completion shall determine fi membership without a network fetch (via `GIT_FI_NO_FETCH`, `PF-05`), so completion stays offline and fast.
+
+`CMP-05` git-fi shall provide an `install-completions [bash|zsh]` subcommand that prints the completion script for the given shell — or the shell detected from `$SHELL` — to stdout, for sourcing (e.g. `source <(git fi install-completions bash)`). If no supported shell is given or detected, then git-fi shall abort with usage guidance.
 
 ## Terminal Output
 

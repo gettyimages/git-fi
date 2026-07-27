@@ -2,14 +2,14 @@
 
 Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 
-**Last updated:** 2026-07-02
+**Last updated:** 2026-07-27
 
 ## Summary
 
 | Status  | Count |
 |---------|-------|
-| Covered | 95    |
-| Total   | 95    |
+| Covered | 98    |
+| Total   | 98    |
 
 ## Pre-flight Checks
 
@@ -25,20 +25,21 @@ Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 
 | ID     | Description | Status  | Location               |
 |--------|-------------|---------|------------------------|
-| OPT-01 | `--debug`   | Covered | `src/index.ts:24-26`   |
-| OPT-02 | `--bare`    | Covered | `src/index.ts:28-30`   |
-| OPT-03 | `--json`    | Covered | `src/index.ts:32-34`   |
-| OPT-04 | `--select`  | Covered | `src/index.ts:36-38`   |
-| OPT-05 | `--version` | Covered | `src/index.ts:47-50`   |
-| OPT-06 | `--help`    | Covered | `src/index.ts:51-54`, `src/help.ts:46-77` |
-| OPT-07 | `--bare` list-only | Covered | `src/index.ts:126-127` |
-| OPT-08 | `--yes`     | Covered | `src/index.ts:43-46`   |
+| OPT-01 | `--debug`   | Covered | `src/index.ts:32-35`   |
+| OPT-02 | `--bare`    | Covered | `src/index.ts:36-39`   |
+| OPT-03 | `--json`    | Covered | `src/index.ts:40-43`   |
+| OPT-04 | `--select`  | Covered | `src/index.ts:44-47`   |
+| OPT-05 | `--version` | Covered | `src/index.ts:52-55`   |
+| OPT-06 | `--help`    | Covered | `src/index.ts:56-59`, `src/help.ts:65-92` |
+| OPT-07 | `--yes`     | Covered | `src/index.ts:48-51`   |
+| OPT-08 | `--bare`/`--json` any action | Covered | `src/merge.ts:99-111`, `src/commands.ts:73-95`, `src/commands.ts:266-269` |
+| OPT-09 | `--select` excludes machine modes | Covered | `src/index.ts:126-137` |
 
 ## Help & Documentation
 
 | ID     | Description          | Status  | Location                  |
 |--------|----------------------|---------|---------------------------|
-| HLP-01 | `help` subcommand    | Covered | `src/index.ts:86-91`      |
+| HLP-01 | `help` subcommand    | Covered | `src/index.ts:101-104`    |
 | HLP-02 | Man page             | Covered | `man/git-fi.1` (generated), `package.json:9`, `scripts/gen-docs.ts:33-50` |
 
 ## Shell Completion
@@ -48,7 +49,7 @@ Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 | CMP-01 | bash + zsh completion       | Covered | `scripts/completion/git-fi.bash.tmpl`, `scripts/completion/git-fi.zsh.tmpl` |
 | CMP-02 | Action-aware branch offering| Covered | `scripts/completion/git-fi.bash.tmpl:9-42`, `scripts/completion/git-fi.zsh.tmpl:21-51` |
 | CMP-03 | Offline membership          | Covered | `scripts/completion/git-fi.bash.tmpl:16-18`, `src/git.ts:92-98` |
-| CMP-04 | `install-completions` subcommand | Covered | `src/install-completions.ts`, `src/index.ts:102-113` |
+| CMP-04 | `install-completions` subcommand | Covered | `src/install-completions.ts`, `src/index.ts:113-125` |
 
 ## Terminal Output
 
@@ -71,7 +72,7 @@ Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 | BR-02 | Default to current branch| Covered | `src/git.ts:174-179`   |
 | BR-03 | Existence check on add   | Covered | `src/git.ts:182-197`   |
 | BR-04 | No check on remove       | Covered | `src/git.ts:182` (skip)|
-| BR-05 | Default branch detection | Covered | `src/git.ts:97-112`    |
+| BR-05 | Default branch detection | Covered | `src/git.ts:116-139`   |
 
 ## List Command
 
@@ -89,12 +90,12 @@ Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 
 | ID     | Description                 | Status  | Location                  |
 |--------|-----------------------------|---------|---------------------------|
-| SEL-01 | `--select` with `--add`     | Covered | `src/commands.ts:129-153` |
-| SEL-02 | `--select` with `--remove`  | Covered | `src/commands.ts:170-198` |
-| SEL-03 | TTY requirement             | Covered | `src/index.ts:118-119`    |
-| SEL-04 | Invalid combinations        | Covered | `src/index.ts:114-115`    |
-| SEL-05 | Empty selection exits       | Covered | `src/commands.ts:146-148` |
-| SEL-06 | Standalone unified picker   | Covered | `src/commands.ts:276-323` |
+| SEL-01 | `--select` with `--add`     | Covered | `src/commands.ts:137-158`, `src/git.ts:250-275` |
+| SEL-02 | `--select` with `--remove`  | Covered | `src/commands.ts:178-198` |
+| SEL-03 | TTY requirement             | Covered | `src/index.ts:144-145`    |
+| SEL-04 | Invalid combinations        | Covered | `src/index.ts:140-141`    |
+| SEL-05 | Empty selection exits       | Covered | `src/commands.ts:154-157` |
+| SEL-06 | Standalone unified picker   | Covered | `src/commands.ts:265-312` |
 
 ## Commands
 
@@ -108,11 +109,9 @@ Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 | CMD-02 | Remove non-existent noop | Covered | `src/commands.ts:193-194`  |
 | CMD-03 | Force replaces list      | Covered | `src/commands.ts:200-208`  |
 | CMD-04 | Force with no branches   | Covered | `src/commands.ts:204-205`  |
-| CMD-05 | Again re-merges          | Covered | `src/commands.ts:211-224`  |
-| CMD-06 | Prune dead/merged        | Covered | `src/commands.ts:226-253`  |
-| CMD-07 | Nothing to prune         | Covered | `src/commands.ts:246-248`  |
-| CMD-08 | Abort re-pulls fi        | Covered | `src/commands.ts:255-274`  |
-| CMD-09 | Abort no origin/fi       | Covered | `src/commands.ts:266-267`  |
+| CMD-05 | Again re-merges and prunes | Covered | `src/commands.ts:219-242`, `src/merge.ts:152-178` |
+| CMD-06 | Abort re-pulls fi, then lists | Covered | `src/commands.ts:246-269`  |
+| CMD-07 | Abort no origin/fi       | Covered | `src/commands.ts:257-259`  |
 
 ## Merge Process
 
@@ -123,15 +122,15 @@ Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 | MG-03 | Capture untracked        | Covered | `src/merge.ts:107-110`    |
 | MG-04 | Fetch                    | Covered | `src/merge.ts:111`        |
 | MG-05 | Bootstrap confirmation   | Covered | `src/merge.ts:127-139`    |
-| MG-06 | Prune dead branches      | Covered | `src/merge.ts:142-160`    |
-| MG-07 | Warn about merged        | Covered | `src/merge.ts:162-177`    |
+| MG-06 | Prune dead branches      | Covered | `src/merge.ts:152-164`    |
+| MG-07 | Warn about merged        | Covered | `src/merge.ts:166-176`    |
 | MG-08 | Create temp fi branch    | Covered | `src/merge.ts:296-298`, `src/merge.ts:337-339` |
 | MG-09 | Merge command            | Covered | `src/merge.ts:352-366`    |
 | MG-10 | On success               | Covered | `src/merge.ts:368-401`    |
 | MG-11 | On failure               | Covered | `src/merge.ts:402-446`    |
 | MG-12 | Cleanup                  | Covered | `src/merge.ts:390-397`, `src/merge.ts:419-426` |
 | MG-13 | CI commit message        | Covered | `src/merge.ts:46-57`      |
-| MG-14 | Bootstrap link           | Covered | `src/ui.ts:140`           |
+| MG-14 | Bootstrap link           | Covered | `src/ui.ts:143`           |
 | MG-15 | Bootstrap confirmation / `--yes` | Covered | `src/merge.ts:128-145` |
 
 ## Branch List Storage
@@ -154,20 +153,21 @@ Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 
 | ID    | Description         | Status  | Location                  |
 |-------|---------------------|---------|---------------------------|
-| GL-01 | CI status table     | Covered | `src/gitlab.ts:179-204`   |
-| GL-02 | Project detection   | Covered | `src/gitlab.ts:16-27`     |
-| GL-03 | No fallback on fail | Covered | `src/gitlab.ts:66-71`, `src/gitlab.ts:113-119` |
-| GL-04 | Hyperlinks (OSC 8)  | Covered | `src/style.ts:30-31`, `src/gitlab.ts:191-199` |
-| GL-05 | Pipeline ID+status after merge | Covered | `src/gitlab.ts:131-177`, `src/commands.ts:89-95` |
-| GL-06 | Deleted branch indicator | Covered | `src/gitlab.ts:62-65`, `src/gitlab.ts:96-97`, `src/gitlab.ts:188-190` |
+| GL-01 | CI status table      | Covered | `src/gitlab.ts:247-272`   |
+| GL-02 | Project detection    | Covered | `src/gitlab.ts:29-47`     |
+| GL-03 | No fallback on fail  | Covered | `src/gitlab.ts:162-183`   |
+| GL-04 | Hyperlinks (OSC 8)   | Covered | `src/style.ts:30-31`, `src/gitlab.ts:259-267` |
+| GL-05 | Pipeline ID+status after merge | Covered | `src/gitlab.ts:194-245`, `src/commands.ts:97-105` |
+| GL-06 | Deleted branch indicator | Covered | `src/gitlab.ts:114-119`, `src/gitlab.ts:145-146`, `src/gitlab.ts:256-257` |
+| GL-07 | Bounded concurrent lookups, stable order | Covered | `src/gitlab.ts:20`, `src/gitlab.ts:63-79`, `src/gitlab.ts:164-183` |
+| GL-08 | Built-in HTTP client, 10 s timeout | Covered | `src/gitlab.ts:15`, `src/gitlab.ts:54-60` |
 
 ## JSON Output
 
 | ID    | Description           | Status  | Location                  |
 |-------|-----------------------|---------|---------------------------|
-| JS-01 | JSON only for list    | Covered | `src/index.ts:122-123`    |
-| JS-02 | JSON to stdout        | Covered | `src/commands.ts:64-80`   |
-| JS-03 | CI array conditional  | Covered | `src/commands.ts:69-77`   |
+| JS-01 | JSON to stdout, human output to stderr | Covered | `src/commands.ts:78-95`, `src/merge.ts:99-111`, `src/ui.ts:135-152` |
+| JS-02 | CI array conditional  | Covered | `src/commands.ts:83-92`   |
 
 ## Exit Codes
 
@@ -175,6 +175,14 @@ Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 |-------|-------------|---------|-------------|
 | EX-01 | 0 = success | Covered | (implicit)  |
 | EX-02 | Non-zero    | Covered | `src/style.ts:130-134` |
+
+## Performance
+
+| ID     | Description                    | Status  | Location                       |
+|--------|--------------------------------|---------|--------------------------------|
+| PRF-01 | Batched git queries, not per-branch | Covered | `src/git.ts:250-271`, `src/git.ts:295-312`, `src/merge.ts:152-176` |
+| PRF-02 | Default branch and project memoized | Covered | `src/git.ts:116-121`, `src/gitlab.ts:27-35` |
+| PRF-03 | Concurrent GitLab API calls    | Covered | `src/gitlab.ts:63-79`, `src/gitlab.ts:164` |
 
 ## Platform
 

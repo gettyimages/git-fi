@@ -27,10 +27,16 @@ async function fetchPickerCI(
   return map;
 }
 
+/**
+ * Print the resulting branch list. Every mutation ends here, so this is also
+ * what renders `--bare` / `--json` for a non-list action (OPT-08); `command`
+ * names the action that ran so the JSON does not claim to be a `list`.
+ */
 export async function cmdList(
   opts: Options,
   filterPattern?: string,
-  pushedSha?: string | null
+  pushedSha?: string | null,
+  command = "list"
 ): Promise<void> {
   const s = makeStyle(opts);
 
@@ -71,7 +77,7 @@ export async function cmdList(
 
   if (opts.json) {
     const obj: Record<string, unknown> = {
-      command: "list",
+      command,
       branches: shortNames,
     };
     if (process.env.GITLAB_ACCESS_TOKEN) {
@@ -95,7 +101,7 @@ export async function cmdList(
     printCITable(ci, opts, gitlab);
 
     if (gitlab) {
-      const pipeline = fetchFiPipeline(opts, gitlab, pushedSha ?? undefined);
+      const pipeline = await fetchFiPipeline(opts, gitlab, pushedSha ?? undefined);
       if (pipeline) {
         const emoji = STATUS_EMOJI[pipeline.status] || "";
         const idText = s.link(s.dim(`#${pipeline.id}`), pipeline.url);
@@ -164,7 +170,7 @@ export async function cmdAdd(
   const combined = [...new Set([...existing, ...resolved])];
 
   const sha = await mergeProcess("add", resolved, combined, opts);
-  await cmdList(opts, undefined, sha);
+  await cmdList(opts, undefined, sha, "add");
 }
 
 export async function cmdRemove(
@@ -202,7 +208,7 @@ export async function cmdRemove(
   const combined = existing.filter((b) => !removeSet.has(b));
 
   const sha = await mergeProcess("remove", resolved, combined, opts);
-  await cmdList(opts, undefined, sha);
+  await cmdList(opts, undefined, sha, "remove");
 }
 
 export async function cmdForce(
@@ -213,9 +219,15 @@ export async function cmdForce(
     branches.length > 0 ? resolveBranches(branches, "force", opts) : [];
 
   const sha = await mergeProcess("force", resolved, resolved, opts);
-  await cmdList(opts, undefined, sha);
+  await cmdList(opts, undefined, sha, "force");
 }
 
+/**
+ * Re-merge everything currently in fi onto the current default branch. The
+ * merge process drops dead and already-merged branches on the way through
+ * (MG-06, MG-07), so this is also what prunes fi. There is no separate prune
+ * action.
+ */
 export async function cmdAgain(
   branches: string[],
   opts: Options
@@ -228,36 +240,7 @@ export async function cmdAgain(
   const existing = currentFiBranches(defBranch);
 
   const sha = await mergeProcess("again", [], existing, opts);
-  await cmdList(opts, undefined, sha);
-}
-
-export async function cmdPrune(
-  branches: string[],
-  opts: Options
-): Promise<void> {
-  if (branches.length > 0) {
-    abort("--prune does not accept branch names", opts);
-  }
-
-  const defBranch = defaultBranch();
-  const existing = currentFiBranches(defBranch);
-
-  const dead = existing.filter(
-    (b) => git(["rev-parse", "--verify", b], { allowFailure: true }) === null
-  );
-  const merged = existing.filter(
-    (b) =>
-      dead.indexOf(b) === -1 &&
-      gitExitCode(["merge-base", "--is-ancestor", b, `origin/${defBranch}`]) === 0
-  );
-
-  if (dead.length === 0 && merged.length === 0) {
-    process.stdout.write("Nothing to prune.\n");
-    return;
-  }
-
-  const sha = await mergeProcess("prune", [], existing, opts);
-  await cmdList(opts, undefined, sha);
+  await cmdList(opts, undefined, sha, "again");
 }
 
 export async function cmdAbort(
@@ -279,6 +262,11 @@ export async function cmdAbort(
   git(["update-ref", "refs/remotes/origin/fi", "FETCH_HEAD"], { debug: opts.debug });
 
   process.stderr.write(`${s.bold("Re-pulled")} ${s.fi()} from origin.\n`);
+
+  // The status line above is stderr, so every action — this one included — ends
+  // by rendering the resulting branch list on stdout (OPT-08). Without it,
+  // `--abort --json` would exit 0 having written no JSON at all.
+  await cmdList(opts, undefined, null, "abort");
 }
 
 export async function cmdSelect(opts: Options): Promise<void> {
@@ -327,5 +315,5 @@ export async function cmdSelect(opts: Options): Promise<void> {
 
   const action = toRemove.length > 0 && toAdd.length === 0 ? "remove" : "add";
   const sha = await mergeProcess(action, toAdd.length > 0 ? toAdd : toRemove, combined, opts);
-  await cmdList(opts, undefined, sha);
+  await cmdList(opts, undefined, sha, action);
 }

@@ -27,7 +27,7 @@ __git_fi_in_fi () {
 _git_fi () {
 	case "$cur" in
 	-*)
-		__gitcomp "--add --remove --force --again --prune --abort --debug --bare --json --select --yes --version --help"
+		__gitcomp "--add --remove --force --again --abort --debug --bare --json --select --yes --version --help"
 		return
 		;;
 	esac

@@ -12,7 +12,8 @@
     "gen:docs": "node --import tsx scripts/gen-docs.ts",
     "build": "tsc && npm run gen:docs",
     "prepare": "tsc",
-    "test": "tsc && node --import tsx --test test/*.test.ts",
+    "test": "tsc && npm run verify:generated && node --import tsx --test test/*.test.ts",
+    "verify:generated": "node --import tsx scripts/gen-docs.ts --check",
     "prepublishOnly": "npm test"
   },
   "files": [

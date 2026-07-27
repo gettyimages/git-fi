@@ -23,15 +23,14 @@ export const ACTIONS: Flag[] = [
   { long: "add", short: "a", desc: "Add branch(es) to fi" },
   { long: "remove", short: "r", desc: "Remove branch(es) from fi" },
   { long: "force", short: "f", desc: "Replace fi contents with only the given branch(es)" },
-  { long: "again", short: "g", desc: "Re-merge all branches currently in fi" },
-  { long: "prune", short: "p", desc: "Remove dead/already-merged branches from fi" },
+  { long: "again", short: "g", desc: "Re-merge fi, dropping dead and already-merged branches" },
   { long: "abort", short: "A", desc: "Re-pull fi from origin" },
 ];
 
 export const OPTIONS: Flag[] = [
   { long: "debug", short: "d", desc: "Print git commands as they execute" },
-  { long: "bare", short: "b", desc: "Machine-readable output (space-separated branch names; list only)" },
-  { long: "json", short: "j", desc: "Structured JSON output (list only)" },
+  { long: "bare", short: "b", desc: "Machine-readable output: space-separated branch names" },
+  { long: "json", short: "j", desc: "Structured JSON output" },
   { long: "select", short: "s", desc: "Interactive branch picker (requires a TTY)" },
   { long: "yes", short: "y", desc: "Bootstrap fi without the confirmation prompt (for CI/scripts)" },
   { long: "version", short: "V", desc: "Print version and exit" },

@@ -132,14 +132,17 @@ export async function pickBranches(
   }
 }
 
+// The prompt goes to stderr, not stdout: it is human-readable output, which
+// belongs on stderr whenever stdout is carrying a machine format (JS-02), and a
+// prompt on stderr is the conventional shape regardless.
 export async function confirm(
   message: string,
   _detail?: string
 ): Promise<boolean> {
-  process.stdout.write(`${message}\n`);
-  process.stdout.write("See: https://github.com/gettyimages/git-fi\n");
-  process.stdout.write("\ny - yes\nanything else: no\n\n");
-  process.stdout.write("\x1b[1mAre you sure? \x1b[0m");
+  process.stderr.write(`${message}\n`);
+  process.stderr.write("See: https://github.com/gettyimages/git-fi\n");
+  process.stderr.write("\ny - yes\nanything else: no\n\n");
+  process.stderr.write("\x1b[1mAre you sure? \x1b[0m");
 
   process.stdin.setRawMode(true);
   process.stdin.resume();
@@ -147,7 +150,7 @@ export async function confirm(
   try {
     const key = await readKey();
     const str = key.toString();
-    process.stdout.write("\n");
+    process.stderr.write("\n");
     return str === "y";
   } finally {
     process.stdin.setRawMode(false);

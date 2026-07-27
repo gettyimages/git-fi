@@ -27,6 +27,11 @@ jobs:
   # someone changed src/help.ts without re-running the generator. Keeps the
   # generated artifacts honest, since they ship in the npm package and the docs
   # site without being regenerated at publish time.
+  #
+  # The check itself is the `verify:generated` npm script, so a contributor can
+  # reproduce this failure locally with the same command rather than reading it
+  # out of this file. (`npm test` regenerates as it runs, so it can't catch
+  # drift — this job is what guards a commit that skipped the test loop.)
   generated:
     runs-on: ubuntu-latest
     steps:
@@ -38,11 +43,9 @@ jobs:
           cache: npm
 
       - run: npm ci
-      - run: npm run gen:docs
       - name: Verify generated files are up to date
         run: |
-          if ! git diff --quiet -- man completions docs/commands.md; then
+          npm run verify:generated || {
             echo "::error::Generated files are stale. Run 'npm run gen:docs' and commit the result."
-            git diff -- man completions docs/commands.md
             exit 1
-          fi
+          }

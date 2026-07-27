@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import type { Options } from "./types.js";
 import { abort } from "./style.js";
 import { preflightChecks, ensureFetched } from "./git.js";
-import { cmdList, cmdAdd, cmdRemove, cmdForce, cmdAgain, cmdPrune, cmdAbort, cmdSelect } from "./commands.js";
+import { cmdList, cmdAdd, cmdRemove, cmdForce, cmdAgain, cmdAbort, cmdSelect } from "./commands.js";
 import { notifyUpdate } from "./update-check.js";
 import { renderHelp } from "./help.js";
 import { installCompletions } from "./install-completions.js";
@@ -73,11 +73,6 @@ function parseArgs(argv: string[]) {
         if (action) abort(`Cannot combine --${action} with ${arg}`, opts);
         action = "again";
         break;
-      case "--prune":
-      case "-p":
-        if (action) abort(`Cannot combine --${action} with ${arg}`, opts);
-        action = "prune";
-        break;
       case "--abort":
       case "-A":
         if (action) abort(`Cannot combine --${action} with ${arg}`, opts);
@@ -128,16 +123,20 @@ function parseArgs(argv: string[]) {
     abort("--select is only valid with --add or --remove", opts);
   }
 
+  // `--bare` / `--json` choose an output format and work with any action
+  // (OPT-08), but the picker draws its interactive UI on stdout, which is where
+  // machine output goes — the two cannot share the stream. Checked before the
+  // TTY test below: the flag combination is wrong whatever the environment, and
+  // reporting a missing terminal would point at the wrong thing.
+  if (opts.select && (opts.json || opts.bare)) {
+    abort(
+      `--select cannot be combined with ${opts.json ? "--json" : "--bare"}`,
+      opts
+    );
+  }
+
   if (opts.select && (!process.stdin.isTTY || !process.stdout.isTTY)) {
     abort("--select requires an interactive terminal", opts);
-  }
-
-  if (opts.json && action !== "list") {
-    abort("--json is only valid with the list command", opts);
-  }
-
-  if (opts.bare && action !== "list") {
-    abort("--bare is only valid with the list command", opts);
   }
 
   return { opts, action: action!, branches, filterPattern };
@@ -179,9 +178,6 @@ async function main() {
       break;
     case "again":
       await cmdAgain(branches, opts);
-      break;
-    case "prune":
-      await cmdPrune(branches, opts);
       break;
     case "abort":
       await cmdAbort(branches, opts);

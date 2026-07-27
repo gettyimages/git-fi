@@ -91,8 +91,8 @@ export function preflightChecks(opts: Options): void {
 // `allowSkip` is passed only on the read-only list path. GIT_FI_NO_FETCH may
 // then operate on already-fetched remote-tracking refs (shell completion sets
 // it so tab-completion stays offline). Mutating paths (add/remove/force/again/
-// prune/abort) never pass it, so they always fetch — an integration merge must
-// never silently build on stale refs, whatever the environment holds.
+// abort) never pass it, so they always fetch: an integration merge must never
+// silently build on stale refs, whatever the environment holds.
 export async function ensureFetched(
   opts: Options,
   allowSkip = false
@@ -113,7 +113,15 @@ export async function ensureFetched(
   }
 }
 
+let defaultBranchCache: string | undefined;
+
 export function defaultBranch(): string {
+  if (defaultBranchCache !== undefined) return defaultBranchCache;
+  defaultBranchCache = resolveDefaultBranch();
+  return defaultBranchCache;
+}
+
+function resolveDefaultBranch(): string {
   const ref = git(["symbolic-ref", "refs/remotes/origin/HEAD"], {
     allowFailure: true,
   });
@@ -212,12 +220,8 @@ export function resolveBranches(
   }
 
   if (action === "add" || action === "force") {
-    const missing: string[] = [];
-    for (const b of resolved) {
-      if (git(["rev-parse", "--verify", b], { allowFailure: true }) === null) {
-        missing.push(b);
-      }
-    }
+    const existing = existingRemoteRefs();
+    const missing = resolved.filter((b) => !existing.has(b));
     if (missing.length > 0) {
       const s = makeStyle(opts);
       process.stderr.write(
@@ -231,19 +235,43 @@ export function resolveBranches(
   return resolved;
 }
 
-export function allRemoteBranches(defBranch: string): string[] {
+// `git branch --format` has no field separator of its own, so use a unit
+// separator: it cannot appear in a ref name (git rejects control characters).
+const FIELD_SEP = "\x1f";
+
+interface RemoteBranch {
+  name: string;
+  /** Commit date as YYYY-MM-DD. */
+  date: string;
+}
+
+// One `git branch -r` invocation carries the name, symref, and commit date for
+// every remote branch, so callers never spawn a `git log` per candidate.
+function listRemoteBranches(
+  defBranch: string,
+  extraArgs: string[] = []
+): RemoteBranch[] {
   const lines = gitLines([
     "branch",
     "-r",
-    "--format=%(refname:short)",
+    ...extraArgs,
+    `--format=%(refname:short)${FIELD_SEP}%(symref)${FIELD_SEP}%(committerdate:short)`,
   ]);
-  return lines.filter(
-    (b) =>
-      !b.includes("->") &&
-      b !== "origin/HEAD" &&
-      b !== "origin/fi" &&
-      b !== `origin/${defBranch}`
-  );
+
+  const branches: RemoteBranch[] = [];
+  for (const line of lines) {
+    const [name, symref, date] = line.split(FIELD_SEP);
+    // origin/HEAD renders as a bare `origin` under refname:short, so it slips
+    // past a name comparison. Match the symref field, which only HEAD sets.
+    if (symref) continue;
+    if (name === "origin/fi" || name === `origin/${defBranch}`) continue;
+    branches.push({ name, date });
+  }
+  return branches;
+}
+
+export function allRemoteBranches(defBranch: string): string[] {
+  return listRemoteBranches(defBranch).map((b) => b.name);
 }
 
 export function remoteBranchesNoMergedSince(
@@ -254,27 +282,36 @@ export function remoteBranchesNoMergedSince(
   since.setMonth(since.getMonth() - sinceMonths);
   const sinceStr = since.toISOString().slice(0, 10);
 
-  const lines = gitLines([
-    "branch",
-    "-r",
-    "--no-merged", `origin/${defBranch}`,
+  return listRemoteBranches(defBranch, [
+    "--no-merged",
+    `origin/${defBranch}`,
     "--sort=-committerdate",
-    "--format=%(refname:short)",
-  ]);
+  ])
+    .filter((b) => b.date >= sinceStr)
+    .map((b) => b.name);
+}
 
-  const candidates = lines.filter(
-    (b) =>
-      !b.includes("->") &&
-      b !== "origin/HEAD" &&
-      b !== "origin/fi" &&
-      b !== `origin/${defBranch}`
+/** Every remote-tracking ref that exists, as `origin/<name>`. */
+export function existingRemoteRefs(): Set<string> {
+  return new Set(
+    gitLines(["for-each-ref", "--format=%(refname:short)", "refs/remotes"])
   );
+}
 
-  return candidates.filter((b) => {
-    const date = git(["log", "-1", "--format=%ci", b], { allowFailure: true });
-    if (!date) return false;
-    return date.slice(0, 10) >= sinceStr;
-  });
+/**
+ * Remote branches already reachable from `origin/<defBranch>`: the batched
+ * equivalent of `git merge-base --is-ancestor <branch> origin/<defBranch>`.
+ */
+export function mergedRemoteBranches(defBranch: string): Set<string> {
+  return new Set(
+    gitLines([
+      "branch",
+      "-r",
+      "--merged",
+      `origin/${defBranch}`,
+      "--format=%(refname:short)",
+    ])
+  );
 }
 
 export function isInteractive(_opts: Options): boolean {

@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import type { Options, CIResult } from "./types.js";
 import { makeStyle, createSpinner, printTable, abort } from "./style.js";
 import { git } from "./git.js";
@@ -13,8 +12,29 @@ export const STATUS_EMOJI: Record<string, string> = {
   skipped: "\u23ED\uFE0F",
 };
 
-export function detectGitlabProject(): { host: string; project: string } | null {
-  const url = git(["remote", "get-url", "origin"], { allowFailure: true });
+const API_TIMEOUT_MS = 10000;
+
+// Requests in flight at once against the GitLab API. The picker can offer
+// dozens of branches, and an unbounded fan-out would trip GitLab's rate
+// limiter; 8 saturates a round trip without getting throttled.
+const API_CONCURRENCY = 8;
+
+interface GitlabProject {
+  host: string;
+  project: string;
+}
+
+let projectCache: GitlabProject | null | undefined;
+
+export function detectGitlabProject(): GitlabProject | null {
+  if (projectCache !== undefined) return projectCache;
+  projectCache = parseOriginUrl(
+    git(["remote", "get-url", "origin"], { allowFailure: true })
+  );
+  return projectCache;
+}
+
+function parseOriginUrl(url: string | null): GitlabProject | null {
   if (!url) return null;
 
   let m = url.match(/@([^:]+):(.+?)(?:\.git)?$/);
@@ -25,6 +45,46 @@ export function detectGitlabProject(): { host: string; project: string } | null 
 
   return null;
 }
+
+interface ApiResponse {
+  status: number;
+  body: string;
+}
+
+async function apiGet(url: string, token: string): Promise<ApiResponse> {
+  const res = await fetch(url, {
+    headers: { "PRIVATE-TOKEN": token },
+    signal: AbortSignal.timeout(API_TIMEOUT_MS),
+  });
+  return { status: res.status, body: await res.text() };
+}
+
+/** Run `fn` over `items` with at most `limit` concurrent calls, preserving order. */
+async function mapLimit<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    for (let i = next++; i < items.length; i = next++) {
+      results[i] = await fn(items[i]);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, worker)
+  );
+  return results;
+}
+
+// A per-branch fetch either produced a row or hit a hard HTTP error. Failures
+// are carried rather than thrown so the abort can be raised for the first
+// branch in list order. With requests in flight concurrently, whichever
+// response lands first is otherwise arbitrary.
+type BranchOutcome =
+  | { ok: true; result: CIResult }
+  | { ok: false; ref: string; status: number; body: string };
 
 export async function fetchGitlabCI(
   branches: string[],
@@ -41,75 +101,67 @@ export async function fetchGitlabCI(
   }
 
   const spin = createSpinner("Fetching CI status...", opts);
-  const results: CIResult[] = [];
   const encodedProject = encodeURIComponent(proj.project);
-  try {
-    for (const branch of branches) {
-      const ref = branch.replace(/^origin\//, "");
-      const encodedRef = encodeURIComponent(ref);
-      const apiUrl = `https://${proj.host}/api/v4/projects/${encodedProject}/pipelines?ref=${encodedRef}&per_page=1`;
 
-      const response = execFileSync(
-        "curl",
-        ["-s", "-w", "\n%{http_code}", "-H", `PRIVATE-TOKEN: ${token}`, apiUrl],
-        { encoding: "utf-8", timeout: 10000 }
-      );
+  const fetchBranch = async (branch: string): Promise<BranchOutcome> => {
+    const ref = branch.replace(/^origin\//, "");
+    const encodedRef = encodeURIComponent(ref);
+    const pipelines = await apiGet(
+      `https://${proj.host}/api/v4/projects/${encodedProject}/pipelines?ref=${encodedRef}&per_page=1`,
+      token
+    );
 
-      const lastNewline = response.lastIndexOf("\n");
-      const httpCode = parseInt(response.slice(lastNewline + 1), 10);
-      const body = response.slice(0, lastNewline);
-
-      if (httpCode === 404) {
-        results.push({ branch, status: "missing", pipelineId: "", author: "", date: "", branchMissing: true });
-        continue;
-      }
-      if (httpCode < 200 || httpCode >= 300) {
-        abort(
-          `GitLab API returned HTTP ${httpCode} for branch '${ref}': ${body}\n\nTo use git-fi without CI status, unset GITLAB_ACCESS_TOKEN and try again.`,
-          opts
-        );
-      }
-
-      const pipelines = JSON.parse(body);
-      if (Array.isArray(pipelines) && pipelines.length > 0) {
-        const p = pipelines[0];
-        const commitUrl = `https://${proj.host}/api/v4/projects/${encodedProject}/repository/commits/${encodedRef}`;
-        let author = "";
-        let date = "";
-
-        const commitResp = execFileSync(
-          "curl",
-          ["-s", "-w", "\n%{http_code}", "-H", `PRIVATE-TOKEN: ${token}`, commitUrl],
-          { encoding: "utf-8", timeout: 10000 }
-        );
-        const commitLastNl = commitResp.lastIndexOf("\n");
-        const commitHttpCode = parseInt(commitResp.slice(commitLastNl + 1), 10);
-        const commitBody = commitResp.slice(0, commitLastNl);
-
-        let branchMissing = false;
-        if (commitHttpCode >= 200 && commitHttpCode < 300) {
-          const commit = JSON.parse(commitBody);
-          author = commit.author_name || "";
-          date = commit.committed_date
-            ? commit.committed_date.slice(0, 10)
-            : "";
-        } else if (commitHttpCode === 404) {
-          branchMissing = true;
-        }
-
-        results.push({
-          branch,
-          status: p.status || "missing",
-          pipelineId: String(p.id || ""),
-          author,
-          date,
-          branchMissing,
-        });
-      } else {
-        results.push({ branch, status: "missing", pipelineId: "", author: "", date: "", branchMissing: false });
-      }
+    if (pipelines.status === 404) {
+      return {
+        ok: true,
+        result: { branch, status: "missing", pipelineId: "", author: "", date: "", branchMissing: true },
+      };
     }
-    return results;
+    if (pipelines.status < 200 || pipelines.status >= 300) {
+      return { ok: false, ref, status: pipelines.status, body: pipelines.body };
+    }
+
+    const parsed = JSON.parse(pipelines.body);
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return {
+        ok: true,
+        result: { branch, status: "missing", pipelineId: "", author: "", date: "", branchMissing: false },
+      };
+    }
+
+    const p = parsed[0];
+    const commit = await apiGet(
+      `https://${proj.host}/api/v4/projects/${encodedProject}/repository/commits/${encodedRef}`,
+      token
+    );
+
+    let author = "";
+    let date = "";
+    let branchMissing = false;
+    if (commit.status >= 200 && commit.status < 300) {
+      const body = JSON.parse(commit.body);
+      author = body.author_name || "";
+      date = body.committed_date ? body.committed_date.slice(0, 10) : "";
+    } else if (commit.status === 404) {
+      branchMissing = true;
+    }
+
+    return {
+      ok: true,
+      result: {
+        branch,
+        status: p.status || "missing",
+        pipelineId: String(p.id || ""),
+        author,
+        date,
+        branchMissing,
+      },
+    };
+  };
+
+  let outcomes: BranchOutcome[];
+  try {
+    outcomes = await mapLimit(branches, API_CONCURRENCY, fetchBranch);
   } catch (err) {
     spin.stop();
     const msg = err instanceof Error ? err.message : String(err);
@@ -120,6 +172,17 @@ export async function fetchGitlabCI(
   } finally {
     spin.stop();
   }
+
+  for (const outcome of outcomes) {
+    if (!outcome.ok) {
+      abort(
+        `GitLab API returned HTTP ${outcome.status} for branch '${outcome.ref}': ${outcome.body}\n\nTo use git-fi without CI status, unset GITLAB_ACCESS_TOKEN and try again.`,
+        opts
+      );
+    }
+  }
+
+  return outcomes.map((o) => (o as { ok: true; result: CIResult }).result);
 }
 
 export interface FiPipelineInfo {
@@ -128,42 +191,47 @@ export interface FiPipelineInfo {
   status: string;
 }
 
-export function fetchFiPipeline(
+// GitLab registers the pipeline for a push asynchronously, so the first lookup
+// after `git push` often finds nothing. Back off rather than sleeping a flat
+// 1.5 s: the common case (already registered) returns after the short first
+// wait instead of paying the worst-case delay every time.
+const PIPELINE_RETRY_DELAYS_MS = [500, 1000, 2000];
+
+export async function fetchFiPipeline(
   opts: Options,
-  gitlab: { host: string; project: string },
+  gitlab: GitlabProject,
   pushedSha?: string
-): FiPipelineInfo | null {
+): Promise<FiPipelineInfo | null> {
   const token = process.env.GITLAB_ACCESS_TOKEN;
   if (!token) return null;
 
   const encodedProject = encodeURIComponent(gitlab.project);
-  const maxAttempts = pushedSha ? 4 : 1;
-  const delayMs = 1500;
+  let apiUrl = `https://${gitlab.host}/api/v4/projects/${encodedProject}/pipelines?ref=fi&per_page=1`;
+  if (pushedSha) {
+    apiUrl += `&sha=${pushedSha}`;
+  }
 
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+  const delays = pushedSha ? PIPELINE_RETRY_DELAYS_MS : [];
+
+  for (let attempt = 0; attempt <= delays.length; attempt++) {
     if (attempt > 0) {
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delayMs);
+      await new Promise((resolve) => setTimeout(resolve, delays[attempt - 1]));
     }
 
     try {
-      let apiUrl = `https://${gitlab.host}/api/v4/projects/${encodedProject}/pipelines?ref=fi&per_page=1`;
-      if (pushedSha) {
-        apiUrl += `&sha=${pushedSha}`;
-      }
-
-      const response = execFileSync(
-        "curl",
-        ["-s", "-f", "-H", `PRIVATE-TOKEN: ${token}`, apiUrl],
-        { encoding: "utf-8", timeout: 10000 }
-      );
-      const pipelines = JSON.parse(response);
-      if (Array.isArray(pipelines) && pipelines.length > 0) {
-        const p = pipelines[0];
-        return {
-          url: `https://${gitlab.host}/${gitlab.project}/-/pipelines/${p.id}`,
-          id: String(p.id),
-          status: p.status || "unknown",
-        };
+      const res = await apiGet(apiUrl, token);
+      if (res.status >= 200 && res.status < 300) {
+        const pipelines = JSON.parse(res.body);
+        if (Array.isArray(pipelines) && pipelines.length > 0) {
+          const p = pipelines[0];
+          return {
+            url: `https://${gitlab.host}/${gitlab.project}/-/pipelines/${p.id}`,
+            id: String(p.id),
+            status: p.status || "unknown",
+          };
+        }
+      } else if (opts.debug) {
+        process.stderr.write(`Pipeline lookup returned HTTP ${res.status}\n`);
       }
     } catch (err) {
       if (opts.debug) {
@@ -179,7 +247,7 @@ export function fetchFiPipeline(
 export function printCITable(
   ciResults: CIResult[],
   opts: Options,
-  gitlab?: { host: string; project: string } | null
+  gitlab?: GitlabProject | null
 ): void {
   const s = makeStyle(opts);
   const headers = ["Branch", "Date", "Author", "Pipeline"];

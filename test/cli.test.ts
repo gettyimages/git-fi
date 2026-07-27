@@ -1,8 +1,9 @@
 import { test, before, after, describe } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { runFi, makeSandbox, type Sandbox } from "./helpers.ts";
 
@@ -53,16 +54,13 @@ describe("argument handling (no repo required)", () => {
     assert.match(r.stderr, /Cannot combine/);
   });
 
-  test("--json is rejected for non-list actions", () => {
-    const r = runFi(["--json", "--add", "x"], dir);
-    assert.equal(r.status, 1);
-    assert.match(r.stderr, /--json is only valid with the list/);
-  });
-
-  test("--bare is rejected for non-list actions", () => {
-    const r = runFi(["--bare", "--add", "x"], dir);
-    assert.equal(r.status, 1);
-    assert.match(r.stderr, /--bare is only valid with the list/);
+  test("--select cannot be combined with --json or --bare (OPT-09)", () => {
+    for (const fmt of ["--json", "--bare"]) {
+      const r = runFi(["--select", "--add", fmt], dir);
+      assert.equal(r.status, 1);
+      assert.match(r.stderr, /--select cannot be combined with/);
+      assert.ok(r.stderr.includes(fmt), `error should name ${fmt}`);
+    }
   });
 
   test("--help lists the install-completions command", () => {
@@ -269,23 +267,157 @@ describe("add / remove / list lifecycle", () => {
   });
 });
 
-describe("prune", () => {
+describe("pruning via --again", () => {
   let sb: Sandbox;
   before(() => {
     sb = makeSandbox();
     sb.pushBranch("keep", "keep.txt", "keep\n");
     sb.pushBranch("gone", "gone.txt", "gone\n");
+    sb.pushBranch("landed", "landed.txt", "landed\n");
     sb.bootstrapFi();
-    runFi(["--add", "keep"], sb.work);
-    runFi(["--add", "gone"], sb.work);
+    runFi(["--add", "keep", "gone", "landed"], sb.work);
+    sb.deleteRemoteBranch("gone");
+    sb.git(["merge", "--quiet", "--no-edit", "origin/landed"]);
+    sb.git(["push", "--quiet", "origin", "main"]);
   });
   after(() => sb.cleanup());
 
-  test("prune drops a branch that disappeared from origin", () => {
-    sb.deleteRemoteBranch("gone");
-    const r = runFi(["--prune"], sb.work);
+  test("again drops branches that vanished and branches that landed", () => {
+    const r = runFi(["--again"], sb.work);
     assert.equal(r.status, 0, r.stderr);
     assert.deepEqual(listedBranches(sb), ["keep"]);
+    assert.match(r.stderr, /Ignoring branches that no longer exist/);
+    assert.match(r.stderr, /landed already in main/);
+  });
+
+  // Deliberately not asserting that origin/fi's sha changes: re-merging the
+  // same branch set onto an unmoved default branch yields a byte-identical
+  // commit (same tree, parents, and message), so the sha is legitimately
+  // unchanged whenever both runs land in the same second. What distinguishes
+  // "re-merged" from the removed short-circuit is that the merge flow ran.
+  test("again runs the merge flow when nothing needs dropping", () => {
+    const r = runFi(["--again"], sb.work);
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(listedBranches(sb), ["keep"]);
+    assert.match(r.stdout, /<- re-merging/);
+    assert.match(r.stderr, /Done!/);
+  });
+
+  // The case the old `--prune` gate skipped: nothing qualifies for dropping,
+  // but the default branch has moved, so fi must still be rebuilt on top of it.
+  test("again rebuilds fi on a default branch that has moved", () => {
+    sb.pushBranch("mainwork", "mainwork.txt", "mainwork\n");
+    sb.git(["merge", "--quiet", "--no-edit", "origin/mainwork"]);
+    sb.git(["push", "--quiet", "origin", "main"]);
+    const movedMain = sb.git(["rev-parse", "origin/main"]);
+
+    const r = runFi(["--again"], sb.work);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(
+      sb.git(["merge-base", "origin/main", "origin/fi"]),
+      movedMain,
+      "fi should be rebuilt on the advanced main, making main an ancestor of fi"
+    );
+  });
+});
+
+describe("--bare / --json on non-list actions (OPT-08)", () => {
+  let sb: Sandbox;
+  before(() => {
+    sb = makeSandbox();
+    sb.pushBranch("feature-a", "a.txt", "a\n");
+    sb.pushBranch("feature-b", "b.txt", "b\n");
+    sb.bootstrapFi();
+  });
+  after(() => sb.cleanup());
+
+  test("--add --json emits only JSON on stdout, naming the action", () => {
+    const r = runFi(["--add", "feature-a", "--json"], sb.work);
+    assert.equal(r.status, 0, r.stderr);
+    const parsed = JSON.parse(r.stdout);
+    assert.equal(parsed.command, "add");
+    assert.deepEqual(parsed.branches, ["feature-a"]);
+  });
+
+  test("--add --bare emits only the branch names on stdout", () => {
+    const r = runFi(["--add", "feature-b", "--bare"], sb.work);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout.trim(), "feature-a feature-b");
+  });
+
+  test("the human merge display stays off stdout in machine modes", () => {
+    const r = runFi(["--again", "--json"], sb.work);
+    assert.equal(r.status, 0, r.stderr);
+    // The `fi:` header, the ` * branch` tree, and `<- re-merging` would all
+    // corrupt the JSON if they reached stdout.
+    assert.doesNotMatch(r.stdout, /<- re-merging|^fi:/m);
+    JSON.parse(r.stdout);
+  });
+
+  test("--abort --json still produces JSON (CMD-06)", () => {
+    const r = runFi(["--abort", "--json"], sb.work);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(JSON.parse(r.stdout).command, "abort");
+    assert.match(r.stderr, /Re-pulled/);
+  });
+
+  test("a failed merge keeps its diagnostics off stdout", () => {
+    const conflict = makeSandbox();
+    try {
+      conflict.pushBranch("left", "shared.txt", "left side\n");
+      conflict.pushBranch("right", "shared.txt", "right side\n");
+      conflict.bootstrapFi();
+      runFi(["--add", "left"], conflict.work);
+      const r = runFi(["--add", "right", "--json"], conflict.work);
+      assert.equal(r.status, 1);
+      assert.match(r.stderr, /Failed trying to merge/);
+      assert.doesNotMatch(r.stdout, /Failed trying to merge/);
+    } finally {
+      conflict.cleanup();
+    }
+  });
+});
+
+describe("--prune is gone", () => {
+  let sb: Sandbox;
+  before(() => {
+    sb = makeSandbox();
+    sb.pushBranch("keep", "keep.txt", "keep\n");
+    sb.bootstrapFi();
+    runFi(["--add", "keep"], sb.work);
+  });
+  after(() => sb.cleanup());
+
+  for (const flag of ["--prune", "-p"]) {
+    test(`${flag} is rejected as an unknown option`, () => {
+      const r = runFi([flag], sb.work);
+      assert.equal(r.status, 1);
+      assert.ok(
+        r.stderr.includes(`Unknown option: ${flag}`),
+        `expected an unknown-option error for ${flag}, got: ${r.stderr}`
+      );
+    });
+  }
+
+  test("--again rejects branch names", () => {
+    const r = runFi(["--again", "keep"], sb.work);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /--again does not accept branch names/);
+  });
+
+  test("help, man page, and completions carry no trace of --prune", () => {
+    const help = runFi(["help"], sb.work).stdout;
+    assert.doesNotMatch(help, /prune/);
+    assert.match(help, /--again/);
+    for (const shell of ["bash", "zsh"]) {
+      const script = runFi(["install-completions", shell], sb.work).stdout;
+      assert.doesNotMatch(script, /prune/, `${shell} completion mentions prune`);
+    }
+    const man = readFileSync(
+      fileURLToPath(new URL("../man/git-fi.1", import.meta.url)),
+      "utf-8"
+    );
+    assert.doesNotMatch(man, /prune/);
   });
 });
 

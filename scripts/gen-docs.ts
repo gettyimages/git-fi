@@ -3,7 +3,11 @@
 // `npm run gen:docs` (wired into `npm run build`). The generated files under
 // man/ and completions/, and the marked table regions in docs/, are committed —
 // do not hand-edit them.
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+//
+// `--check` (via `npm run verify:generated`, which `npm test` and CI both run)
+// reports whether the committed files match what this script would write, and
+// writes nothing.
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { ACTIONS, OPTIONS, SUBCOMMANDS, TAGLINE, DOCS_URL, type Flag } from "../src/help.js";
@@ -86,31 +90,71 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** Replace the body between the named BEGIN/END markers in a docs file. */
-function injectTable(relPath: string, name: string, body: string): void {
-  const file = join(root, relPath);
+/** Return `src` with the body between the named BEGIN/END markers replaced. */
+function injectTable(src: string, relPath: string, name: string, body: string): string {
   const begin = `<!-- BEGIN GENERATED: ${name} -->`;
   const end = `<!-- END GENERATED: ${name} -->`;
   const region = new RegExp(`${escapeRegExp(begin)}[\\s\\S]*?${escapeRegExp(end)}`);
-  const src = readFileSync(file, "utf8");
   if (!region.test(src)) {
     throw new Error(`generated markers "${name}" not found in ${relPath} — add them or fix the name`);
   }
   const replacement = `${begin}\n<!-- ${GENERATED} -->\n\n${body}\n\n${end}`;
-  writeFileSync(file, src.replace(region, replacement));
+  return src.replace(region, replacement);
 }
 
-// --- write -----------------------------------------------------------------
+// --- outputs ---------------------------------------------------------------
+//
+// Every generated artifact is resolved to its full intended content *before*
+// anything is written, so `--check` can compare against what is on disk without
+// touching it. Add new artifacts here and both modes pick them up; there is no
+// second list to keep in sync.
 
-mkdirSync(join(root, "man"), { recursive: true });
-mkdirSync(join(root, "completions"), { recursive: true });
-writeFileSync(join(root, "man", "git-fi.1"), man);
-writeFileSync(join(root, "completions", "git-fi.bash"), bash);
-writeFileSync(join(root, "completions", "_git-fi"), zsh);
+const commandsDoc = (() => {
+  const relPath = "docs/commands.md";
+  let src = readFileSync(join(root, relPath), "utf8");
+  src = injectTable(src, relPath, "actions", mdTable(ACTIONS));
+  src = injectTable(src, relPath, "options", mdTable(OPTIONS));
+  return { relPath, content: src };
+})();
 
-injectTable("docs/commands.md", "actions", mdTable(ACTIONS));
-injectTable("docs/commands.md", "options", mdTable(OPTIONS));
+const outputs: Array<{ relPath: string; content: string }> = [
+  { relPath: "man/git-fi.1", content: man },
+  { relPath: "completions/git-fi.bash", content: bash },
+  { relPath: "completions/_git-fi", content: zsh },
+  commandsDoc,
+];
 
-process.stdout.write(
-  "Generated man/git-fi.1, completions/git-fi.bash, completions/_git-fi, docs/commands.md tables\n"
-);
+// --- check or write --------------------------------------------------------
+//
+// `--check` compares on-disk content against the generated content and exits
+// non-zero on any mismatch, writing nothing. It reads no git state, so it gives
+// the same verdict from a dirty working tree as from a clean checkout — which
+// is what makes it usable both locally and in CI.
+
+if (process.argv.includes("--check")) {
+  const stale = outputs.filter(({ relPath, content }) => {
+    const file = join(root, relPath);
+    if (!existsSync(file)) return true;
+    return readFileSync(file, "utf8") !== content;
+  });
+
+  if (stale.length > 0) {
+    process.stderr.write(
+      `Generated files are out of date with src/help.ts:\n` +
+        stale.map((o) => `  ${o.relPath}\n`).join("") +
+        `\nRun 'npm run gen:docs' and commit the result.\n`
+    );
+    process.exit(1);
+  }
+
+  process.stdout.write(`Generated files are up to date (${outputs.length} checked)\n`);
+} else {
+  mkdirSync(join(root, "man"), { recursive: true });
+  mkdirSync(join(root, "completions"), { recursive: true });
+  for (const { relPath, content } of outputs) {
+    writeFileSync(join(root, relPath), content);
+  }
+  process.stdout.write(
+    `Generated ${outputs.map((o) => o.relPath).join(", ")}\n`
+  );
+}

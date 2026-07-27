@@ -42,14 +42,16 @@ flowchart TD
 | ID       | Flag        | Short | Description                                                               |
 |----------|-------------|-------|---------------------------------------------------------------------------|
 | `OPT-01` | `--debug`   | `-d`  | Print git commands as they execute; remove `--quiet` from git invocations |
-| `OPT-02` | `--bare`    | `-b`  | Machine-readable output (space-separated branch names for list)           |
-| `OPT-03` | `--json`    | `-j`  | Structured JSON output for `list` (see [JSON Output](#json-output))       |
+| `OPT-02` | `--bare`    | `-b`  | Machine-readable output: space-separated branch names (any action, `OPT-08`) |
+| `OPT-03` | `--json`    | `-j`  | Structured JSON output (any action, `OPT-08`; see [JSON Output](#json-output)) |
 | `OPT-04` | `--select`  | `-s`  | Interactive branch picker for `--add` / `--remove` (requires TTY)         |
 | `OPT-05` | `--version` | `-V`  | Print the current version string to stdout and exit 0                     |
 | `OPT-06` | `--help`    | `-h`  | Print a usage summary to stdout and exit 0; direct to the documentation site for full details |
-| `OPT-08` | `--yes`     | `-y`  | Bootstrap `fi` without the confirmation prompt (see `MG-15`); intended for CI and scripts |
+| `OPT-07` | `--yes`     | `-y`  | Bootstrap `fi` without the confirmation prompt (see `MG-15`); intended for CI and scripts |
 
-`OPT-07` If `--bare` is specified with any action other than `list`, then git-fi shall abort with an error.
+`OPT-08` `--bare` and `--json` select an output format rather than a command, so git-fi shall accept either with any action. When an action other than `list` completes, git-fi shall render the resulting branch list in the requested format, exactly as `list` would (`LS-02`, `JS-01`). git-fi shall keep stdout free of human-readable output in these modes: the merge display and its annotations are suppressed (`TRM-07`) and any diagnostics go to stderr (`JS-01`).
+
+`OPT-09` If `--select` is combined with `--bare` or `--json`, then git-fi shall abort with `--select cannot be combined with <flag>`. The picker draws its interactive UI on stdout, which is the stream carrying machine output, so the two cannot both use it.
 
 ## Help & Documentation
 
@@ -111,7 +113,6 @@ flowchart TD
 | remove   | `<- removing`      |
 | force    | `<- replacing`     |
 | again    | `<- re-merging`    |
-| prune    | `<- pruning`       |
 
 **Intermediate states** — each overwrites the annotation in-place as the operation progresses:
 
@@ -127,7 +128,6 @@ flowchart TD
 | remove   | `<- removed`       | `<- failed`        |
 | force    | `<- replaced`      | `<- failed`        |
 | again    | `<- re-merged`     | `<- failed`        |
-| prune    | `<- pruned`        | `<- failed`        |
 
 ## Commands
 
@@ -141,15 +141,13 @@ flowchart TD
     B -- -a --> ADD[add: append to branch list]
     B -- -r --> REM[remove: subtract from branch list]
     B -- -f --> FRC[force: replace branch list]
-    B -- -g --> AGN[again: keep branch list as-is]
-    B -- -p --> PRN[prune: remove dead/merged branches]
+    B -- -g --> AGN[again: re-merge, dropping dead and merged branches]
     B -- -A --> ABT[abort: re-pull fi from origin]
 
     ADD --> M[Merge Process]
     REM --> M
     FRC --> M
     AGN --> M
-    PRN --> M
 
     L --> OUT[Print branch list]
     ABT --> PULL[Fetch and update origin/fi ref]
@@ -161,8 +159,7 @@ flowchart TD
 | `--add` | `-a` | Add branch(es) to fi |
 | `--remove` | `-r` | Remove branch(es) from fi |
 | `--force` | `-f` | Replace fi contents with only the given branch(es) |
-| `--again` | `-g` | Re-merge all branches currently in fi |
-| `--prune` | `-p` | Remove dead and already-merged branches from fi |
+| `--again` | `-g` | Re-merge fi, dropping dead and already-merged branches |
 | `--abort` | `-A` | Re-pull fi from origin (discard local state) |
 
 ### Branch Name Resolution
@@ -212,7 +209,7 @@ feature-a feature-b
 
 ### Interactive Branch Selection (`--select`)
 
-`SEL-01` When `--select` is combined with `--add`, git-fi shall display an interactive multi-select picker showing all remote branches not already in fi (excluding the default branch and `origin/fi`). When the user confirms, git-fi shall continue with the normal add flow.
+`SEL-01` When `--select` is combined with `--add`, git-fi shall display an interactive multi-select picker showing all remote branches not already in fi (excluding the default branch, `origin/fi`, and the `origin/HEAD` symbolic ref). When the user confirms, git-fi shall continue with the normal add flow.
 
 `SEL-02` When `--select` is combined with `--remove`, git-fi shall display an interactive multi-select picker showing branches currently in fi. When the user confirms, git-fi shall continue with the normal remove flow.
 
@@ -261,23 +258,19 @@ fi:
 
 ### again / `--again` / `-g`
 
-`CMD-05` When `--again` is specified, git-fi shall re-merge all branches currently in fi. If branch arguments are provided, then git-fi shall abort with `--again does not accept branch names`.
+`CMD-05` When `--again` is specified, git-fi shall re-merge all branches currently in fi onto the current default branch. If branch arguments are provided, then git-fi shall abort with `--again does not accept branch names`.
+
+Re-merging is also what prunes fi: the merge process drops branches that no longer exist on origin (`MG-06`) and branches already merged into the default branch (`MG-07`) before it merges, so `--again` leaves fi holding only live, unmerged branches. There is no separate prune action.
+
+`--again` always re-merges and force-pushes, including when nothing was dropped and the default branch has not moved. The push is how a stale `fi` catches up with a default branch that has advanced, which is the reason to run the command at all; gating it on "something changed in the branch list" would skip exactly that case.
 
 **Output:** Branch list followed by `<- re-merging` footer.
 
-### prune / `--prune` / `-p`
-
-`CMD-06` When `--prune` is specified, git-fi shall remove branches from fi that no longer exist on origin (dead) or that have already been merged into the default branch. If branch arguments are provided, then git-fi shall abort with `--prune does not accept branch names`.
-
-`CMD-07` If no branches qualify for pruning, then git-fi shall print `Nothing to prune.` and exit without merging.
-
-**Output:** Branch list followed by `<- pruning` footer.
-
 ### abort / `--abort` / `-A`
 
-`CMD-08` When `--abort` is specified, git-fi shall re-pull `origin/fi` from origin, discarding any local ref state. If branch arguments are provided, then git-fi shall abort with `--abort does not accept branch names`.
+`CMD-06` When `--abort` is specified, git-fi shall re-pull `origin/fi` from origin, discarding any local ref state, then render the resulting branch list (`OPT-08`). The `Re-pulled fi from origin.` status line goes to stderr. If branch arguments are provided, then git-fi shall abort with `--abort does not accept branch names`.
 
-`CMD-09` If `origin/fi` does not exist when `--abort` is specified, then git-fi shall abort with `origin/fi does not exist — nothing to re-pull`.
+`CMD-07` If `origin/fi` does not exist when `--abort` is specified, then git-fi shall abort with `origin/fi does not exist — nothing to re-pull`.
 
 ## Merge Process
 
@@ -320,7 +313,7 @@ flowchart TD
 2. `MG-02` If uncommitted changes exist, then git-fi shall abort with `Your index is dirty`.
 3. `MG-03` git-fi shall capture a snapshot of untracked files via `git ls-files --other --exclude-standard`.
 4. `MG-04` git-fi shall run `git fetch --quiet --prune origin` (if not already done).
-5. `MG-05` If no `origin/fi` ref exists after fetch, then git-fi shall require confirmation before bootstrapping. Unless `--yes` is given (`OPT-08`, `MG-15`), git-fi shall display a bootstrap confirmation prompt; if the user does not enter `y`, then git-fi shall abort. Example:
+5. `MG-05` If no `origin/fi` ref exists after fetch, then git-fi shall require confirmation before bootstrapping. Unless `--yes` is given (`OPT-07`, `MG-15`), git-fi shall display a bootstrap confirmation prompt; if the user does not enter `y`, then git-fi shall abort. Example:
 
    ```text
    Bootstrap path/to/repo with fi capability?
@@ -334,10 +327,10 @@ flowchart TD
 
    `MG-14` git-fi shall include a `See:` line in the bootstrap prompt (MG-05) linking to the git-fi project README (`https://github.com/gettyimages/git-fi`) so users unfamiliar with fi can understand the tool before confirming.
 
-   `MG-15` Bootstrapping requires explicit confirmation. If `--yes` (`OPT-08`) is given, git-fi shall bootstrap without prompting. Otherwise the prompt (MG-05) requires an interactive terminal: if no `origin/fi` ref exists after fetch and either stdin or stdout is not a TTY, then git-fi shall abort without prompting: `Bootstrapping fi requires confirmation; re-run with --yes or from an interactive terminal.` This keeps an unattended process from creating and force-pushing a new fi branch with no explicit confirmation. Once `origin/fi` exists, every command operates non-interactively.
+   `MG-15` Bootstrapping requires explicit confirmation. If `--yes` (`OPT-07`) is given, git-fi shall bootstrap without prompting. Otherwise the prompt (MG-05) requires an interactive terminal: if no `origin/fi` ref exists after fetch and either stdin or stdout is not a TTY, then git-fi shall abort without prompting: `Bootstrapping fi requires confirmation; re-run with --yes or from an interactive terminal.` This keeps an unattended process from creating and force-pushing a new fi branch with no explicit confirmation. Once `origin/fi` exists, every command operates non-interactively.
 
 6. `MG-06` When branches in the list no longer exist on origin, git-fi shall remove them and warn on stderr: `Ignoring branches that no longer exist:`
-7. `MG-07` When a branch is already an ancestor of the default branch, git-fi shall warn on stderr: `X already in main`
+7. `MG-07` When a branch is already an ancestor of the default branch, git-fi shall exclude it from the merge and warn on stderr: `X already in main`. Because the branch list is stored in the resulting commit message (see [Branch List Storage](#branch-list-storage)), excluding the branch also drops it from fi.
 8. `MG-08` git-fi shall create a temporary fi branch via `git checkout --quiet -B fi origin/<default_branch>`.
 9. `MG-09` git-fi shall merge via `git merge --no-commit --quiet --no-ff --no-edit <branch1> <branch2> ...`
 10. `MG-10` When the merge succeeds, git-fi shall:
@@ -450,9 +443,13 @@ When parsing the fi branch's commit message, if this legacy format is detected �
 
 `GL-04` When a GitLab project is detected, git-fi shall render branch names and pipeline IDs as clickable terminal hyperlinks (OSC 8) pointing to the corresponding GitLab URLs.
 
-`GL-05` **Pipeline link after merge:** When `GITLAB_ACCESS_TOKEN` is set and a merge operation succeeds, git-fi shall fetch the pipeline for the `fi` branch matching the just-pushed SHA and display it as `fi: #<id> <emoji>`, where `#<id>` is a clickable hyperlink (OSC 8) and the emoji uses the same set as GL-01. The `fi:` prefix distinguishes this integration pipeline from the per-branch pipelines shown in the list table. If the pipeline has not yet been created by GitLab, git-fi retries up to 4 times with 1.5 s delays. If the API call fails or no matching pipeline appears, the line is silently omitted.
+`GL-05` **Pipeline link after merge:** When `GITLAB_ACCESS_TOKEN` is set and a merge operation succeeds, git-fi shall fetch the pipeline for the `fi` branch matching the just-pushed SHA and display it as `fi: #<id> <emoji>`, where `#<id>` is a clickable hyperlink (OSC 8) and the emoji uses the same set as GL-01. The `fi:` prefix distinguishes this integration pipeline from the per-branch pipelines shown in the list table. GitLab registers the pipeline for a push asynchronously, so if no matching pipeline is found yet, git-fi shall retry with escalating delays of 500 ms, 1 s, and 2 s, returning as soon as one appears so the common case pays only the shortest wait. If the API call fails or no matching pipeline appears, the line is silently omitted.
 
 `GL-06` When the GitLab commits API returns HTTP 404 for a branch in the CI table, git-fi shall display a warning indicator next to the branch name to signal the branch no longer exists on the remote.
+
+`GL-07` git-fi shall issue the per-branch API lookups (`GL-01`) concurrently, capping in-flight requests at 8 so a large branch list does not trip GitLab's rate limiter. Rows shall be presented in the order the branches were given, independent of the order responses arrive. When more than one branch returns a hard HTTP error, the abort (`GL-03`) shall name the first failing branch in that same order, so the message does not vary run to run.
+
+`GL-08` git-fi shall issue GitLab API requests through the Node runtime's built-in HTTP client, with a 10 s timeout per request. git-fi shall not shell out to `curl`, so no external HTTP client is required at runtime and connections are reused across requests.
 
 ## CI Integration
 
@@ -487,9 +484,9 @@ These are standard [GitLab predefined variables](https://docs.gitlab.com/ci/vari
 
 ## JSON Output
 
-`JS-01` If `--json` is specified with any action other than `list`, then git-fi shall abort with an error.
+`JS-01` When `--json` is specified, git-fi shall write a single JSON object to stdout. git-fi shall direct all human-readable output (progress, hints, warnings) to stderr only.
 
-`JS-02` When `--json` is specified, git-fi shall write a single JSON object to stdout. git-fi shall direct all human-readable output (progress, hints, warnings) to stderr only.
+The `command` field names the action that ran — `list`, `add`, `remove`, `force`, `again`, or `abort` — so a caller can tell what produced the branch list:
 
 ```json
 {
@@ -502,12 +499,20 @@ These are standard [GitLab predefined variables](https://docs.gitlab.com/ci/vari
 }
 ```
 
-`JS-03` Where `GITLAB_ACCESS_TOKEN` is set, git-fi shall include a `ci` array in the JSON output. When the variable is not set, git-fi shall omit the `ci` array.
+`JS-02` Where `GITLAB_ACCESS_TOKEN` is set, git-fi shall include a `ci` array in the JSON output. When the variable is not set, git-fi shall omit the `ci` array.
 
 ## Exit Codes
 
 - `EX-01` When an operation completes successfully, git-fi shall exit with code `0`.
 - `EX-02` When an operation fails, git-fi shall exit with a non-zero code.
+
+## Performance
+
+Every git query and API call costs a process spawn or a network round trip, and both scale with the number of branches in fi. These requirements keep that cost flat rather than linear, so a large fi stays as responsive as a small one.
+
+- `PRF-01` git-fi shall not issue a per-branch git invocation for a question one invocation can answer for every branch at once. Branch existence shall come from a single `git for-each-ref refs/remotes`; already-merged status from a single `git branch -r --merged origin/<default>` (in place of a `git merge-base --is-ancestor` per branch); and branch commit dates from the `%(committerdate:short)` field of the `git branch -r` listing that already enumerates them (in place of a `git log -1` per branch).
+- `PRF-02` git-fi shall resolve the default branch (`BR-05`) and the GitLab project (`GL-02`) at most once per invocation, memoizing the result. Both are derived from refs and remotes that the fetch (`PF-04`) has already settled before any command reads them.
+- `PRF-03` git-fi shall issue GitLab API calls concurrently under the bound in `GL-07`, never serially per branch.
 
 ## Platform Compatibility
 

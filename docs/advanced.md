@@ -22,7 +22,7 @@ git fi -f
 
 ## again
 
-Re-merge all branches currently in `fi` without changing the branch list.
+Rebuild `fi` from the branches currently in it, on top of the current default branch.
 
 ```bash
 git fi -g
@@ -31,20 +31,14 @@ git fi -g
 This is the command to reach for when:
 
 - You've force-pushed a feature branch and want `fi` to pick up the new commits
+- `main` has moved and you want `fi` rebuilt on top of it
 - A transient merge conflict has been resolved upstream
 - You want to verify that the current set of branches still integrates cleanly
+- You want to tidy `fi`, dropping branches that were deleted or have landed
 
-Does not accept branch arguments.
+That last point is the same thing as the others, not an extra mode: the [merge process](/merge-process) drops dead and already-merged branches on its way through, so re-merging is what prunes `fi`. See [Dead Branch Pruning](#dead-branch-pruning) below.
 
-## prune
-
-Remove branches from `fi` that no longer exist on origin (dead) or that have already been merged into the default branch.
-
-```bash
-git fi -p
-```
-
-Dead and already-merged branches are also cleaned up automatically during any merge (see [Dead Branch Pruning](#dead-branch-pruning) below); `-p` is the explicit command to tidy `fi` without otherwise changing the list. If there's nothing to prune, git-fi prints `Nothing to prune.` and makes no commit. Does not accept branch arguments.
+`-g` always re-merges and force-pushes, even when no branches were dropped and `main` hasn't moved. Does not accept branch arguments.
 
 ## abort
 
@@ -58,23 +52,24 @@ Use this when your local view of `fi` has drifted from the remote (for example, 
 
 ## Dead Branch Pruning
 
-During any merge operation, git-fi automatically detects branches that no longer exist on the remote. These "dead" branches are pruned from the `fi` branch list and a warning is printed:
+During any merge operation, git-fi drops branches that no longer exist on the remote, warning on stderr as it goes:
 
 ```text
- * origin/deleted-branch (pruned — no longer exists on origin)
+Ignoring branches that no longer exist:
+  deleted-branch
 ```
 
-No manual intervention is needed.
+No manual intervention is needed: the branch is gone from `fi` after that merge, because the surviving list is what gets written to the new `fi` commit message.
 
-## Merged Branch Warnings
+## Merged Branch Pruning
 
-Branches that have already been merged to the default branch (`main` or `master`) are flagged during the merge process:
+Branches already merged into the default branch (`main` or `master`) are dropped the same way, with their own warning:
 
 ```text
- * origin/already-merged (warning — already merged to main)
+already-merged already in main
 ```
 
-These branches are still included in `fi` but the warning helps teams identify stale entries that can be removed.
+There's nothing left to clean up afterwards. A branch that has landed leaves `fi` on the next merge of any kind.
 
 ## CI Mode
 
@@ -96,14 +91,12 @@ flowchart TD
   B -- -a --> ADD[add: append to branch list]
   B -- -r --> REM[remove: subtract from branch list]
   B -- -f --> FRC[force: replace branch list]
-  B -- -g --> AGN[again: keep branch list as-is]
-  B -- -p --> PRN[prune: drop dead and merged branches]
+  B -- -g --> AGN[again: re-merge, dropping dead and merged branches]
   B -- -A --> ABT[abort: re-pull fi from origin]
   ADD --> M[Merge Process]
   REM --> M
   FRC --> M
   AGN --> M
-  PRN --> M
   L --> OUT[Print branch list]
   ABT --> OUT2[Re-pull only, no merge]
 ```

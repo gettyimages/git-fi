@@ -22,8 +22,7 @@ Every action flag at a glance. See the sections below and [Advanced Commands](/a
 | `-a` | `--add` | Add branch(es) to fi |
 | `-r` | `--remove` | Remove branch(es) from fi |
 | `-f` | `--force` | Replace fi contents with only the given branch(es) |
-| `-g` | `--again` | Re-merge all branches currently in fi |
-| `-p` | `--prune` | Remove dead/already-merged branches from fi |
+| `-g` | `--again` | Re-merge fi, dropping dead and already-merged branches |
 | `-A` | `--abort` | Re-pull fi from origin |
 
 <!-- END GENERATED: actions -->
@@ -68,7 +67,19 @@ With `--json` (`-j`), output is a structured JSON object:
 }
 ```
 
-The `ci` array is present only when `GITLAB_ACCESS_TOKEN` is set; `status` is the raw GitLab pipeline status (`success`, `failed`, `running`, `pending`, `skipped`, ...). `--json` is only valid with the `list` command.
+The `ci` array is present only when `GITLAB_ACCESS_TOKEN` is set; `status` is the raw GitLab pipeline status (`success`, `failed`, `running`, `pending`, `skipped`, ...).
+
+Both flags work with any action, not just `list` — they pick an output *format*, so a mutation reports its resulting branch list the same way:
+
+```bash
+$ git fi -a feature-auth --json
+{
+  "command": "add",
+  "branches": ["feature-auth", "feature-search"]
+}
+```
+
+The `command` field names the action that ran. In these modes stdout carries nothing but the machine output: the merge display, warnings, and any failure diagnostics go to stderr, so piping into `jq` stays safe even when a merge conflicts. The one combination that's rejected is `--select` with `--bare` or `--json`, since the interactive picker draws on stdout itself.
 
 ### Filtering
 
@@ -140,8 +151,8 @@ Shows only branches currently in `fi`. Select which to remove.
 | Flag | Long | Description |
 |------|------|-------------|
 | `-d` | `--debug` | Print git commands as they execute |
-| `-b` | `--bare` | Machine-readable output (space-separated branch names; list only) |
-| `-j` | `--json` | Structured JSON output (list only) |
+| `-b` | `--bare` | Machine-readable output: space-separated branch names |
+| `-j` | `--json` | Structured JSON output |
 | `-s` | `--select` | Interactive branch picker (requires a TTY) |
 | `-y` | `--yes` | Bootstrap fi without the confirmation prompt (for CI/scripts) |
 | `-V` | `--version` | Print version and exit |

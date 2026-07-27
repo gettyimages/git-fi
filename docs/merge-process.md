@@ -58,13 +58,26 @@ The final branch list depends on the command:
 | `-f` | Only the specified branches |
 | `-g` | Current branches (unchanged) |
 
+Steps 5 and 6 then filter that list, so the set that actually gets merged can be smaller than the table suggests.
+
 ### 5. Dead branch pruning
 
-Branches that no longer exist on the remote are automatically removed from the list. git-fi warns when this happens.
+Branches that no longer exist on the remote are removed from the list, with a warning:
 
-### 6. Merged branch warnings
+```text
+Ignoring branches that no longer exist:
+  deleted-branch
+```
 
-Branches that have already been merged to the default branch are flagged with a warning. They're still included in `fi` but the warning helps teams clean up stale entries.
+### 6. Merged branch pruning
+
+Branches already merged into the default branch are dropped from the list too, with a warning:
+
+```text
+landed-branch already in main
+```
+
+Both filters apply to every command, so any mutation tidies `fi` on the way through. `-g` with no other change is therefore the way to prune: it re-merges what's left after both filters. Since the surviving list is what gets written to the new `fi` commit message, a dropped branch is gone from `fi` afterwards, not merely flagged.
 
 ### 7. Merge execution
 

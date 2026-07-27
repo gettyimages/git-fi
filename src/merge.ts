@@ -8,10 +8,11 @@ import {
 import {
   git,
   gitLines,
-  gitExitCode,
   ensureFetched,
   defaultBranch,
   currentBranchName,
+  existingRemoteRefs,
+  mergedRemoteBranches,
   isInteractive,
   type CommitFormat,
 } from "./git.js";
@@ -74,7 +75,6 @@ const ACTION_INITIAL: Record<string, string> = {
   remove: "removing",
   force: "replacing",
   again: "re-merging",
-  prune: "pruning",
 };
 
 const ACTION_DONE: Record<string, string> = {
@@ -82,7 +82,6 @@ const ACTION_DONE: Record<string, string> = {
   remove: "removed",
   force: "replaced",
   again: "re-merged",
-  prune: "pruned",
 };
 
 export async function mergeProcess(
@@ -97,7 +96,19 @@ export async function mergeProcess(
   const initialVerb = ACTION_INITIAL[action] || action;
   const doneVerb = ACTION_DONE[action] || action;
   const actionSet = new Set(actionBranches);
-  const tty = process.stdout.isTTY === true;
+
+  // Under --bare / --json, stdout carries machine output only (JS-02), so the
+  // branch display and its in-place annotations are suppressed (already
+  // required by TRM-07) and failure diagnostics move to stderr. In human mode
+  // both stay on stdout exactly as before.
+  const machineOutput = opts.bare || opts.json;
+  const show = (text: string) => {
+    if (!machineOutput) process.stdout.write(text);
+  };
+  const diagnose = (text: string) => {
+    (machineOutput ? process.stderr : process.stdout).write(text);
+  };
+  const tty = process.stdout.isTTY === true && !machineOutput;
 
   const fiRefs = gitLines([
     "for-each-ref",
@@ -150,16 +161,9 @@ export async function mergeProcess(
     }
   }
 
-  // Filter dead and merged branches
-  const deadBranches: string[] = [];
-  const liveBranches: string[] = [];
-  for (const b of allBranches) {
-    if (git(["rev-parse", "--verify", b], { allowFailure: true }) === null) {
-      deadBranches.push(b);
-    } else {
-      liveBranches.push(b);
-    }
-  }
+  const existingRefs = existingRemoteRefs();
+  const deadBranches = allBranches.filter((b) => !existingRefs.has(b));
+  const liveBranches = allBranches.filter((b) => existingRefs.has(b));
   if (deadBranches.length > 0) {
     process.stderr.write(
       `${s.yellow("Ignoring branches that no longer exist:")}\n`
@@ -171,15 +175,10 @@ export async function mergeProcess(
     }
   }
 
+  const alreadyMerged = mergedRemoteBranches(defBranch);
   const mergeable: string[] = [];
   for (const b of liveBranches) {
-    const isMerged = gitExitCode([
-      "merge-base",
-      "--is-ancestor",
-      b,
-      `origin/${defBranch}`,
-    ]);
-    if (isMerged === 0) {
+    if (alreadyMerged.has(b)) {
       process.stderr.write(
         `${s.yellow(`${b.replace(/^origin\//, "")} already in ${defBranch}`)}\n`
       );
@@ -224,15 +223,15 @@ export async function mergeProcess(
     }
   }
 
-  if (["again", "force", "prune"].includes(action) || annotations.length === 0) {
+  if (["again", "force"].includes(action) || annotations.length === 0) {
     const baseLine = "";
     displayLines.push(`${s.dim("<- " + initialVerb)}`);
     annotations.push({ lineIndex: displayLines.length - 1, branch: "", baseLine });
   }
 
-  process.stdout.write(`${s.fi()}:\n`);
+  show(`${s.fi()}:\n`);
   for (const line of displayLines) {
-    process.stdout.write(line + "\n");
+    show(line + "\n");
   }
 
   // Cursor helpers for inline progress
@@ -439,21 +438,21 @@ export async function mergeProcess(
 
     finalizeError();
 
-    process.stdout.write("\nFailed trying to merge branch(es):\n\n");
-    process.stdout.write(bulletList(mergeable, opts));
+    diagnose("\nFailed trying to merge branch(es):\n\n");
+    diagnose(bulletList(mergeable, opts));
 
     if (newUntracked.length > 0) {
-      process.stdout.write(
+      diagnose(
         "\nSome extra untracked files have been left as a result of the failed merge(s):\n\n"
       );
-      process.stdout.write(bulletList(newUntracked, opts));
-      process.stdout.write("\nYou can delete these by running:\n");
+      diagnose(bulletList(newUntracked, opts));
+      diagnose("\nYou can delete these by running:\n");
       for (const f of newUntracked) {
-        process.stdout.write(`  rm "${f}"\n`);
+        diagnose(`  rm "${f}"\n`);
       }
     }
 
-    process.stdout.write("\n");
+    diagnose("\n");
     abort("Aborted due to merge failures", opts);
   }
 }

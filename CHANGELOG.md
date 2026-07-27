@@ -5,6 +5,10 @@ GitHub Release by the release workflow (`.github/workflows/release.yml`).
 
 <!-- releases below -->
 
+## v1.0.6 (2026-07-27)
+
+**Full Changelog**: https://github.com/gettyimages/git-fi/compare/v1.0.5...v1.0.6
+
 ## v1.0.5 (2026-07-23)
 
 ## What's Changed

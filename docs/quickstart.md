@@ -32,7 +32,7 @@ git fi --help    # opens the man page
 
 ### Shell completion
 
-`git fi install-completions` prints the completion script for your shell (auto-detected from `$SHELL`, or pass `bash` / `zsh`). Wire it into your shell's startup file:
+`git fi install-completions` prints a completion script to stdout (`bash`, `zsh`, or `zsh-git`; with no argument it detects bash or zsh from `$SHELL`). Wire it into your shell's startup file:
 
 ```bash
 # bash — in ~/.bashrc (requires git's bash completion)
@@ -40,27 +40,18 @@ source <(git fi install-completions bash)
 ```
 
 ```zsh
-# zsh — write it onto your fpath, then let compinit pick it up
-git fi install-completions zsh > "${fpath[1]}/_git-fi"
+# zsh — write both files onto your fpath, then let compinit pick them up
+git fi install-completions zsh     > "${fpath[1]}/_git-fi"
+git fi install-completions zsh-git > "${fpath[1]}/_git_fi"
 autoload -Uz compinit && compinit
 ```
 
-Two completion providers dispatch `git fi`, and which one is active depends on your setup:
+zsh needs both files because two completion providers dispatch `git fi`, and which one you have depends on your git install:
 
-- **zsh's built-in `_git`** calls `_git-fi` — the file the `zsh` command above installs.
-- **git's own completion wrapper** (the `_git` that ships with git, common on macOS/Homebrew) calls `_git_fi` under ksh emulation instead. If `git fi <TAB>` falls back to filenames, this is the provider you have. Add the git-native completion, which reads the same flag list and branch logic:
+- **zsh's built-in `_git`** calls `_git-fi` (`install-completions zsh`), which also completes the bare `git-fi` command.
+- **git's own completion wrapper** — the `_git` that ships with git, and what you get on macOS/Homebrew — calls `_git_fi` under ksh emulation instead (`install-completions zsh-git`). Without that file, `git fi <TAB>` falls back to filenames.
 
-  ```zsh
-  # in ~/.zshrc, after compinit — defines _git_fi for git's own wrapper
-  source <(git fi install-completions bash)
-  ```
-
-  The bash-format script is written in git-completion style, so it also works in zsh once git's wrapper loads it. To autoload it from the fpath instead of sourcing it at every startup, copy the shipped `_git_fi` alongside `_git-fi`:
-
-  ```zsh
-  cp "$(npm root -g)/@gettyimages/git-fi/completions/_git_fi" "${fpath[1]}/"
-  autoload -Uz compinit && compinit
-  ```
+Installing both is safe either way: each provider loads only the file it dispatches to, so there is no need to work out which one you have.
 
 At the command position (`git fi <TAB>`) completion offers the subcommands, plus — under git's wrapper — the action/option flags; under zsh's built-in `_git` the flags appear once you type a `-`. Branch names are offered once an action is chosen — only branches not yet in `fi` for `--add`, and only branches currently in `fi` for `--remove`.
 

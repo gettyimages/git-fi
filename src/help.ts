@@ -38,14 +38,14 @@ export const OPTIONS: Flag[] = [
 ];
 
 export interface Subcommand {
-  /** Invocation, e.g. "install-completions <bash|zsh>". */
+  /** Invocation, e.g. "install-completions <bash|zsh|zsh-git>". */
   usage: string;
   desc: string;
 }
 
 export const SUBCOMMANDS: Subcommand[] = [
   { usage: "help", desc: "Show this help (git intercepts --help, routing it to the man page)" },
-  { usage: "install-completions <bash|zsh>", desc: "Print the shell completion script for sourcing" },
+  { usage: "install-completions <bash|zsh|zsh-git>", desc: "Print the shell completion script (zsh-git: for git's own zsh wrapper)" },
 ];
 
 function flagLabel(f: Flag): string {

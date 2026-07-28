@@ -50,7 +50,7 @@ Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 | CMP-02 | Both `git fi` dispatch providers | Covered | `scripts/completion/git-fi.bash.tmpl` (`$words`), `scripts/completion/git-fi.zsh.tmpl` (trailing `_git-fi "$@"`), `completions/_git_fi`, `completions/_git-fi` |
 | CMP-03 | Action-aware branch offering| Covered | `scripts/completion/git-fi.bash.tmpl:40-61`, `scripts/completion/git-fi.zsh.tmpl:30-55` |
 | CMP-04 | Offline membership          | Covered | `scripts/completion/git-fi.bash.tmpl:27`, `src/git.ts:92-98` |
-| CMP-05 | `install-completions` subcommand | Covered | `src/install-completions.ts`, `src/index.ts:113-125` |
+| CMP-05 | `install-completions` subcommand | Covered | `src/install-completions.ts` (`bash` / `zsh` / `zsh-git`), `src/index.ts:113-125` |
 
 ## Terminal Output
 

@@ -66,7 +66,7 @@ describe("argument handling (no repo required)", () => {
   test("--help lists the install-completions command", () => {
     const r = runFi(["--help"], dir);
     assert.equal(r.status, 0);
-    assert.match(r.stdout, /install-completions <bash\|zsh>/);
+    assert.match(r.stdout, /install-completions <bash\|zsh\|zsh-git>/);
   });
 
   test("install-completions bash prints the bash script (CMP-05)", () => {
@@ -81,6 +81,16 @@ describe("argument handling (no repo required)", () => {
     assert.match(r.stdout, /#compdef git-fi/);
   });
 
+  test("install-completions zsh-git prints the fpath _git_fi (CMP-05)", () => {
+    // Every provider in CMP-02 must be installable through the subcommand: this
+    // is the file git's own zsh wrapper dispatches to, and without a target for
+    // it `git fi <TAB>` has no completion on a stock macOS/Homebrew git.
+    const r = runFi(["install-completions", "zsh-git"], dir);
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout.split("\n")[0], /^#autoload$/);
+    assert.match(r.stdout, /_git_fi \(\) \{/);
+  });
+
   test("install-completions detects the shell from $SHELL", () => {
     const r = runFi(["install-completions"], dir, { SHELL: "/bin/bash" });
     assert.equal(r.status, 0, r.stderr);
@@ -90,7 +100,13 @@ describe("argument handling (no repo required)", () => {
   test("install-completions aborts on an unsupported shell", () => {
     const r = runFi(["install-completions"], dir, { SHELL: "/usr/bin/fish" });
     assert.equal(r.status, 1);
-    assert.match(r.stderr, /install-completions <bash\|zsh>/);
+    assert.match(r.stderr, /install-completions <bash\|zsh\|zsh-git>/);
+  });
+
+  test("install-completions aborts on an unknown target", () => {
+    const r = runFi(["install-completions", "zsh-native"], dir);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /install-completions <bash\|zsh\|zsh-git>/);
   });
 });
 
@@ -439,7 +455,7 @@ describe("--prune is gone", () => {
     const help = runFi(["help"], sb.work).stdout;
     assert.doesNotMatch(help, /prune/);
     assert.match(help, /--again/);
-    for (const shell of ["bash", "zsh"]) {
+    for (const shell of ["bash", "zsh", "zsh-git"]) {
       const script = runFi(["install-completions", shell], sb.work).stdout;
       assert.doesNotMatch(script, /prune/, `${shell} completion mentions prune`);
     }

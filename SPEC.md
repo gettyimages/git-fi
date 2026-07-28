@@ -69,7 +69,7 @@ flowchart TD
 
 `CMP-04` git-fi's completion shall determine fi membership without a network fetch (via `GIT_FI_NO_FETCH`, `PF-05`), so completion stays offline and fast.
 
-`CMP-05` git-fi shall provide an `install-completions [bash|zsh]` subcommand that prints the completion script for the given shell — or the shell detected from `$SHELL` — to stdout, for sourcing (e.g. `source <(git fi install-completions bash)`). If no supported shell is given or detected, then git-fi shall abort with usage guidance.
+`CMP-05` git-fi shall provide an `install-completions [bash|zsh|zsh-git]` subcommand that prints a completion script to stdout — for sourcing (e.g. `source <(git fi install-completions bash)`) or for writing onto the zsh fpath. It shall print one target per invocation: `bash` the git-completion-format script, `zsh` the `_git-fi` file for zsh's built-in `_git`, and `zsh-git` the `_git_fi` file for git's own completion wrapper. With no argument it shall detect `bash` or `zsh` from `$SHELL`; every provider named by `CMP-02` shall be installable through this subcommand, without copying files out of the package directory. If no supported target is given or detected, then git-fi shall abort with usage guidance.
 
 ## Terminal Output
 

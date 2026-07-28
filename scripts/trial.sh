@@ -4,13 +4,12 @@
 # can be run for a few days before shipping, then reverts. Not published (see
 # package.json "files").
 #
-# The completion goes on the zsh fpath as the two files `install-completions`
-# prints — `_git-fi` for zsh's built-in _git and `_git_fi` for git's own
-# completion wrapper — because that is the shipped install path (CMP-05). A trial
-# that instead sources the bash script into ~/.zshrc defines _git_fi for git's
-# wrapper and nothing else, so it passes even when the shipped path is broken:
-# that gap is what let 1.0.7 publish with no working `git fi <TAB>` under git's
-# wrapper.
+# The completion goes on the zsh fpath via `install-completions --write`, the
+# command a user installs with (CMP-06), so a trial covers both providers the
+# same way they do. A trial that instead sources the bash script into ~/.zshrc
+# defines _git_fi for git's wrapper and nothing else, so it passes even when the
+# shipped path is broken: that gap is what let 1.0.7 publish with no working
+# `git fi <TAB>` under git's wrapper.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -24,10 +23,7 @@ on)
 	npm run build
 	npm link
 
-	mkdir -p "$compdir"
-	node "$root/dist/index.js" install-completions zsh >"$compdir/_git-fi"
-	node "$root/dist/index.js" install-completions zsh-git >"$compdir/_git_fi"
-	echo "Wrote _git-fi and _git_fi to $compdir"
+	node "$root/dist/index.js" install-completions --write "$compdir"
 
 	if ! grep -qF "# BEGIN ${marker}" "$zshrc" 2>/dev/null; then
 		# Autoload the two files directly rather than re-running compinit: this

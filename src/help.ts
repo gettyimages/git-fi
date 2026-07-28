@@ -46,6 +46,7 @@ export interface Subcommand {
 export const SUBCOMMANDS: Subcommand[] = [
   { usage: "help", desc: "Show this help (git intercepts --help, routing it to the man page)" },
   { usage: "install-completions <bash|zsh|zsh-git>", desc: "Print the shell completion script (zsh-git: for git's own zsh wrapper)" },
+  { usage: "install-completions --write <dir>", desc: "Write both zsh completion files onto an fpath directory" },
 ];
 
 function flagLabel(f: Flag): string {

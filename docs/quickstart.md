@@ -32,28 +32,40 @@ git fi --help    # opens the man page
 
 ### Shell completion
 
-`git fi install-completions` prints a completion script to stdout (`bash`, `zsh`, or `zsh-git`; with no argument it detects bash or zsh from `$SHELL`). Wire it into your shell's startup file:
-
-```bash
-# bash — in ~/.bashrc (requires git's bash completion)
-source <(git fi install-completions bash)
-```
+In zsh, `npm install -g` sets this up for you — open a new shell and press `<TAB>`:
 
 ```zsh
-# zsh — write both files onto your fpath, then let compinit pick them up
-git fi install-completions zsh     > "${fpath[1]}/_git-fi"
-git fi install-completions zsh-git > "${fpath[1]}/_git_fi"
+git fi <TAB>          # actions, options, subcommands
+git fi --add <TAB>    # origin branches not yet in fi
+git fi --remove <TAB> # only branches currently in fi
+```
+
+The install writes the completion files into npm's own prefix (`$(npm config get prefix)/share/zsh/site-functions`), the directory Homebrew and `/usr/local` zsh setups already read.
+
+If `git fi <TAB>` offers filenames instead, that directory isn't on your `fpath`. Install into one that is — this creates it if needed and tells you what it wrote:
+
+```zsh
+git fi install-completions --write "${fpath[1]}"
 autoload -Uz compinit && compinit
 ```
 
-zsh needs both files because two completion providers dispatch `git fi`, and which one you have depends on your git install:
+For bash, add one line to `~/.bashrc` (git's bash completion has to be loaded first):
 
-- **zsh's built-in `_git`** calls `_git-fi` (`install-completions zsh`), which also completes the bare `git-fi` command.
-- **git's own completion wrapper** — the `_git` that ships with git, and what you get on macOS/Homebrew — calls `_git_fi` under ksh emulation instead (`install-completions zsh-git`). Without that file, `git fi <TAB>` falls back to filenames.
+```bash
+source <(git fi install-completions bash)
+```
 
-Installing both is safe either way: each provider loads only the file it dispatches to, so there is no need to work out which one you have.
+<details>
+<summary>Packaging git-fi, or placing the files yourself?</summary>
 
-At the command position (`git fi <TAB>`) completion offers the subcommands, plus — under git's wrapper — the action/option flags; under zsh's built-in `_git` the flags appear once you type a `-`. Branch names are offered once an action is chosen — only branches not yet in `fi` for `--add`, and only branches currently in `fi` for `--remove`.
+`install-completions <bash|zsh|zsh-git>` prints a single script to stdout, so you can put it wherever your packaging wants. The two zsh files exist because two providers dispatch `git fi`, and which one is live depends on the git install: zsh's built-in `_git` calls `_git-fi`, while git's own completion wrapper (what ships with git, and what you get on macOS/Homebrew) calls `_git_fi`. Installing both covers either one, since each provider loads only the file it dispatches to.
+
+```zsh
+git fi install-completions zsh     > "${fpath[1]}/_git-fi"
+git fi install-completions zsh-git > "${fpath[1]}/_git_fi"
+```
+
+</details>
 
 ## Your First Integration
 

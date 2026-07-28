@@ -1,6 +1,7 @@
 import { test, before, after, describe } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync, readdirSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -67,6 +68,7 @@ describe("argument handling (no repo required)", () => {
     const r = runFi(["--help"], dir);
     assert.equal(r.status, 0);
     assert.match(r.stdout, /install-completions <bash\|zsh\|zsh-git>/);
+    assert.match(r.stdout, /install-completions --write <dir>/);
   });
 
   test("install-completions bash prints the bash script (CMP-05)", () => {
@@ -107,6 +109,106 @@ describe("argument handling (no repo required)", () => {
     const r = runFi(["install-completions", "zsh-native"], dir);
     assert.equal(r.status, 1);
     assert.match(r.stderr, /install-completions <bash\|zsh\|zsh-git>/);
+  });
+
+  test("--write installs both zsh files into a new directory (CMP-06)", () => {
+    // One command covers both providers in CMP-02 — the point of --write is that
+    // the user doesn't have to work out which _git they have.
+    const target = join(dir, "fpath", "nested");
+    const r = runFi(["install-completions", "--write", target], dir);
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(readFileSync(join(target, "_git-fi"), "utf8"), /^#compdef git-fi/);
+    assert.match(readFileSync(join(target, "_git_fi"), "utf8"), /^#autoload/);
+    assert.match(r.stdout, /Wrote .*_git-fi/);
+    assert.match(r.stdout, /Wrote .*_git_fi/);
+    assert.match(r.stdout, /compinit/);
+  });
+
+  test("--write with a target installs only that file (CMP-06)", () => {
+    const target = join(dir, "fpath-one");
+    const r = runFi(["install-completions", "zsh-git", "--write", target], dir);
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(readFileSync(join(target, "_git_fi"), "utf8"), /^#autoload/);
+    assert.throws(() => readFileSync(join(target, "_git-fi"), "utf8"));
+  });
+
+  test("--write rejects bash, which has no fpath (CMP-06)", () => {
+    const target = join(dir, "fpath-bash");
+    const r = runFi(["install-completions", "bash", "--write", target], dir);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /not bash/);
+    assert.throws(() => readFileSync(join(target, "git-fi.bash"), "utf8"));
+  });
+
+  test("--write aborts without a directory (CMP-06)", () => {
+    const r = runFi(["install-completions", "--write"], dir);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /--write needs a directory/);
+  });
+
+  test("install-completions aborts on an unknown option", () => {
+    const r = runFi(["install-completions", "--install"], dir);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /Unknown option: --install/);
+  });
+
+  test("--write names an unwritable directory and how to fix it (CMP-06)", () => {
+    const r = runFi(["install-completions", "--write", "/dev/null/nope"], dir);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /\/dev\/null\/nope/);
+    assert.match(r.stderr, /Pick a directory you own/);
+  });
+});
+
+describe("postinstall completion install (CMP-07)", () => {
+  const script = fileURLToPath(new URL("../scripts/postinstall.mjs", import.meta.url));
+  let dir: string;
+  before(() => {
+    dir = mkdtempSync(join(tmpdir(), "git-fi-prefix-"));
+  });
+  after(() => rmSync(dir, { recursive: true, force: true }));
+
+  /** Run the postinstall as npm would, with the given npm_config_* env. */
+  const run = (env: Record<string, string>) =>
+    spawnSync(process.execPath, [script], { encoding: "utf-8", env: { ...process.env, ...env } });
+
+  test("a global install writes both zsh files under npm's prefix", () => {
+    const prefix = join(dir, "global");
+    const r = run({ npm_config_global: "true", npm_config_prefix: prefix });
+    assert.equal(r.status, 0, r.stderr);
+    const dest = join(prefix, "share", "zsh", "site-functions");
+    assert.match(readFileSync(join(dest, "_git-fi"), "utf8"), /^#compdef git-fi/);
+    assert.match(readFileSync(join(dest, "_git_fi"), "utf8"), /^#autoload/);
+    assert.match(r.stdout, /installed zsh completion/);
+  });
+
+  test("a local install writes nothing and says nothing", () => {
+    const prefix = join(dir, "local");
+    const r = run({ npm_config_global: "", npm_config_prefix: prefix });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout.trim(), "");
+    assert.throws(() => readFileSync(join(prefix, "share", "zsh", "site-functions", "_git-fi")));
+  });
+
+  test("an unwritable prefix reports the manual command without failing", () => {
+    // A postinstall that exits non-zero fails `npm install -g` outright, so a
+    // root-owned prefix has to degrade to advice, not an error.
+    const r = run({ npm_config_global: "true", npm_config_prefix: "/dev/null/nope" });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /install-completions --write/);
+  });
+
+  test("installs exactly the files --write installs", () => {
+    // The names live in both places (the postinstall can't import the compiled
+    // TypeScript — npm runs it before the build), so pin them together.
+    const prefix = join(dir, "parity");
+    assert.equal(run({ npm_config_global: "true", npm_config_prefix: prefix }).status, 0);
+    const written = join(dir, "parity-write");
+    assert.equal(runFi(["install-completions", "--write", written], dir).status, 0);
+    assert.deepEqual(
+      readdirSync(join(prefix, "share", "zsh", "site-functions")).sort(),
+      readdirSync(written).sort()
+    );
   });
 });
 

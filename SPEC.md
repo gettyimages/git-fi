@@ -71,6 +71,10 @@ flowchart TD
 
 `CMP-05` git-fi shall provide an `install-completions [bash|zsh|zsh-git]` subcommand that prints a completion script to stdout — for sourcing (e.g. `source <(git fi install-completions bash)`) or for writing onto the zsh fpath. It shall print one target per invocation: `bash` the git-completion-format script, `zsh` the `_git-fi` file for zsh's built-in `_git`, and `zsh-git` the `_git_fi` file for git's own completion wrapper. With no argument it shall detect `bash` or `zsh` from `$SHELL`; every provider named by `CMP-02` shall be installable through this subcommand, without copying files out of the package directory. If no supported target is given or detected, then git-fi shall abort with usage guidance.
 
+`CMP-06` `install-completions --write <dir>` shall write the zsh completion files into `<dir>`, creating it if absent, and shall name each path written. With no target it shall write both zsh files, so one command covers whichever provider (`CMP-02`) the user's git install dispatches to; with `zsh` or `zsh-git` it shall write that one file, and with `bash` it shall abort — bash completion is sourced from an rc file and has no fpath to land on. It shall report reloading completions as a step for the user to run. git-fi shall not edit the user's rc files or write to any directory the user did not name; when `<dir>` cannot be created or written, it shall abort naming the path and how to install into a directory the user owns.
+
+`CMP-07` Installing git-fi globally shall install the zsh completion files, so `git fi <TAB>` works without a further step. They shall go under npm's own prefix (`<prefix>/share/zsh/site-functions`, the directory Homebrew and `/usr/local` zsh setups carry on their fpath, and the prefix npm already links the man page into); git-fi shall write nothing outside that prefix and shall not edit the user's rc files. A local (non-global) install shall install nothing. A prefix that cannot be resolved or written shall not fail the install: git-fi shall report the `CMP-06` command that finishes the job and exit 0.
+
 ## Terminal Output
 
 ### General

@@ -89,9 +89,9 @@ const gitNativeZsh =
   `# ${GENERATED}\n` +
   `# zsh fpath copy of the git-completion-format _git_fi, for git's own\n` +
   `# completion wrapper (git dispatches \`git fi\` to _git_fi under ksh emulation).\n` +
-  `# Install it with:\n` +
-  `#   git fi install-completions zsh-git > "\${fpath[1]}/_git_fi"\n` +
-  `# For zsh's built-in _git, see completions/_git-fi (install-completions zsh).\n` +
+  `# Install this file and its _git-fi counterpart with:\n` +
+  `#   git fi install-completions --write "\${fpath[1]}"\n` +
+  `# For zsh's built-in _git, see completions/_git-fi.\n` +
   gitNativeBody;
 
 const zshSpec = (f: Flag): string =>

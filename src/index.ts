@@ -23,6 +23,19 @@ function parseArgs(argv: string[]) {
   let filterPattern: string | undefined;
   const branches: string[] = [];
 
+  // `install-completions` owns its own arguments (a target, `--write <dir>`),
+  // and it is always the first word — git intercepts flags, not subcommands, so
+  // it reaches us untouched. Hand them over before the flag loop below, which
+  // knows nothing of `--write` and would abort on it as an unknown option.
+  if (argv[0] === "install-completions") {
+    return {
+      opts,
+      action: "install-completions",
+      branches: argv.slice(1),
+      filterPattern,
+    };
+  }
+
   for (const arg of argv) {
     switch (arg) {
       case "--debug":
@@ -94,9 +107,9 @@ function parseArgs(argv: string[]) {
     }
   }
 
-  // `git fi install-completions [bash|zsh]` — a subcommand word (git only
-  // intercepts flags), so it reaches us. The optional shell follows as the
-  // second positional.
+  // The same subcommand behind a leading git-fi flag (`git fi -d
+  // install-completions`), which the early hand-off above doesn't see. Its own
+  // flags are not available in this form.
   if (!action && branches[0] === "install-completions") {
     return {
       opts,
@@ -149,7 +162,7 @@ async function main() {
   // Runs anywhere (no repo needed) and must not touch stdout beyond the script,
   // so handle it before the update notice and pre-flight checks.
   if (action === "install-completions") {
-    installCompletions(branches[0], opts);
+    installCompletions(branches, opts);
     return;
   }
 

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, basename } from "node:path";
 import type { Options } from "./types.js";
@@ -18,18 +18,113 @@ const SHELL_FILES: Record<string, string> = {
   "zsh-git": "_git_fi",
 };
 
-const USAGE = `Usage: git fi install-completions <bash|zsh|zsh-git>`;
+// The zsh targets, in the order --write reports them. Naming no target writes
+// both, so one command covers whichever provider the user's git install has.
+const ZSH_TARGETS = ["zsh", "zsh-git"];
+
+const USAGE =
+  `Usage: git fi install-completions <bash|zsh|zsh-git>\n` +
+  `       git fi install-completions [zsh|zsh-git] --write <fpath-dir>`;
+
+// System fpath directories (/usr/share/zsh/..., a Homebrew prefix) are often not
+// yours to write to, so point at a directory that is.
+const OWN_DIR_HINT =
+  `Pick a directory you own and put it on your fpath, e.g.:\n` +
+  `  echo 'fpath=(~/.zsh/completions $fpath)' >> ~/.zshrc   # before compinit\n` +
+  `  git fi install-completions --write ~/.zsh/completions`;
+
+function scriptFor(target: string, opts: Options): string {
+  const file = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "completions",
+    SHELL_FILES[target]
+  );
+  try {
+    return readFileSync(file, "utf8");
+  } catch {
+    abort(`Completion script not found at ${file}`, opts);
+  }
+}
 
 /**
- * Print the completion script for `target` (or the shell detected from $SHELL)
- * to stdout, for sourcing — e.g. `source <(git fi install-completions bash)` —
- * or for writing onto the zsh fpath. Writing to the shell's rc/fpath is left to
- * the user so we never edit their dotfiles.
+ * Write the zsh completion files for `targets` into `dir` (created if missing),
+ * naming each path written. This is the only thing git-fi writes outside the
+ * repo, and it writes only onto a directory the user named: an rc file is still
+ * theirs to edit, so `compinit` is reported as a step rather than run for them.
  */
-export function installCompletions(
-  target: string | undefined,
+function writeToFpath(
+  targets: string[],
+  dir: string,
   opts: Options
 ): void {
+  const scripts = targets.map((t) => ({ file: SHELL_FILES[t], body: scriptFor(t, opts) }));
+
+  try {
+    mkdirSync(dir, { recursive: true });
+  } catch (e) {
+    abort(`Cannot create ${dir}: ${(e as Error).message}\n${OWN_DIR_HINT}`, opts);
+  }
+
+  const written: string[] = [];
+  for (const { file, body } of scripts) {
+    const dest = join(dir, file);
+    try {
+      writeFileSync(dest, body);
+    } catch (e) {
+      abort(`Cannot write ${dest}: ${(e as Error).message}\n${OWN_DIR_HINT}`, opts);
+    }
+    written.push(dest);
+  }
+
+  process.stdout.write(
+    written.map((p) => `Wrote ${p}\n`).join("") +
+      `Reload completions with:  autoload -Uz compinit && compinit\n` +
+      `(or just open a new shell). If ${dir} is not on your fpath, add it.\n`
+  );
+}
+
+/**
+ * Print a completion script to stdout for sourcing — e.g. `source <(git fi
+ * install-completions bash)` — or, with `--write <dir>`, install the zsh files
+ * onto an fpath directory the user names. Either way git-fi never edits their
+ * rc files.
+ *
+ * `args` are the subcommand's own arguments: an optional target
+ * (`bash`/`zsh`/`zsh-git`, else detected from $SHELL) and `--write <dir>`.
+ */
+export function installCompletions(args: string[], opts: Options): void {
+  let target: string | undefined;
+  let writeDir: string | undefined;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--write") {
+      writeDir = args[++i];
+      if (!writeDir) abort(`${USAGE}\n--write needs a directory`, opts);
+    } else if (arg.startsWith("-")) {
+      abort(`${USAGE}\nUnknown option: ${arg}`, opts);
+    } else if (target) {
+      abort(`${USAGE}\nUnexpected argument: ${arg}`, opts);
+    } else {
+      target = arg;
+    }
+  }
+
+  if (writeDir) {
+    // --write installs onto the zsh fpath, so a named target must be a zsh one;
+    // bash completion is sourced from an rc file and has no fpath to land on.
+    if (target && !ZSH_TARGETS.includes(target)) {
+      abort(
+        `${USAGE}\n--write installs the zsh fpath files (zsh, zsh-git), not ${target}.\n` +
+          `For bash, source the script instead:  source <(git fi install-completions bash)`,
+        opts
+      );
+    }
+    writeToFpath(target ? [target] : ZSH_TARGETS, writeDir, opts);
+    return;
+  }
+
   let shell = target;
   if (!shell) {
     const detected = process.env.SHELL ? basename(process.env.SHELL) : "";
@@ -45,17 +140,5 @@ export function installCompletions(
     );
   }
 
-  const file = join(
-    dirname(fileURLToPath(import.meta.url)),
-    "..",
-    "completions",
-    SHELL_FILES[shell]
-  );
-  let script: string;
-  try {
-    script = readFileSync(file, "utf8");
-  } catch {
-    abort(`Completion script not found at ${file}`, opts);
-  }
-  process.stdout.write(script);
+  process.stdout.write(scriptFor(shell, opts));
 }

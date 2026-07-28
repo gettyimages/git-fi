@@ -26,15 +26,22 @@ npm test                    # build, then run the integration suite
 
 `npm test` is the primary feedback loop: it drives the compiled binary against throwaway git repositories (a bare `origin` plus a working clone), exercising real `git fetch`/`merge`/`push` behavior end-to-end.
 
-To try your local build as the `git fi` subcommand in another repository, install the checkout globally:
+The implementation follows [SPEC.md](SPEC.md), which defines every requirement with a unique ID and includes mermaid diagrams for the major flows.
+
+## Trying your local build
+
+To run the checkout as `git fi` in other repositories for a while:
 
 ```bash
-npm install -g .            # puts your build on PATH as `git fi`
+npm run trial:on            # build, npm link, load this copy's completion
+npm run trial:off           # unlink, restore the published version
 ```
 
-The published package — `npm install -g @gettyimages/git-fi`, documented on the [docs site](https://gettyimages.github.io/git-fi/#/quickstart) — is the official install for end users. Reach for it here mainly to test the distribution itself; local development runs from source.
+`trial:on` symlinks the checkout onto your `PATH`, so later `npm run build`s take effect without reinstalling, and appends a marked block to `~/.zshrc` that sources the completion from your working copy. Only `~/.zshrc` is touched; under bash you get the linked binary and wire the completion yourself. `trial:off` deletes that block and reinstalls `@gettyimages/git-fi` from npm. Open a new terminal after either one.
 
-The implementation follows [SPEC.md](SPEC.md), which defines every requirement with a unique ID and includes mermaid diagrams for the major flows.
+If `git fi` runs something other than what you expect, `which -a git-fi` lists every `git-fi` on your `PATH` in resolution order.
+
+The published package — `npm install -g @gettyimages/git-fi`, documented on the [docs site](https://gettyimages.github.io/git-fi/#/quickstart) — is the official install for end users. Reach for it here mainly to test the distribution itself; local development runs from source.
 
 ## Project Structure
 
@@ -44,7 +51,7 @@ STATUS.md      Requirement coverage
 src/           TypeScript implementation
 test/          Integration suite (Node test runner)
 docs/          Docsify documentation site
-scripts/       Build-time generators
+scripts/       Build-time generators, plus the trial:on/off helper
 man/           Generated man page (git-fi.1)
 completions/   Generated bash + zsh completions (_git-fi, _git_fi, git-fi.bash)
 ```

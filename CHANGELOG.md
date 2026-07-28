@@ -5,6 +5,14 @@ GitHub Release by the release workflow (`.github/workflows/release.yml`).
 
 <!-- releases below -->
 
+## v1.0.7 (2026-07-28)
+
+## What's Changed
+* Fix completion git wrapper by @chris-peterson in https://github.com/gettyimages/git-fi/pull/5
+
+
+**Full Changelog**: https://github.com/gettyimages/git-fi/compare/v1.0.6...v1.0.7
+
 ## v1.0.6 (2026-07-27)
 
 **Full Changelog**: https://github.com/gettyimages/git-fi/compare/v1.0.5...v1.0.6

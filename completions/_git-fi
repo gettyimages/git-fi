@@ -65,3 +65,9 @@ __git_fi_branches() {
     _describe -t commands 'command' subcommands
   fi
 }
+
+# zsh's autoload runs this file as the body of _git-fi, so on the first `<TAB>`
+# the definitions above are all that happen unless the file also calls the
+# completer. Without this line that first tab silently beeps. (zsh's own _git
+# ends the same way.)
+_git-fi "$@"

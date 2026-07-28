@@ -55,9 +55,14 @@ Two completion providers dispatch `git fi`, and which one is active depends on y
   source <(git fi install-completions bash)
   ```
 
-  The bash-format script is written in git-completion style, so it also works in zsh once git's wrapper loads it. Package maintainers can instead drop the shipped `completions/_git_fi` onto the fpath alongside `_git-fi`.
+  The bash-format script is written in git-completion style, so it also works in zsh once git's wrapper loads it. To autoload it from the fpath instead of sourcing it at every startup, copy the shipped `_git_fi` alongside `_git-fi`:
 
-At the command position (`git fi <TAB>`) completion offers the action/option flags and subcommands. Branch names are offered once an action is chosen — only branches not yet in `fi` for `--add`, and only branches currently in `fi` for `--remove`.
+  ```zsh
+  cp "$(npm root -g)/@gettyimages/git-fi/completions/_git_fi" "${fpath[1]}/"
+  autoload -Uz compinit && compinit
+  ```
+
+At the command position (`git fi <TAB>`) completion offers the subcommands, plus — under git's wrapper — the action/option flags; under zsh's built-in `_git` the flags appear once you type a `-`. Branch names are offered once an action is chosen — only branches not yet in `fi` for `--add`, and only branches currently in `fi` for `--remove`.
 
 ## Your First Integration
 

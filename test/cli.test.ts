@@ -108,6 +108,13 @@ describe("generated completions (CMP-02)", () => {
     }
   });
 
+  test("_git-fi calls its completer so the first <TAB> completes", () => {
+    // zsh's autoload runs the file as the body of _git-fi. A file that only
+    // *defines* the completer leaves the first tab in each shell doing nothing
+    // but the definition, which reads as a silent beep.
+    assert.match(read("_git-fi").trimEnd(), /\n_git-fi "\$@"$/);
+  });
+
   test("_git_fi is fpath-autoloadable and shares the bash body", () => {
     const zfp = read("_git_fi");
     assert.match(zfp.split("\n")[0], /^#autoload$/, "first line must be #autoload for compinit");

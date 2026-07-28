@@ -63,10 +63,34 @@ const man =
 // completion is action-aware (see the templates for the details).
 
 const longFlags = [...ACTIONS, ...OPTIONS].map((f) => `--${f.long}`).join(" ");
-const bash = template("git-fi.bash.tmpl", GENERATED).replace(
-  "@@LONG_FLAGS@@",
-  longFlags
-);
+
+// The git-completion-format body (defines _git_fi) is shared by two outputs:
+// completions/git-fi.bash, sourced by bash, and completions/_git_fi, autoloaded
+// from the zsh fpath when git's own completion wrapper — not zsh's built-in
+// _git — dispatches `git fi` (to _git_fi under ksh emulation). It uses git's
+// portable $cur/$words, so the same function runs in both shells.
+const gitNativeBody = readFileSync(
+  join(here, "completion", "git-fi.bash.tmpl"),
+  "utf8"
+).replaceAll("@@LONG_FLAGS@@", longFlags);
+
+const bash =
+  `# ${GENERATED}\n` +
+  `# git-completion-format completion for \`git fi\` (defines _git_fi). Load it in\n` +
+  `# bash (needs git's bash completion) with:\n` +
+  `#   source <(git fi install-completions bash)\n` +
+  `# The same function serves zsh under git's own completion wrapper; that copy\n` +
+  `# ships as completions/_git_fi.\n` +
+  gitNativeBody;
+
+// The #autoload tag must be the first line so compinit autoloads _git_fi.
+const gitNativeZsh =
+  `#autoload\n` +
+  `# ${GENERATED}\n` +
+  `# zsh fpath copy of the git-completion-format _git_fi, for git's own\n` +
+  `# completion wrapper (git dispatches \`git fi\` to _git_fi under ksh emulation).\n` +
+  `# For zsh's built-in _git, see completions/_git-fi instead.\n` +
+  gitNativeBody;
 
 const zshSpec = (f: Flag): string =>
   `    '(-${f.short} --${f.long})'{-${f.short},--${f.long}}'[${f.desc}]'`;
@@ -120,6 +144,7 @@ const commandsDoc = (() => {
 const outputs: Array<{ relPath: string; content: string }> = [
   { relPath: "man/git-fi.1", content: man },
   { relPath: "completions/git-fi.bash", content: bash },
+  { relPath: "completions/_git_fi", content: gitNativeZsh },
   { relPath: "completions/_git-fi", content: zsh },
   commandsDoc,
 ];

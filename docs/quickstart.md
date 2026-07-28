@@ -45,7 +45,24 @@ git fi install-completions zsh > "${fpath[1]}/_git-fi"
 autoload -Uz compinit && compinit
 ```
 
-Completion offers the action/option flags and, for positional arguments, the branch names available on `origin` — only branches not yet in `fi` for `--add`, and only branches currently in `fi` for `--remove`.
+Two completion providers dispatch `git fi`, and which one is active depends on your setup:
+
+- **zsh's built-in `_git`** calls `_git-fi` — the file the `zsh` command above installs.
+- **git's own completion wrapper** (the `_git` that ships with git, common on macOS/Homebrew) calls `_git_fi` under ksh emulation instead. If `git fi <TAB>` falls back to filenames, this is the provider you have. Add the git-native completion, which reads the same flag list and branch logic:
+
+  ```zsh
+  # in ~/.zshrc, after compinit — defines _git_fi for git's own wrapper
+  source <(git fi install-completions bash)
+  ```
+
+  The bash-format script is written in git-completion style, so it also works in zsh once git's wrapper loads it. To autoload it from the fpath instead of sourcing it at every startup, copy the shipped `_git_fi` alongside `_git-fi`:
+
+  ```zsh
+  cp "$(npm root -g)/@gettyimages/git-fi/completions/_git_fi" "${fpath[1]}/"
+  autoload -Uz compinit && compinit
+  ```
+
+At the command position (`git fi <TAB>`) completion offers the subcommands, plus — under git's wrapper — the action/option flags; under zsh's built-in `_git` the flags appear once you type a `-`. Branch names are offered once an action is chosen — only branches not yet in `fi` for `--add`, and only branches currently in `fi` for `--remove`.
 
 ## Your First Integration
 

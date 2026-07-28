@@ -14,7 +14,9 @@
     "prepare": "tsc",
     "test": "tsc && npm run verify:generated && node --import tsx --test test/*.test.ts",
     "verify:generated": "node --import tsx scripts/gen-docs.ts --check",
-    "prepublishOnly": "npm test"
+    "prepublishOnly": "npm test",
+    "trial:on": "bash scripts/trial.sh on",
+    "trial:off": "bash scripts/trial.sh off"
   },
   "files": [
     "dist",

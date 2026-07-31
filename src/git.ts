@@ -71,9 +71,9 @@ export function preflightChecks(opts: Options): void {
   if (match) {
     const parts = match[1].split(".").map(Number);
     const ver = parts[0] * 10000 + parts[1] * 100 + parts[2];
-    if (ver < 23900) {
+    if (ver < 21300) {
       abort(
-        `git version ${match[1]} is too old, please upgrade to at least 2.39.0.`,
+        `git version ${match[1]} is too old, please upgrade to at least 2.13.0.`,
         opts
       );
     }

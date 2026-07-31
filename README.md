@@ -8,7 +8,9 @@ This README is for working on git-fi itself. To install and use it, see the [doc
 
 ## Local development
 
-Requires Node.js >= 18 and git >= 2.39.0.
+Requires Node.js >= 18 and git >= 2.13.0.
+
+The git floor tracks the newest git feature the code calls rather than a support policy. Today that feature is `git branch -r --format=`, which backs the batched branch listing (`PRF-01`) and which git gained in 2.13.0; every other invocation is older. Reaching for a newer git feature means raising the floor in `PF-02` and `src/git.ts` together, and naming the feature that moved it so the next person doesn't have to re-derive the number.
 
 ```bash
 git clone https://github.com/gettyimages/git-fi.git

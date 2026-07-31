@@ -5,6 +5,20 @@ GitHub Release by the release workflow (`.github/workflows/release.yml`).
 
 <!-- releases below -->
 
+## v1.0.9 (2026-07-31)
+
+## v1.0.9
+
+### Fixes
+
+- `git fi` runs on git 2.13 and newer. The previous floor of 2.39 turned away installs that already had everything git-fi uses, including the git that ships with long-term-support Linux distributions and with older Xcode command line tools.
+
+### Other
+
+- `SPEC.md` records what sets the git floor, so a future change to it starts from the requirement rather than a guess: it tracks the newest git feature the code calls, today `git branch -r --format=`.
+- The requirement coverage ledger points at files and symbols instead of line ranges, so following an entry lands on the code it names.
+
+
 ## v1.0.8 (2026-07-28)
 
 **Full Changelog**: https://github.com/gettyimages/git-fi/compare/v1.0.7...v1.0.8

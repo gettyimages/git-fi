@@ -1,5 +1,5 @@
 import type { Options, CIResult } from "./types.js";
-import { makeStyle, createSpinner, printTable, abort } from "./style.js";
+import { makeStyle, colorEnabled, createSpinner, printTable, abort } from "./style.js";
 import { git } from "./git.js";
 
 export const STATUS_EMOJI: Record<string, string> = {
@@ -11,6 +11,27 @@ export const STATUS_EMOJI: Record<string, string> = {
   missing: "\u2796",
   skipped: "\u23ED\uFE0F",
 };
+
+export const STATUS_WORD: Record<string, string> = {
+  success: "success",
+  failed: "failed",
+  timeout: "timed out",
+  running: "running",
+  pending: "pending",
+  missing: "none",
+  skipped: "skipped",
+};
+
+/**
+ * Render a pipeline status for the Pipeline column and the `fi:` line (TRM-10).
+ * The emoji is the only thing carrying the status in either place, so a reader
+ * of plain text (a CI job log, a piped run) gets the word instead. Gated on
+ * `colorEnabled`, which is already the decoration/plain-text split.
+ */
+export function statusLabel(status: string, opts: Options): string {
+  const table = colorEnabled(opts) ? STATUS_EMOJI : STATUS_WORD;
+  return table[status] || "";
+}
 
 const API_TIMEOUT_MS = 10000;
 
@@ -262,10 +283,11 @@ export function printCITable(
           )
         : s.cyan(branchName);
     const branchLabel = nameText;
-    const emoji = STATUS_EMOJI[item.status] || STATUS_EMOJI.missing;
+    const status = item.status in STATUS_EMOJI ? item.status : "missing";
+    const label = statusLabel(status, opts);
     const pipeline = item.pipelineId
-      ? `${gitlab ? s.link(item.pipelineId, `https://${gitlab.host}/${gitlab.project}/-/pipelines/${item.pipelineId}`) : item.pipelineId} ${emoji}`
-      : emoji;
+      ? `${gitlab ? s.link(item.pipelineId, `https://${gitlab.host}/${gitlab.project}/-/pipelines/${item.pipelineId}`) : item.pipelineId} ${label}`
+      : label;
     return [branchLabel, item.date, item.author, pipeline];
   });
   printTable(headers, rows, opts);

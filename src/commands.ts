@@ -11,7 +11,7 @@ import {
   ensureFetched,
   isInteractive,
 } from "./git.js";
-import { fetchGitlabCI, printCITable, detectGitlabProject, fetchFiPipeline, STATUS_EMOJI } from "./gitlab.js";
+import { fetchGitlabCI, printCITable, detectGitlabProject, fetchFiPipeline, statusLabel } from "./gitlab.js";
 import { mergeProcess } from "./merge.js";
 import { pickBranches } from "./ui.js";
 import { DOCS_URL } from "./help.js";
@@ -103,9 +103,9 @@ export async function cmdList(
     if (gitlab) {
       const pipeline = await fetchFiPipeline(opts, gitlab, pushedSha ?? undefined);
       if (pipeline) {
-        const emoji = STATUS_EMOJI[pipeline.status] || "";
+        const label = statusLabel(pipeline.status, opts);
         const idText = s.link(s.dim(`#${pipeline.id}`), pipeline.url);
-        process.stdout.write(`fi: ${idText} ${emoji}\n`);
+        process.stdout.write(`fi: ${idText} ${label}\n`);
       }
     }
   } else {

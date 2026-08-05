@@ -2,7 +2,7 @@
 
 Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 
-**Last updated:** 2026-07-31
+**Last updated:** 2026-08-05
 
 Locations name the file and the enclosing symbol rather than a line range, so an
 edit elsewhere in the same file leaves the row correct. `git grep` the symbol to
@@ -12,8 +12,8 @@ land on it.
 
 | Status  | Count |
 |---------|-------|
-| Covered | 101   |
-| Total   | 101   |
+| Covered | 103   |
+| Total   | 103   |
 
 ## Pre-flight Checks
 
@@ -70,6 +70,8 @@ land on it.
 | TRM-06 | Progress on stderr           | Covered | `src/style.ts` (`createSpinner`), `src/gitlab.ts` (`fetchGitlabCI`) |
 | TRM-07 | Suppress progress when !TTY  | Covered | `src/style.ts` (`progressEnabled`) |
 | TRM-08 | Annotation lifecycle         | Covered | `src/merge.ts` (`mergeProcess`: `updateAnnotation`, `finalizeDone`, `finalizeError`) |
+| TRM-09 | Off-TTY: outcome line only   | Covered | `src/merge.ts` (`ACTION_OUTCOME`, `mergeProcess`: `finalizeDone`) |
+| TRM-10 | Status worded without glyphs | Covered | `src/gitlab.ts` (`statusLabel`, `STATUS_WORD`), `src/commands.ts` (`cmdList`) |
 
 ## Branch Name Resolution
 

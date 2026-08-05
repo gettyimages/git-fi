@@ -109,7 +109,7 @@ flowchart TD
 
 `TRM-07` When stderr is not a TTY, or when `--bare` or `--json` is specified, git-fi shall suppress progress output.
 
-`TRM-08` When a mutation operation is in progress, git-fi shall update each action annotation (`<- ...`) in-place on a TTY using cursor movement, progressing through a sequence of states where each state fully replaces the previous annotation text. When stdout is not a TTY, git-fi shall skip the in-place updates and print `Done!` to stderr instead.
+`TRM-08` When a mutation operation is in progress and stdout is a TTY, git-fi shall print the branch display and update each action annotation (`<- ...`) in-place using cursor movement, progressing through a sequence of states where each state fully replaces the previous annotation text.
 
 **Initial state** — displayed when the branch list is first printed:
 
@@ -134,6 +134,33 @@ flowchart TD
 | remove   | `<- removed`       | `<- failed`        |
 | force    | `<- replaced`      | `<- failed`        |
 | again    | `<- re-merged`     | `<- failed`        |
+
+`TRM-09` When stdout is not a TTY, git-fi shall print neither the branch display nor any annotation from `TRM-08`, and on success shall state the outcome once as `<verb> fi`:
+
+| Action | Off-TTY outcome   |
+|--------|-------------------|
+| add    | `added to fi`     |
+| remove | `removed from fi` |
+| force  | `replaced fi`     |
+| again  | `re-merged fi`    |
+
+In human mode this line goes to stdout, ahead of the branch list, so a reader cannot see the two reordered; under `--bare` or `--json`, stdout is machine-only (`JS-02`) and it goes to stderr. On failure there is no outcome line: the `MG-11` diagnostics carry it.
+
+The display exists to be a canvas for the in-place rewrites, and the branch list it shows is repeated by the table that follows (`LS-03`). Printed where the rewrites cannot happen, it leaves the *initial* verb (`<- re-merging`, for an operation that finished) as the log's only statement of the outcome.
+
+`TRM-10` Pipeline status is carried by an emoji (`GL-01`, `GL-05`) and by nothing else in the same cell, so under the `TRM-05` conditions that disable color — stdout not a TTY, `--bare`, `--json`, or `NO_COLOR` — git-fi shall print the status as a word instead:
+
+| Status | Emoji | Word |
+| --- | --- | --- |
+| SUCCESS | ✅ | `success` |
+| FAILED | ❌ | `failed` |
+| TIMEOUT | ⏰ | `timed out` |
+| RUNNING | ⏳ | `running` |
+| PENDING | ⏳ | `pending` |
+| NO PIPELINE | ➖ | `none` |
+| SKIPPED | ⏭️ | `skipped` |
+
+A log read as plain text is the case this covers: a CI job log or a piped run, where the glyph is the sole carrier of a fact the reader needs and `TRM-03` already rules out conveying meaning by decoration alone.
 
 ## Commands
 
@@ -342,7 +369,7 @@ flowchart TD
 10. `MG-10` When the merge succeeds, git-fi shall:
     - Commit (see [Commit Message](#commit-message)) — update annotation to `<- committing`.
     - Push: `git push --no-verify -f origin fi` — update annotation to `<- pushing`.
-    - Finalize annotation line(s) with the action's terminal success state (see TRM-08).
+    - Finalize annotation line(s) with the action's terminal success state (see TRM-08), or state the outcome once off a TTY (see TRM-09).
     - Print the branch list table (identical to `list` output, including the fi pipeline per GL-05) so the user sees the final state without running a separate command.
 11. `MG-11` When the merge fails, git-fi shall:
     - Abort the failed merge (leave the working tree clean).
@@ -361,18 +388,28 @@ git-fi supports two commit-message formats for the fi branch: the **preferred** 
 
 ### Success Output
 
-The annotation line(s) update in-place to show the terminal state (see TRM-08), followed by the full branch list table (see LS-03):
+On a TTY, the annotation line(s) update in-place to show the terminal state (see TRM-08), followed by the full branch list table (see LS-03):
 
 ```
 fi:
  * feature-a
  * feature-b  <- added
-fi: #12345 ⏳
-
 Branch    │ Date       │ Author │ Pipeline
 ──────────┼────────────┼────────┼──────────
 feature-a │ 2026-03-30 │ Alice  │ 11111 ✅
 feature-b │ 2026-03-30 │ Bob    │ 22222 ✅
+fi: #12345 ⏳
+```
+
+Off a TTY — a CI job log, or a piped run — the display and its annotations are gone, the outcome is one line (TRM-09), and status is worded (TRM-10):
+
+```
+added to fi
+Branch    │ Date       │ Author │ Pipeline
+──────────┼────────────┼────────┼──────────
+feature-a │ 2026-03-30 │ Alice  │ 11111 success
+feature-b │ 2026-03-30 │ Bob    │ 22222 running
+fi: #12345 running
 ```
 
 If `GITLAB_ACCESS_TOKEN` is not set, the table has only a Branch column (no CI data). The `fi:` pipeline line (GL-05) is also omitted.
@@ -443,13 +480,15 @@ When parsing the fi branch's commit message, if this legacy format is detected �
 | ➖ | MISSING |
 | ⏭️ | SKIPPED |
 
+Where the emoji will not be drawn as a glyph, the word is shown instead (`TRM-10`).
+
 `GL-02` git-fi shall parse the origin URL to extract the GitLab project path. git-fi shall support both SSH (`git@gitlab.example.com:path/to/repo`) and HTTPS (`https://gitlab.example.com/path/to/repo`) formats, with optional `.git` suffix removed.
 
 `GL-03` If a GitLab API call fails with a non-404 HTTP error, then git-fi shall abort with a clear error message explaining what failed and suggest unsetting `GITLAB_ACCESS_TOKEN` to use basic mode. When the API returns HTTP 404 for an individual branch (e.g. a deleted branch), git-fi shall treat it as `missing` status rather than a fatal error.
 
 `GL-04` When a GitLab project is detected, git-fi shall render branch names and pipeline IDs as clickable terminal hyperlinks (OSC 8) pointing to the corresponding GitLab URLs.
 
-`GL-05` **Pipeline link after merge:** When `GITLAB_ACCESS_TOKEN` is set and a merge operation succeeds, git-fi shall fetch the pipeline for the `fi` branch matching the just-pushed SHA and display it as `fi: #<id> <emoji>`, where `#<id>` is a clickable hyperlink (OSC 8) and the emoji uses the same set as GL-01. The `fi:` prefix distinguishes this integration pipeline from the per-branch pipelines shown in the list table. GitLab registers the pipeline for a push asynchronously, so if no matching pipeline is found yet, git-fi shall retry with escalating delays of 500 ms, 1 s, and 2 s, returning as soon as one appears so the common case pays only the shortest wait. If the API call fails or no matching pipeline appears, the line is silently omitted.
+`GL-05` **Pipeline link after merge:** When `GITLAB_ACCESS_TOKEN` is set and a merge operation succeeds, git-fi shall fetch the pipeline for the `fi` branch matching the just-pushed SHA and display it as `fi: #<id> <status>`, where `#<id>` is a clickable hyperlink (OSC 8) and the status indicator uses the same set as GL-01, worded off a TTY per `TRM-10`. The `fi:` prefix distinguishes this integration pipeline from the per-branch pipelines shown in the list table. GitLab registers the pipeline for a push asynchronously, so if no matching pipeline is found yet, git-fi shall retry with escalating delays of 500 ms, 1 s, and 2 s, returning as soon as one appears so the common case pays only the shortest wait. If the API call fails or no matching pipeline appears, the line is silently omitted.
 
 `GL-06` When the GitLab commits API returns HTTP 404 for a branch in the CI table, git-fi shall display a warning indicator next to the branch name to signal the branch no longer exists on the remote.
 

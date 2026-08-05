@@ -447,8 +447,28 @@ describe("pruning via --again", () => {
     const r = runFi(["--again"], sb.work);
     assert.equal(r.status, 0, r.stderr);
     assert.deepEqual(listedBranches(sb), ["keep"]);
-    assert.match(r.stdout, /<- re-merging/);
-    assert.match(r.stderr, /Done!/);
+    assert.match(r.stdout, /re-merged fi/);
+  });
+
+  // TRM-09. The annotations are drawn to be rewritten in place; off a TTY the
+  // rewrite never comes, so drawing them at all would leave a log whose only
+  // statement of the outcome is the *initial* verb — "re-merging" — for an
+  // operation that finished.
+  test("again states the outcome once off a TTY, with no in-flight verbs", () => {
+    const r = runFi(["--again"], sb.work);
+    assert.equal(r.status, 0, r.stderr);
+    const all = r.stdout + r.stderr;
+    for (const verb of ["re-merging", "merging", "committing", "pushing"]) {
+      assert.ok(
+        !all.includes(`<- ${verb}`),
+        `off-TTY output should not carry the '<- ${verb}' annotation`
+      );
+    }
+    assert.equal(
+      r.stdout.match(/re-merged fi/g)?.length,
+      1,
+      "the outcome should be stated exactly once"
+    );
   });
 
   // The case the old `--prune` gate skipped: nothing qualifies for dropping,

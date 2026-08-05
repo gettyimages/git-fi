@@ -84,6 +84,16 @@ const ACTION_DONE: Record<string, string> = {
   again: "re-merged",
 };
 
+// The same verbs as a standalone sentence, for the one-line outcome printed
+// where the annotations cannot be animated (TRM-09). `added` alone would read
+// as though fi were the thing added, so each verb carries its preposition.
+const ACTION_OUTCOME: Record<string, string> = {
+  add: "added to",
+  remove: "removed from",
+  force: "replaced",
+  again: "re-merged",
+};
+
 export async function mergeProcess(
   action: string,
   actionBranches: string[],
@@ -97,17 +107,15 @@ export async function mergeProcess(
   const doneVerb = ACTION_DONE[action] || action;
   const actionSet = new Set(actionBranches);
 
-  // Under --bare / --json, stdout carries machine output only (JS-02), so the
-  // branch display and its in-place annotations are suppressed (already
-  // required by TRM-07) and failure diagnostics move to stderr. In human mode
-  // both stay on stdout exactly as before.
+  // Under --bare / --json, stdout carries machine output only (JS-02), so
+  // failure diagnostics move to stderr. In human mode they stay on stdout.
   const machineOutput = opts.bare || opts.json;
-  const show = (text: string) => {
-    if (!machineOutput) process.stdout.write(text);
-  };
   const diagnose = (text: string) => {
     (machineOutput ? process.stderr : process.stdout).write(text);
   };
+  // The branch display exists to be rewritten in place as the operation
+  // progresses, so it is drawn only where that can happen: an interactive
+  // stdout, and not under a machine format (TRM-07, JS-02).
   const tty = process.stdout.isTTY === true && !machineOutput;
 
   const fiRefs = gitLines([
@@ -229,9 +237,15 @@ export async function mergeProcess(
     annotations.push({ lineIndex: displayLines.length - 1, branch: "", baseLine });
   }
 
-  show(`${s.fi()}:\n`);
-  for (const line of displayLines) {
-    show(line + "\n");
+  // Printed once, up front, only because the annotations are about to be
+  // rewritten into it. Off a TTY those rewrites never happen, so printing it
+  // would leave the *initial* verb ("re-merging") standing as the log's last
+  // word on the outcome, above a branch list the table already carries.
+  if (tty) {
+    process.stdout.write(`${s.fi()}:\n`);
+    for (const line of displayLines) {
+      process.stdout.write(line + "\n");
+    }
   }
 
   // Cursor helpers for inline progress
@@ -257,7 +271,12 @@ export async function mergeProcess(
 
   function finalizeDone() {
     if (!tty || annotations.length === 0) {
-      process.stderr.write(`${s.greenBold("Done!")}\n`);
+      // The outcome as one sentence (TRM-09), since no annotation was drawn to
+      // finalize. Human mode puts it on stdout, alongside the branch list that
+      // follows: two streams into one pipe have no ordering guarantee, so from
+      // stderr it could surface mid-table.
+      const verb = ACTION_OUTCOME[action] || doneVerb;
+      diagnose(`${s.greenBold(verb)} ${s.fi()}\n`);
       return;
     }
     for (const ann of annotations) {

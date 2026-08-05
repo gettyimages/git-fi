@@ -5,6 +5,14 @@ GitHub Release by the release workflow (`.github/workflows/release.yml`).
 
 <!-- releases below -->
 
+## v1.0.10 (2026-08-05)
+
+## What's Changed
+* Say the outcome once where the annotations cannot animate by @chris-peterson in https://github.com/gettyimages/git-fi/pull/7
+
+
+**Full Changelog**: https://github.com/gettyimages/git-fi/compare/v1.0.9...v1.0.10
+
 ## v1.0.9 (2026-07-31)
 
 ## v1.0.9

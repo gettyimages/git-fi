@@ -8,13 +8,25 @@ git-fi is a git subcommand: once the `git-fi` binary is on your `PATH`, invoke i
 npm install -g @gettyimages/git-fi
 ```
 
-This puts `git-fi` on your `PATH`, which is what makes the `git fi` subcommand work. Upgrade the same way — re-running it installs the latest published version. To preview without installing (this runs as `npx @gettyimages/git-fi`, **not** `git fi`):
+This puts `git-fi` on your `PATH`, which is what makes the `git fi` subcommand work. To preview without installing (this runs as `npx @gettyimages/git-fi`, **not** `git fi`):
 
 ```bash
 npx @gettyimages/git-fi --help
 ```
 
-### Upgrading from an older git-fi
+### Updating
+
+```bash
+git fi --update
+```
+
+Installs the latest published version, from any directory. git-fi prints a one-line notice naming this command when a newer version is out, so you don't have to check.
+
+If that reports an unknown option, you're on a version that predates the flag; update once with npm and you'll have it:
+
+```bash
+npm install -g @gettyimages/git-fi
+```
 
 `git fi` runs whichever `git-fi` comes first on your `PATH`. An older install — such as the legacy Ruby gem — can shadow a freshly installed npm version. Run `which -a git-fi`; if more than one path is listed, remove the older one (e.g. `gem uninstall git-fi`) so `git fi` resolves to the version you intend.
 

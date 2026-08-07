@@ -155,6 +155,7 @@ Shows only branches currently in `fi`. Select which to remove.
 | `-j` | `--json` | Structured JSON output |
 | `-s` | `--select` | Interactive branch picker (requires a TTY) |
 | `-y` | `--yes` | Bootstrap fi without the confirmation prompt (for CI/scripts) |
+| `-u` | `--update` | Update git-fi itself to the latest published version |
 | `-V` | `--version` | Print version and exit |
 | `-h` | `--help` | Show this help |
 

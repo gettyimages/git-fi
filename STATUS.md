@@ -2,7 +2,7 @@
 
 Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 
-**Last updated:** 2026-08-05
+**Last updated:** 2026-08-06
 
 Locations name the file and the enclosing symbol rather than a line range, so an
 edit elsewhere in the same file leaves the row correct. `git grep` the symbol to
@@ -12,8 +12,8 @@ land on it.
 
 | Status  | Count |
 |---------|-------|
-| Covered | 103   |
-| Total   | 103   |
+| Covered | 105   |
+| Total   | 105   |
 
 ## Pre-flight Checks
 
@@ -38,6 +38,7 @@ land on it.
 | OPT-07 | `--yes`     | Covered | `src/index.ts` (`parseArgs`), `src/help.ts` (`OPTIONS`) |
 | OPT-08 | `--bare`/`--json` any action | Covered | `src/merge.ts` (`mergeProcess`), `src/commands.ts` (`cmdList`, `cmdAbort`) |
 | OPT-09 | `--select` excludes machine modes | Covered | `src/index.ts` (`parseArgs`) |
+| OPT-10 | `--update`  | Covered | `src/index.ts` (`parseArgs`, `main`), `src/help.ts` (`OPTIONS`) |
 
 ## Help & Documentation
 
@@ -203,7 +204,8 @@ land on it.
 
 | ID     | Description              | Status  | Location                       |
 |--------|--------------------------|---------|--------------------------------|
-| UPD-01 | Deferred update notice   | Covered | `src/update-check.ts` (`notifyUpdate`) |
+| UPD-01 | Deferred update notice   | Covered | `src/update-check.ts` (`notifyUpdate`, `updateNotice`) |
 | UPD-02 | Throttled background check | Covered | `src/update-check.ts` (`notifyUpdate`), `src/update-worker.ts` |
 | UPD-03 | Suppression conditions   | Covered | `src/update-check.ts` (`suppressed`) |
 | UPD-04 | Cache location           | Covered | `src/update-check.ts` (`cachePath`) |
+| UPD-05 | `--update` installs the latest version | Covered | `src/update-check.ts` (`updateSelf`), `src/index.ts` (`parseArgs`, `main`) |

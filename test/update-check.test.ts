@@ -2,7 +2,8 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { isNewer, cachePath } from "../src/update-check.ts";
+import { isNewer, cachePath, updateNotice } from "../src/update-check.ts";
+import { makeStyle } from "../src/style.ts";
 
 describe("isNewer", () => {
   test("true when latest is ahead", () => {
@@ -25,6 +26,23 @@ describe("isNewer", () => {
   test("ignores prerelease suffixes", () => {
     assert.equal(isNewer("1.0.0-rc.1", "1.0.0"), false);
     assert.equal(isNewer("1.0.1-rc.1", "1.0.0"), true);
+  });
+});
+
+describe("updateNotice (UPD-01)", () => {
+  const s = makeStyle({ debug: false, bare: false, json: false, select: false, yes: false });
+
+  test("names both versions and the command that performs the update", () => {
+    const notice = updateNotice("1.0.9", "1.0.10", s);
+    assert.ok(notice.includes("1.0.9"), notice);
+    assert.ok(notice.includes("1.0.10"), notice);
+    assert.ok(notice.includes("git fi --update"), notice);
+  });
+
+  test("leaves the reader nothing to work out at npm", () => {
+    // The point of UPD-05: the notice used to name `npm install -g <pkg>`, which
+    // the reader had to retype correctly.
+    assert.ok(!updateNotice("1.0.9", "1.0.10", s).includes("npm"));
   });
 });
 

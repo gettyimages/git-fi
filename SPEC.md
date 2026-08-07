@@ -48,6 +48,7 @@ flowchart TD
 | `OPT-05` | `--version` | `-V`  | Print the current version string to stdout and exit 0                     |
 | `OPT-06` | `--help`    | `-h`  | Print a usage summary to stdout and exit 0; direct to the documentation site for full details |
 | `OPT-07` | `--yes`     | `-y`  | Bootstrap `fi` without the confirmation prompt (see `MG-15`); intended for CI and scripts |
+| `OPT-10` | `--update`  | `-u`  | Update the installed git-fi to the latest published version (see `UPD-05`) |
 
 `OPT-08` `--bare` and `--json` select an output format rather than a command, so git-fi shall accept either with any action. When an action other than `list` completes, git-fi shall render the resulting branch list in the requested format, exactly as `list` would (`LS-02`, `JS-01`). git-fi shall keep stdout free of human-readable output in these modes: the merge display and its annotations are suppressed (`TRM-07`) and any diagnostics go to stderr (`JS-01`).
 
@@ -567,7 +568,8 @@ Every git query and API call costs a process spawn or a network round trip, and 
 
 git-fi notifies the user when a newer version has been published to npm, without ever blocking or delaying a command.
 
-- `UPD-01` When a newer published version than the running one is known from the cache, git-fi shall print a one-line update notice to stderr as it exits — regardless of exit code, and even when a pre-flight check aborts the command — naming the current and latest versions and the `npm install -g` upgrade command. The check runs before the pre-flight checks so a wrong-directory or other early abort still surfaces it.
+- `UPD-01` When a newer published version than the running one is known from the cache, git-fi shall print a one-line update notice to stderr as it exits — regardless of exit code, and even when a pre-flight check aborts the command — naming the current and latest versions and the `git fi --update` command that performs the update (`UPD-05`). The check runs before the pre-flight checks so a wrong-directory or other early abort still surfaces it.
 - `UPD-02` git-fi shall refresh the cached latest version in a detached background process, throttled to at most once per 24 hours via the cache's `checkedAt` timestamp. The check shall be best-effort: a registry error, timeout, or spawn failure leaves the cache untouched and never surfaces or delays the command.
 - `UPD-03` git-fi shall suppress both the notice and the background check when stdout is not a TTY, when `$CI` is set, when `--json` or `--bare` is used, or when `$GIT_FI_NO_HINTS` or `$NO_UPDATE_NOTIFIER` is set.
 - `UPD-04` The cache shall live at `$XDG_CACHE_HOME/git-fi/update-check.json`, falling back to `~/.cache/git-fi/update-check.json`.
+- `UPD-05` `--update` (`-u`) shall update the installed git-fi by running `npm install -g <package>@latest` with npm's stdio inherited, exiting with npm's exit code and adding no output of its own. It shall run before the update notice and the pre-flight checks, so it works from any directory. It shall consult neither the cache nor the registry first: the throttle in `UPD-02` serves the passive notice, whereas `--update` is an explicit request to install now, and a redundant reinstall is a better answer than refusing one. It shall collide with the actions in `CMD-*` the way they collide with each other, and shall reject branch-name arguments.

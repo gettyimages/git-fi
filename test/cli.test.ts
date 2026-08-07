@@ -1,6 +1,6 @@
 import { test, before, after, describe } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, readFileSync, readdirSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { runFi, makeSandbox, type Sandbox } from "./helpers.ts";
 
-const { version } = createRequire(import.meta.url)("../package.json");
+const { name, version } = createRequire(import.meta.url)("../package.json");
 
 /** Branch names present in a plain (non-token) list, in display order. */
 function listedBranches(sb: Sandbox): string[] {
@@ -157,6 +157,75 @@ describe("argument handling (no repo required)", () => {
     assert.equal(r.status, 1);
     assert.match(r.stderr, /\/dev\/null\/nope/);
     assert.match(r.stderr, /Pick a directory you own/);
+  });
+});
+
+describe("--update (UPD-05)", () => {
+  let dir: string;
+  let path: string;
+  let argvLog: string;
+
+  before(() => {
+    dir = mkdtempSync(join(tmpdir(), "git-fi-update-"));
+    const bin = join(dir, "bin");
+    argvLog = join(dir, "npm-argv");
+    mkdirSync(bin);
+    // Stand-in npm: records the arguments git-fi handed it, and exits with
+    // whatever the test asks for. Running the real npm would reinstall the
+    // developer's global git-fi mid-suite.
+    writeFileSync(
+      join(bin, "npm"),
+      `#!/bin/sh\nprintf '%s\\n' "$@" > "${argvLog}"\nexit \${FAKE_NPM_EXIT:-0}\n`,
+      { mode: 0o755 }
+    );
+    path = `${bin}:${process.env.PATH}`;
+  });
+  after(() => rmSync(dir, { recursive: true, force: true }));
+
+  const npmArgv = () => readFileSync(argvLog, "utf8").trim().split("\n");
+
+  test("installs the latest published version, from outside a git repo", () => {
+    // `dir` is a bare temp directory: updating must not require a repo.
+    const r = runFi(["--update"], dir, { PATH: path });
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(npmArgv(), ["install", "-g", `${name}@latest`]);
+  });
+
+  test("-u is the same action", () => {
+    const r = runFi(["-u"], dir, { PATH: path });
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(npmArgv(), ["install", "-g", `${name}@latest`]);
+  });
+
+  test("exits with npm's exit code and adds no wrapper output", () => {
+    const r = runFi(["--update"], dir, { PATH: path, FAKE_NPM_EXIT: "17" });
+    assert.equal(r.status, 17);
+    assert.equal(r.stdout, "");
+    assert.equal(r.stderr, "");
+  });
+
+  test("reports a missing npm rather than exiting silently", () => {
+    const empty = join(dir, "empty");
+    mkdirSync(empty, { recursive: true });
+    const r = runFi(["--update"], dir, { PATH: empty });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /Could not run npm/);
+  });
+
+  test("collides with the actions the way they collide with each other", () => {
+    const both = runFi(["--add", "--update"], dir, { PATH: path });
+    assert.equal(both.status, 1);
+    assert.match(both.stderr, /Cannot combine --add with --update/);
+
+    const reversed = runFi(["--update", "--again"], dir, { PATH: path });
+    assert.equal(reversed.status, 1);
+    assert.match(reversed.stderr, /Cannot combine --update with --again/);
+  });
+
+  test("rejects branch names, so a slip for --add cannot reinstall instead", () => {
+    const r = runFi(["--update", "my-branch"], dir, { PATH: path });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /--update does not accept branch names/);
   });
 });
 

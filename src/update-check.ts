@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -38,6 +38,24 @@ function suppressed(opts: Options): boolean {
 }
 
 /**
+ * The notice body, split out from the exit handler below so it can be asserted
+ * on without a TTY. It names `git fi --update` rather than the npm command it
+ * runs (UPD-01): the reader would otherwise have to get a scoped package name
+ * right, and guess that npm's verb for replacing an already-installed global is
+ * `install`, not the more obvious `update`.
+ */
+export function updateNotice(
+  current: string,
+  latest: string,
+  s: ReturnType<typeof makeStyle>
+): string {
+  return (
+    `\n${s.yellow("Update available")} ${s.dim(current)} → ${s.greenBold(latest)}\n` +
+    `Run ${s.bold("git fi --update")} to update.\n`
+  );
+}
+
+/**
  * Print a deferred notice when a newer version is known, and refresh the cached
  * version in a detached background process (throttled to once per day). Returns
  * immediately and never blocks the command. Inert for machine output, non-TTY,
@@ -60,10 +78,7 @@ export function notifyUpdate(name: string, current: string, opts: Options): void
   if (latest && isNewer(latest, current)) {
     const s = makeStyle(opts);
     process.on("exit", () => {
-      process.stderr.write(
-        `\n${s.yellow("Update available")} ${s.dim(current)} → ${s.greenBold(latest!)}\n` +
-          `Run ${s.bold(`npm install -g ${name}`)} to update.\n`
-      );
+      process.stderr.write(updateNotice(current, latest!, s));
     });
   }
 
@@ -78,4 +93,25 @@ export function notifyUpdate(name: string, current: string, opts: Options): void
       // best-effort: a spawn failure must never block the command
     }
   }
+}
+
+/**
+ * Hand the update to npm and exit with its verdict. npm's stdio is inherited
+ * and its exit code becomes ours, so a registry outage, a permissions error, or
+ * a successful install all read exactly as npm already reports them.
+ *
+ * The cache is deliberately not consulted first: the 24-hour throttle (UPD-02)
+ * exists to keep a *passive* notice cheap, whereas `--update` is the user asking
+ * for the install now — answering that with "you're already current" is worse
+ * than a redundant reinstall.
+ */
+export function updateSelf(name: string): never {
+  const npm = spawnSync("npm", ["install", "-g", `${name}@latest`], {
+    stdio: "inherit",
+  });
+  if (npm.error) {
+    process.stderr.write(`Could not run npm: ${npm.error.message}\n`);
+    process.exit(1);
+  }
+  process.exit(npm.status ?? 1);
 }

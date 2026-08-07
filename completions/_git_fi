@@ -40,7 +40,7 @@ _git_fi () {
 	# command line from $words when detecting the action flag.
 	case "$cur" in
 	-*)
-		__gitcomp "--add --remove --force --again --abort --debug --bare --json --select --yes --version --help"
+		__gitcomp "--add --remove --force --again --abort --debug --bare --json --select --yes --update --version --help"
 		return
 		;;
 	esac
@@ -64,7 +64,7 @@ _git_fi () {
 		# No action flag yet: offer the actions/options and subcommands, not a
 		# branch dump. The branch argument completes once an action flag is
 		# present (a bare positional is only a list-filter pattern).
-		__gitcomp "--add --remove --force --again --abort --debug --bare --json --select --yes --version --help help install-completions"
+		__gitcomp "--add --remove --force --again --abort --debug --bare --json --select --yes --update --version --help help install-completions"
 		;;
 	esac
 }

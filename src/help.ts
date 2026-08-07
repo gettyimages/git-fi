@@ -33,6 +33,7 @@ export const OPTIONS: Flag[] = [
   { long: "json", short: "j", desc: "Structured JSON output" },
   { long: "select", short: "s", desc: "Interactive branch picker (requires a TTY)" },
   { long: "yes", short: "y", desc: "Bootstrap fi without the confirmation prompt (for CI/scripts)" },
+  { long: "update", short: "u", desc: "Update git-fi itself to the latest published version" },
   { long: "version", short: "V", desc: "Print version and exit" },
   { long: "help", short: "h", desc: "Show this help" },
 ];

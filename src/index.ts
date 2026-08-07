@@ -4,7 +4,7 @@ import type { Options } from "./types.js";
 import { abort } from "./style.js";
 import { preflightChecks, ensureFetched } from "./git.js";
 import { cmdList, cmdAdd, cmdRemove, cmdForce, cmdAgain, cmdAbort, cmdSelect } from "./commands.js";
-import { notifyUpdate } from "./update-check.js";
+import { notifyUpdate, updateSelf } from "./update-check.js";
 import { renderHelp } from "./help.js";
 import { installCompletions } from "./install-completions.js";
 
@@ -91,6 +91,13 @@ function parseArgs(argv: string[]) {
         if (action) abort(`Cannot combine --${action} with ${arg}`, opts);
         action = "abort";
         break;
+      // Listed under Options rather than Actions (it acts on the install, not
+      // on fi), but it dispatches as one, so it collides with them the same way.
+      case "--update":
+      case "-u":
+        if (action) abort(`Cannot combine --${action} with ${arg}`, opts);
+        action = "update";
+        break;
       default:
         // `git fi help` — git only intercepts the `--help`/`-h` flags (routing
         // them to `man git-fi`), so this bare word reaches us and gives a
@@ -117,6 +124,12 @@ function parseArgs(argv: string[]) {
       branches: branches.slice(1),
       filterPattern,
     };
+  }
+
+  // Without this, `git fi --update my-branch` — a plausible slip for `--add` —
+  // silently reinstalls git-fi and never touches the branch.
+  if (action === "update" && branches.length > 0) {
+    abort("--update does not accept branch names", opts);
   }
 
   if (!action && branches.length === 0 && !opts.select) action = "list";
@@ -164,6 +177,13 @@ async function main() {
   if (action === "install-completions") {
     installCompletions(branches, opts);
     return;
+  }
+
+  // Same reasoning: updating is not a repo operation, so it must work from any
+  // directory — and an "update available" notice on the way out of an update is
+  // noise.
+  if (action === "update") {
+    updateSelf(name);
   }
 
   // Before preflight: an update notice should surface even when the command

@@ -12,8 +12,8 @@ land on it.
 
 | Status  | Count |
 |---------|-------|
-| Covered | 106   |
-| Total   | 106   |
+| Covered | 107   |
+| Total   | 107   |
 
 ## Pre-flight Checks
 
@@ -38,6 +38,7 @@ land on it.
 | OPTION-07 | `--yes`     | Covered | `src/index.ts` (`parseArgs`), `src/help.ts` (`OPTIONS`) |
 | OPTION-08 | `--bare`/`--json` any action | Covered | `src/merge.ts` (`mergeProcess`), `src/commands.ts` (`cmdList`, `cmdAbort`) |
 | OPTION-09 | `--select` excludes machine modes | Covered | `src/index.ts` (`parseArgs`) |
+| OPTION-11 | `--debug` traces and times every git call | Covered | `src/git.ts` (`setDebug`, `git`), `src/index.ts` (`main`) |
 | OPTION-10 | `--update`  | Covered | `src/index.ts` (`parseArgs`, `main`), `src/help.ts` (`OPTIONS`) |
 
 ## Help & Documentation

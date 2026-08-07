@@ -59,7 +59,7 @@ The outcome verb names the action: `added to fi`, `removed from fi`, `replaced f
 
 On a terminal the branch name is a clickable link to that comparison and the table stays narrow. A job log can't render the escape sequence, so the reference is written out as markdown — copy a row into Slack, an issue, or an MR comment and the link works there. Pipeline IDs stay bare: carrying both URLs inline pushed the table past 200 columns, and the comparison is the one you leave the log to read.
 
-On failure there's no outcome line. The conflicting branches, any untracked files the failed merge left behind, and `Aborted due to merge failures` are what you get, and the job exits non-zero. Add `--debug` to see the git commands and their stderr, which git-fi otherwise discards.
+On failure there's no outcome line. The conflicting branches, any untracked files the failed merge left behind, and `Aborted due to merge failures` are what you get, and the job exits non-zero. Add `--debug` to see the git commands, how long each took, and their stderr, which git-fi otherwise discards.
 
 ## Pipeline context in CI
 

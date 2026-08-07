@@ -76,11 +76,17 @@ const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", 
 export function createSpinner(message: string, opts: Options) {
   if (!progressEnabled(opts)) return { stop() {} };
   let i = 0;
-  const id = setInterval(() => {
+  const draw = () =>
     process.stderr.write(
       `\r${SPINNER_FRAMES[i++ % SPINNER_FRAMES.length]} ${message}`
     );
-  }, 80);
+  // Draw frame 0 synchronously. Most of what a spinner wraps here is a
+  // synchronous `execFileSync` git call, which blocks the event loop for its
+  // whole duration — so a timer-only spinner never gets to run, and `stop()`
+  // clears the interval before the loop regains control. The slower the
+  // command, the longer the silence it was supposed to explain.
+  draw();
+  const id = setInterval(draw, 80);
   return {
     stop() {
       clearInterval(id);

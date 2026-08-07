@@ -2,7 +2,7 @@
 import { createRequire } from "node:module";
 import type { Options } from "./types.js";
 import { abort } from "./style.js";
-import { preflightChecks, ensureFetched } from "./git.js";
+import { preflightChecks, ensureFetched, setDebug } from "./git.js";
 import { cmdList, cmdAdd, cmdRemove, cmdForce, cmdAgain, cmdAbort, cmdSelect } from "./commands.js";
 import { notifyUpdate, updateSelf } from "./update-check.js";
 import { renderHelp } from "./help.js";
@@ -171,6 +171,7 @@ function parseArgs(argv: string[]) {
 async function main() {
   const argv = process.argv.slice(2);
   const { opts, action, branches, filterPattern } = parseArgs(argv);
+  setDebug(opts.debug);
 
   // Runs anywhere (no repo needed) and must not touch stdout beyond the script,
   // so handle it before the update notice and pre-flight checks.

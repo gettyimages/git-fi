@@ -81,7 +81,7 @@ See [CI Integration](/ci-integration) for full details.
 
 ## Command Dispatch
 
-See also `--debug` (`-d`) to watch git commands as they execute — useful for diagnosing unexpected merge behavior.
+See also `--debug` (`-d`), which traces every git command with the seconds it took — useful both for diagnosing unexpected merge behavior and for finding where a slow repository spends its time.
 
 ```mermaid
 %%{ init: { 'look': 'handDrawn' } }%%

@@ -253,7 +253,7 @@ export async function cmdAbort(
     abort("origin/fi does not exist — nothing to re-pull", opts);
   }
 
-  git(["fetch", "--quiet", "origin", "fi"], { debug: opts.debug });
+  git(["fetch", "--quiet", "--no-tags", "origin", "fi"], { debug: opts.debug });
   git(["update-ref", "refs/remotes/origin/fi", "FETCH_HEAD"], { debug: opts.debug });
 
   process.stderr.write(`${s.bold("Re-pulled")} ${s.fi()} from origin.\n`);

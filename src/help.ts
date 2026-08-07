@@ -28,7 +28,7 @@ export const ACTIONS: Flag[] = [
 ];
 
 export const OPTIONS: Flag[] = [
-  { long: "debug", short: "d", desc: "Print git commands as they execute" },
+  { long: "debug", short: "d", desc: "Trace git commands and how long each takes" },
   { long: "bare", short: "b", desc: "Machine-readable output: space-separated branch names" },
   { long: "json", short: "j", desc: "Structured JSON output" },
   { long: "select", short: "s", desc: "Interactive branch picker (requires a TTY)" },

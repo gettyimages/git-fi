@@ -11,7 +11,7 @@ _git-fi() {
     '(-f --force)'{-f,--force}'[Replace fi contents with only the given branch(es)]' \
     '(-g --again)'{-g,--again}'[Re-merge fi, dropping dead and already-merged branches]' \
     '(-A --abort)'{-A,--abort}'[Re-pull fi from origin]' \
-    '(-d --debug)'{-d,--debug}'[Print git commands as they execute]' \
+    '(-d --debug)'{-d,--debug}'[Trace git commands and how long each takes]' \
     '(-b --bare)'{-b,--bare}'[Machine-readable output: space-separated branch names]' \
     '(-j --json)'{-j,--json}'[Structured JSON output]' \
     '(-s --select)'{-s,--select}'[Interactive branch picker (requires a TTY)]' \

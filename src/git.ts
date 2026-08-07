@@ -7,6 +7,17 @@ import { DOCS_URL } from "./help.js";
 
 let fetchDone = false;
 
+// `--debug` is a property of the run, not of a call site. Threading it through
+// every `git()` argument list meant the 20 call sites that didn't forward it —
+// among them every read query on the list path — stayed silent, so a `--debug`
+// run traced the fetch and nothing else. PLATFORM-01 describes the flag as
+// global; this is what makes that true.
+let debugEnabled = false;
+
+export function setDebug(on: boolean): void {
+  debugEnabled = on;
+}
+
 interface GitOpts {
   quiet?: boolean;
   debug?: boolean;
@@ -18,23 +29,36 @@ export function git(
   args: string[],
   {
     quiet = true,
-    debug = false,
+    debug: debugOpt = false,
     showErrors = false,
     allowFailure = false,
   }: GitOpts = {}
 ): string | null {
+  const debug = debugOpt || debugEnabled;
   const stderrDest = debug || showErrors ? "pipe" : "ignore";
+  // The command is announced before it runs and timed after, so a hang shows
+  // you which git call is hanging rather than only being attributable once it
+  // returns. The elapsed line is what makes `--debug` usable for "why is this
+  // repo slow" — a fetch and a for-each-ref look identical without it.
+  const started = debug ? Date.now() : 0;
   if (debug) {
     process.stderr.write(`+ git ${args.join(" ")}\n`);
   }
+  const report = () => {
+    if (debug) {
+      process.stderr.write(`  ${((Date.now() - started) / 1000).toFixed(2)}s\n`);
+    }
+  };
   try {
     const out = execFileSync("git", args, {
       encoding: "utf-8",
       stdio: ["pipe", "pipe", stderrDest],
       maxBuffer: 50 * 1024 * 1024,
     });
+    report();
     return out.trimEnd();
   } catch (err) {
+    report();
     if (allowFailure) return null;
     throw err;
   }
@@ -105,7 +129,11 @@ export async function ensureFetched(
   fetchDone = true;
   const spin = createSpinner("Fetching from origin...", opts);
   try {
-    const fetchArgs = ["fetch", "--prune", "origin"];
+    // --no-tags: git-fi reads branches and never a tag, so the tag refspec buys
+    // nothing it uses. What that saves varies by server — one project measured
+    // 12-15s with tags against 1-2s without, transferring no tags either way,
+    // while a comparable project on the same host saw no difference (PRE-04).
+    const fetchArgs = ["fetch", "--prune", "--no-tags", "origin"];
     if (!opts.debug) fetchArgs.splice(1, 0, "--quiet");
     git(fetchArgs, { debug: opts.debug });
   } finally {

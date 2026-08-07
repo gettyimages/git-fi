@@ -150,7 +150,7 @@ Shows only branches currently in `fi`. Select which to remove.
 
 | Flag | Long | Description |
 |------|------|-------------|
-| `-d` | `--debug` | Print git commands as they execute |
+| `-d` | `--debug` | Trace git commands and how long each takes |
 | `-b` | `--bare` | Machine-readable output: space-separated branch names |
 | `-j` | `--json` | Structured JSON output |
 | `-s` | `--select` | Interactive branch picker (requires a TTY) |

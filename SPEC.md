@@ -21,7 +21,7 @@ Before any command executes, git-fi runs the following pre-flight checks:
 1. `PRE-01` If no `.git` directory exists in the current working directory, then git-fi shall abort with `No .git directory found.` followed by a line pointing to the documentation site (`https://gettyimages.github.io/git-fi/#/`) for newcomers.
 2. `PRE-02` If the git version is below 2.13.0, then git-fi shall abort with: `git version X is too old, please upgrade to at least 2.13.0.` The floor is set by `git branch -r --format=...`, which the batched branch listing depends on (`PERF-01`) and which git gained in 2.13.0; every other git invocation git-fi makes predates it. An implementation that reaches the same listing another way may state its own floor here.
 3. `PRE-03` If `git config push.default` is `upstream` or `tracking`, then git-fi shall abort with: `Your default git push config is set to a hazardous option.`
-4. `PRE-04` git-fi shall run `git fetch --quiet --prune origin` once per invocation, memoizing to avoid redundant fetches.
+4. `PRE-04` git-fi shall run `git fetch --quiet --prune --no-tags origin` once per invocation, memoizing to avoid redundant fetches. `--no-tags` because git-fi reads branches and never a tag, so asking for the tag refspec buys nothing it uses. What that saves is server-dependent and can be large: on one GitLab project, paired runs measured 12–15 s with tags against 1–2 s without, repeatably and while transferring no tags at all (the local and remote tag sets were identical); on another project of similar size and tag count on the same host, both forms took about a second. Tag count, missing tags, annotated-vs-lightweight, and repo size were each ruled out as the difference, so the cost is something server-side that git-fi can only decline to pay, not predict. A consequence worth knowing: `git fi` no longer refreshes tags as a side effect, so a stale tag is `git fetch`'s job rather than this one's.
 5. `PRE-05` Where `GIT_FI_NO_FETCH` is set, git-fi shall skip the fetch (`PRE-04`) on read-only operations (`list`) and operate on the already-fetched remote-tracking refs. Shell completion sets this so tab-completion stays offline. Mutating operations always fetch regardless, so an integration merge never builds on stale refs. (All environment variables are catalogued in [Environment Variables](#environment-variables).)
 
 ```mermaid
@@ -41,7 +41,7 @@ flowchart TD
 
 | ID       | Flag        | Short | Description                                                               |
 |----------|-------------|-------|---------------------------------------------------------------------------|
-| `OPTION-01` | `--debug`   | `-d`  | Print git commands as they execute; remove `--quiet` from git invocations |
+| `OPTION-01` | `--debug`   | `-d`  | Trace every git command with its elapsed time (`OPTION-11`); remove `--quiet` from git invocations |
 | `OPTION-02` | `--bare`    | `-b`  | Machine-readable output: space-separated branch names (any action, `OPTION-08`) |
 | `OPTION-03` | `--json`    | `-j`  | Structured JSON output (any action, `OPTION-08`; see [JSON Output](#json-output)) |
 | `OPTION-04` | `--select`  | `-s`  | Interactive branch picker for `--add` / `--remove` (requires TTY)         |
@@ -53,6 +53,8 @@ flowchart TD
 `OPTION-08` `--bare` and `--json` select an output format rather than a command, so git-fi shall accept either with any action. When an action other than `list` completes, git-fi shall render the resulting branch list in the requested format, exactly as `list` would (`LIST-02`, `JSON-01`). git-fi shall keep stdout free of human-readable output in these modes: the merge display and its annotations are suppressed (`TERM-07`) and any diagnostics go to stderr (`JSON-01`).
 
 `OPTION-09` If `--select` is combined with `--bare` or `--json`, then git-fi shall abort with `--select cannot be combined with <flag>`. The picker draws its interactive UI on stdout, which is the stream carrying machine output, so the two cannot both use it.
+
+`OPTION-11` Under `--debug`, git-fi shall write each git command to stderr before running it and its elapsed seconds after it returns, including when it fails. Announcing before and timing after is what makes a hang attributable while it is still hanging, rather than only once the command returns. `--debug` applies to every git invocation in the run, not to the call sites that opt in: it describes the run, and a trace that omits the read queries cannot answer where a slow repository spends its time.
 
 ## Help & Documentation
 

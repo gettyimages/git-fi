@@ -14,8 +14,35 @@ export function progressEnabled(opts: Options): boolean {
   return isStderrTTY;
 }
 
+/**
+ * Whether advisory output is wanted — the `GITLAB_ACCESS_TOKEN` hint (`LIST-04`)
+ * and the update notice (`UPDATE-03`) share this gate. A hint asks the reader to go
+ * export something, so it is addressed to a person at a terminal: in a CI job or
+ * a pipe there is nobody to act on it, and it becomes a line every build log
+ * carries forever.
+ */
+export function hintsEnabled(opts: Options, tty = isTTY): boolean {
+  if (opts.bare || opts.json) return false;
+  if (process.env.CI || process.env.GIT_FI_NO_HINTS) return false;
+  return tty;
+}
+
+/**
+ * Whether OSC 8 hyperlinks will survive the destination. Deliberately not tied
+ * to `colorEnabled`: `NO_COLOR` asks for no color, not for no links, so a plain
+ * terminal keeps its clickable branch and pipeline references. Where this is
+ * false the branch reference has to carry its URL in the text instead (`GITLAB-09`)
+ * — an unrendered OSC 8 sequence drops the address entirely, which is how CI
+ * logs ended up naming branches they gave no way to open.
+ */
+export function hyperlinksEnabled(opts: Options, tty = isTTY): boolean {
+  if (opts.bare || opts.json) return false;
+  return tty;
+}
+
 export function makeStyle(opts: Options) {
   const on = colorEnabled(opts);
+  const links = hyperlinksEnabled(opts);
   const esc = (code: string) => (on ? `\x1b[${code}m` : "");
   const reset = esc("0");
   return {
@@ -27,8 +54,20 @@ export function makeStyle(opts: Options) {
     bold: (s: string) => `${esc("1")}${s}${reset}`,
     dim: (s: string) => `${esc("2")}${s}${reset}`,
     fi: () => (on ? `${esc("1")}fi${reset}` : "fi"),
+    // Two renderings because the two kinds of reference are worth different
+    // amounts of width off a TTY. `link` decorates — losing it costs nothing a
+    // reader can't get from the id itself. `linkOrMarkdown` is for the reference
+    // someone leaves the log to open, and pays a long line to keep it.
+    //
+    // The fallback is markdown rather than `text (url)` because of where a line
+    // from a build log goes next: pasted into Slack or an issue, `[name](url)`
+    // arrives as a working link. `text` is safe to put inside the brackets —
+    // links and color are disabled by the same non-TTY condition, so there are
+    // no escape sequences in it here.
     link: (text: string, url: string) =>
-      on ? `\x1b]8;;${url}\x1b\\${text}\x1b]8;;\x1b\\` : text,
+      links ? `\x1b]8;;${url}\x1b\\${text}\x1b]8;;\x1b\\` : text,
+    linkOrMarkdown: (text: string, url: string) =>
+      links ? `\x1b]8;;${url}\x1b\\${text}\x1b]8;;\x1b\\` : `[${text}](${url})`,
   };
 }
 

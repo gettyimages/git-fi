@@ -5,7 +5,7 @@
 # package.json "files").
 #
 # The completion goes on the zsh fpath via `install-completions --write`, the
-# command a user installs with (CMP-06), so a trial covers both providers the
+# command a user installs with (COMPLETE-06), so a trial covers both providers the
 # same way they do. A trial that instead sources the bash script into ~/.zshrc
 # defines _git_fi for git's wrapper and nothing else, so it passes even when the
 # shipped path is broken: that gap is what let 1.0.7 publish with no working

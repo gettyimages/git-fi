@@ -19,7 +19,7 @@ describe("parseBranchList", () => {
     ]);
   });
 
-  // Regression (BL-04 rollout): the CI commit message embeds the previous fi
+  // Regression (STORAGE-04 rollout): the CI commit message embeds the previous fi
   // message in a "Was originally: ---" preamble. Only the final signature
   // paragraph must be parsed, or branches removed in this operation resurface
   // from the preamble and accumulate across re-merges.

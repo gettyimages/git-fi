@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Install the zsh completion files as part of `npm install -g` (CMP-07), so tab
+// Install the zsh completion files as part of `npm install -g` (COMPLETE-07), so tab
 // completion works out of the box instead of being a step the user has to find.
 //
 // The destination is npm's own global prefix — <prefix>/share/zsh/site-functions
@@ -20,7 +20,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // The zsh pair from completions/: one file per provider that dispatches
-// `git fi` (CMP-02). Kept in step with install-completions' own targets by a
+// `git fi` (COMPLETE-02). Kept in step with install-completions' own targets by a
 // test, since the names live in both places.
 const FILES = ["_git-fi", "_git_fi"];
 

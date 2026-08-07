@@ -143,14 +143,14 @@ export type CommitFormat = "terse" | "legacy";
 // Read-side only: classify an existing fi commit message so parseBranchList
 // can extract the branch list from either format. This does not choose what
 // git-fi writes — that is pinned to legacy during the rollout (see
-// DEFAULT_WRITE_FORMAT / BL-04 in src/merge.ts).
+// DEFAULT_WRITE_FORMAT / STORAGE-04 in src/merge.ts).
 export function detectCommitFormat(commitMsg: string): CommitFormat {
   if (/Merge remote-tracking branch(es)? '/.test(commitMsg)) return "legacy";
   return "terse";
 }
 
 export function parseBranchList(commitMsg: string, defBranch: string): string[] {
-  // The CI commit message (MG-13) is `<preamble>\n\n<signature>`, where the
+  // The CI commit message (MERGE-13) is `<preamble>\n\n<signature>`, where the
   // preamble embeds the previous fi message ("Was originally: ---") — which can
   // itself quote branch names or carry an old signature line. git-fi always
   // appends the signature it just wrote as the final paragraph, so parse only

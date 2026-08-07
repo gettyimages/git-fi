@@ -150,7 +150,7 @@ function parseArgs(argv: string[]) {
   }
 
   // `--bare` / `--json` choose an output format and work with any action
-  // (OPT-08), but the picker draws its interactive UI on stdout, which is where
+  // (OPTION-08), but the picker draws its interactive UI on stdout, which is where
   // machine output goes — the two cannot share the stream. Checked before the
   // TTY test below: the flag combination is wrong whatever the environment, and
   // reporting a missing terminal would point at the wrong thing.

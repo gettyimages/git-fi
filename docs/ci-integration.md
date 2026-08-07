@@ -48,14 +48,16 @@ Off a terminal, git-fi drops the animated branch display it can't animate and st
 
 ```text
 re-merged fi
-Branch         │ Date       │ Author │ Pipeline
-───────────────┼────────────┼────────┼──────────
-feature-auth   │ 2026-03-30 │ Alice  │ 11111 success
-feature-search │ 2026-03-30 │ Bob    │ 22222 running
+Branch                                                                                  │ Date       │ Author │ Pipeline
+────────────────────────────────────────────────────────────────────────────────────────┼────────────┼────────┼──────────────
+[feature-auth](https://gitlab.example.com/group/proj/-/compare/main...feature-auth)     │ 2026-03-30 │ Alice  │ 11111 success
+[feature-search](https://gitlab.example.com/group/proj/-/compare/main...feature-search) │ 2026-03-30 │ Bob    │ 22222 running
 fi: #12345 running
 ```
 
 The outcome verb names the action: `added to fi`, `removed from fi`, `replaced fi`, `re-merged fi`. Everything below it is the resulting state of `fi`, so a job log is two facts deep — what happened, and what's enlisted now.
+
+On a terminal the branch name is a clickable link to that comparison and the table stays narrow. A job log can't render the escape sequence, so the reference is written out as markdown — copy a row into Slack, an issue, or an MR comment and the link works there. Pipeline IDs stay bare: carrying both URLs inline pushed the table past 200 columns, and the comparison is the one you leave the log to read.
 
 On failure there's no outcome line. The conflicting branches, any untracked files the failed merge left behind, and `Aborted due to merge failures` are what you get, and the job exits non-zero. Add `--debug` to see the git commands and their stderr, which git-fi otherwise discards.
 
@@ -105,5 +107,5 @@ This gives teams a continuously updated integration environment that reflects al
 | Variable | Purpose |
 |----------|---------|
 | `GITLAB_ACCESS_TOKEN` | Enable GitLab pipeline status in branch listings |
-| `GIT_FI_NO_HINTS` | Suppress hint messages |
+| `GIT_FI_NO_HINTS` | Suppress hint messages at an interactive terminal. A CI job needs nothing set — git-fi suppresses hints on its own when `CI` is set or stdout isn't a terminal, since there's nobody there to act on the advice. |
 | `NO_COLOR` | Disable color output (respects [no-color.org](https://no-color.org) convention) |

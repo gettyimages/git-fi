@@ -21,9 +21,9 @@ import { detectGitlabProject } from "./gitlab.js";
 
 // Commit-message format written when bootstrapping a brand-new fi branch (no
 // The format git-fi writes for *every* fi commit during the migration rollout
-// — bootstrap, empty, or existing alike (BL-04); an existing fi branch's format
+// — bootstrap, empty, or existing alike (STORAGE-04); an existing fi branch's format
 // is not preserved. git-fi still *reads* both the preferred terse format
-// (BL-01) and the legacy git-merge format (BL-03) regardless of this setting.
+// (STORAGE-01) and the legacy git-merge format (STORAGE-03) regardless of this setting.
 // It stays "legacy" so downstream consumers that parse the fi commit message
 // keep working; scheduled to switch to "terse" after the rollout (~2026-09).
 const DEFAULT_WRITE_FORMAT: CommitFormat = "legacy";
@@ -85,7 +85,7 @@ const ACTION_DONE: Record<string, string> = {
 };
 
 // The same verbs as a standalone sentence, for the one-line outcome printed
-// where the annotations cannot be animated (TRM-09). `added` alone would read
+// where the annotations cannot be animated (TERM-09). `added` alone would read
 // as though fi were the thing added, so each verb carries its preposition.
 const ACTION_OUTCOME: Record<string, string> = {
   add: "added to",
@@ -107,7 +107,7 @@ export async function mergeProcess(
   const doneVerb = ACTION_DONE[action] || action;
   const actionSet = new Set(actionBranches);
 
-  // Under --bare / --json, stdout carries machine output only (JS-02), so
+  // Under --bare / --json, stdout carries machine output only (JSON-02), so
   // failure diagnostics move to stderr. In human mode they stay on stdout.
   const machineOutput = opts.bare || opts.json;
   const diagnose = (text: string) => {
@@ -115,7 +115,7 @@ export async function mergeProcess(
   };
   // The branch display exists to be rewritten in place as the operation
   // progresses, so it is drawn only where that can happen: an interactive
-  // stdout, and not under a machine format (TRM-07, JS-02).
+  // stdout, and not under a machine format (TERM-07, JSON-02).
   const tty = process.stdout.isTTY === true && !machineOutput;
 
   const fiRefs = gitLines([
@@ -143,7 +143,7 @@ export async function mergeProcess(
   });
 
   // During the rollout git-fi always writes the legacy format — bootstrap,
-  // empty, or existing fi alike (BL-04). Reading still accepts both formats
+  // empty, or existing fi alike (STORAGE-04). Reading still accepts both formats
   // (parseBranchList), so terse branches written by other versions are
   // understood; only the *written* format is pinned. Flip DEFAULT_WRITE_FORMAT
   // to switch everything to terse once downstream consumers are ready.
@@ -271,7 +271,7 @@ export async function mergeProcess(
 
   function finalizeDone() {
     if (!tty || annotations.length === 0) {
-      // The outcome as one sentence (TRM-09), since no annotation was drawn to
+      // The outcome as one sentence (TERM-09), since no annotation was drawn to
       // finalize. Human mode puts it on stdout, alongside the branch list that
       // follows: two streams into one pipe have no ordering guarantee, so from
       // stderr it could surface mid-table.

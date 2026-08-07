@@ -1,5 +1,5 @@
 import type { Options, CIResult } from "./types.js";
-import { makeStyle, printTable, abort } from "./style.js";
+import { makeStyle, printTable, abort, hintsEnabled } from "./style.js";
 import {
   git,
   gitExitCode,
@@ -11,7 +11,7 @@ import {
   ensureFetched,
   isInteractive,
 } from "./git.js";
-import { fetchGitlabCI, printCITable, detectGitlabProject, fetchFiPipeline, statusLabel } from "./gitlab.js";
+import { fetchGitlabCI, printCITable, detectGitlabProject, fetchFiPipeline, statusLabel, branchCompareUrl } from "./gitlab.js";
 import { mergeProcess } from "./merge.js";
 import { pickBranches } from "./ui.js";
 import { DOCS_URL } from "./help.js";
@@ -29,7 +29,7 @@ async function fetchPickerCI(
 
 /**
  * Print the resulting branch list. Every mutation ends here, so this is also
- * what renders `--bare` / `--json` for a non-list action (OPT-08); `command`
+ * what renders `--bare` / `--json` for a non-list action (OPTION-08); `command`
  * names the action that ran so the JSON does not claim to be a `list`.
  */
 export async function cmdList(
@@ -98,7 +98,7 @@ export async function cmdList(
 
   if (process.env.GITLAB_ACCESS_TOKEN) {
     const ci = await fetchGitlabCI(branches, opts);
-    printCITable(ci, opts, gitlab);
+    printCITable(ci, opts, gitlab, defBranch);
 
     if (gitlab) {
       const pipeline = await fetchFiPipeline(opts, gitlab, pushedSha ?? undefined);
@@ -111,7 +111,7 @@ export async function cmdList(
   } else {
     const rows = shortNames.map((name) => {
       const label = gitlab
-        ? s.link(s.cyan(name), `https://${gitlab.host}/${gitlab.project}/-/tree/${encodeURIComponent(name)}`)
+        ? s.linkOrMarkdown(s.cyan(name), branchCompareUrl(gitlab, name, defBranch))
         : s.cyan(name);
       return [label];
     });
@@ -120,12 +120,7 @@ export async function cmdList(
 
   process.stdout.write("\n");
 
-  if (
-    !process.env.GITLAB_ACCESS_TOKEN &&
-    !process.env.GIT_FI_NO_HINTS &&
-    !opts.bare &&
-    !opts.json
-  ) {
+  if (!process.env.GITLAB_ACCESS_TOKEN && hintsEnabled(opts)) {
     process.stdout.write(
       "For enhanced CI status, export GITLAB_ACCESS_TOKEN. To suppress this hint, export GIT_FI_NO_HINTS.\n"
     );
@@ -225,7 +220,7 @@ export async function cmdForce(
 /**
  * Re-merge everything currently in fi onto the current default branch. The
  * merge process drops dead and already-merged branches on the way through
- * (MG-06, MG-07), so this is also what prunes fi. There is no separate prune
+ * (MERGE-06, MERGE-07), so this is also what prunes fi. There is no separate prune
  * action.
  */
 export async function cmdAgain(
@@ -264,7 +259,7 @@ export async function cmdAbort(
   process.stderr.write(`${s.bold("Re-pulled")} ${s.fi()} from origin.\n`);
 
   // The status line above is stderr, so every action — this one included — ends
-  // by rendering the resulting branch list on stdout (OPT-08). Without it,
+  // by rendering the resulting branch list on stdout (OPTION-08). Without it,
   // `--abort --json` would exit 0 having written no JSON at all.
   await cmdList(opts, undefined, null, "abort");
 }

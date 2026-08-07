@@ -29,7 +29,7 @@ describe("isNewer", () => {
   });
 });
 
-describe("updateNotice (UPD-01)", () => {
+describe("updateNotice (UPDATE-01)", () => {
   const s = makeStyle({ debug: false, bare: false, json: false, select: false, yes: false });
 
   test("names both versions and the command that performs the update", () => {
@@ -40,7 +40,7 @@ describe("updateNotice (UPD-01)", () => {
   });
 
   test("leaves the reader nothing to work out at npm", () => {
-    // The point of UPD-05: the notice used to name `npm install -g <pkg>`, which
+    // The point of UPDATE-05: the notice used to name `npm install -g <pkg>`, which
     // the reader had to retype correctly.
     assert.ok(!updateNotice("1.0.9", "1.0.10", s).includes("npm"));
   });

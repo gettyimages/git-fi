@@ -23,7 +23,7 @@ export const STATUS_WORD: Record<string, string> = {
 };
 
 /**
- * Render a pipeline status for the Pipeline column and the `fi:` line (TRM-10).
+ * Render a pipeline status for the Pipeline column and the `fi:` line (TERM-10).
  * The emoji is the only thing carrying the status in either place, so a reader
  * of plain text (a CI job log, a piped run) gets the word instead. Gated on
  * `colorEnabled`, which is already the decoration/plain-text split.
@@ -265,10 +265,28 @@ export async function fetchFiPipeline(
   return null;
 }
 
+/**
+ * Where a branch in fi should link to: what it adds on top of the default
+ * branch. Someone reading fi is asking what is in the integration branch, and a
+ * compare view answers that directly — `/-/tree` lands on a file listing they
+ * would then have to diff themselves.
+ */
+export function branchCompareUrl(
+  gitlab: GitlabProject,
+  branch: string,
+  defaultBranch: string
+): string {
+  // Each side is encoded separately: encoding the whole `a...b` would escape the
+  // dots GitLab uses to separate them.
+  const base = `https://${gitlab.host}/${gitlab.project}/-/compare`;
+  return `${base}/${encodeURIComponent(defaultBranch)}...${encodeURIComponent(branch)}`;
+}
+
 export function printCITable(
   ciResults: CIResult[],
   opts: Options,
-  gitlab?: GitlabProject | null
+  gitlab: GitlabProject | null | undefined,
+  defaultBranch: string
 ): void {
   const s = makeStyle(opts);
   const headers = ["Branch", "Date", "Author", "Pipeline"];
@@ -277,10 +295,7 @@ export function printCITable(
     const nameText = item.branchMissing
       ? s.yellow(`${branchName} (deleted)`)
       : gitlab
-        ? s.link(
-            s.cyan(branchName),
-            `https://${gitlab.host}/${gitlab.project}/-/tree/${encodeURIComponent(branchName)}`
-          )
+        ? s.linkOrMarkdown(s.cyan(branchName), branchCompareUrl(gitlab, branchName, defaultBranch))
         : s.cyan(branchName);
     const branchLabel = nameText;
     const status = item.status in STATUS_EMOJI ? item.status : "missing";

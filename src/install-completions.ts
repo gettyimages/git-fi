@@ -8,7 +8,7 @@ import { abort } from "./style.js";
 // and src/ (tsx dev) sit one level under the package root, so `..` resolves the
 // same either way.
 //
-// zsh has two targets because two providers dispatch `git fi` (CMP-02): zsh's
+// zsh has two targets because two providers dispatch `git fi` (COMPLETE-02): zsh's
 // built-in _git calls _git-fi, while git's own completion wrapper — the _git
 // that ships with git, and what you get on macOS/Homebrew — calls _git_fi. Both
 // belong on the fpath; which one is live depends on the user's git install.

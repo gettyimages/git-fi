@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Options } from "./types.js";
-import { makeStyle } from "./style.js";
+import { makeStyle, hintsEnabled } from "./style.js";
 
 const ONE_DAY_MS = 1000 * 60 * 60 * 24;
 
@@ -26,21 +26,17 @@ export function isNewer(latest: string, current: string): boolean {
   return false;
 }
 
+// The machine-output, CI, non-TTY, and GIT_FI_NO_HINTS conditions are the shared
+// advisory gate (LIST-04 says the same of the token hint); NO_UPDATE_NOTIFIER is
+// this notice's own opt-out.
 function suppressed(opts: Options): boolean {
-  return Boolean(
-    opts.json ||
-      opts.bare ||
-      !process.stdout.isTTY ||
-      process.env.CI ||
-      process.env.GIT_FI_NO_HINTS ||
-      process.env.NO_UPDATE_NOTIFIER
-  );
+  return !hintsEnabled(opts) || Boolean(process.env.NO_UPDATE_NOTIFIER);
 }
 
 /**
  * The notice body, split out from the exit handler below so it can be asserted
  * on without a TTY. It names `git fi --update` rather than the npm command it
- * runs (UPD-01): the reader would otherwise have to get a scoped package name
+ * runs (UPDATE-01): the reader would otherwise have to get a scoped package name
  * right, and guess that npm's verb for replacing an already-installed global is
  * `install`, not the more obvious `update`.
  */
@@ -100,7 +96,7 @@ export function notifyUpdate(name: string, current: string, opts: Options): void
  * and its exit code becomes ours, so a registry outage, a permissions error, or
  * a successful install all read exactly as npm already reports them.
  *
- * The cache is deliberately not consulted first: the 24-hour throttle (UPD-02)
+ * The cache is deliberately not consulted first: the 24-hour throttle (UPDATE-02)
  * exists to keep a *passive* notice cheap, whereas `--update` is the user asking
  * for the install now — answering that with "you're already current" is worse
  * than a redundant reinstall.

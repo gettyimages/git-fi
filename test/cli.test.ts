@@ -55,7 +55,7 @@ describe("argument handling (no repo required)", () => {
     assert.match(r.stderr, /Cannot combine/);
   });
 
-  test("--select cannot be combined with --json or --bare (OPT-09)", () => {
+  test("--select cannot be combined with --json or --bare (OPTION-09)", () => {
     for (const fmt of ["--json", "--bare"]) {
       const r = runFi(["--select", "--add", fmt], dir);
       assert.equal(r.status, 1);
@@ -71,20 +71,20 @@ describe("argument handling (no repo required)", () => {
     assert.match(r.stdout, /install-completions --write <dir>/);
   });
 
-  test("install-completions bash prints the bash script (CMP-05)", () => {
+  test("install-completions bash prints the bash script (COMPLETE-05)", () => {
     const r = runFi(["install-completions", "bash"], dir);
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /_git_fi \(\) \{/);
   });
 
-  test("install-completions zsh prints the zsh script (CMP-05)", () => {
+  test("install-completions zsh prints the zsh script (COMPLETE-05)", () => {
     const r = runFi(["install-completions", "zsh"], dir);
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /#compdef git-fi/);
   });
 
-  test("install-completions zsh-git prints the fpath _git_fi (CMP-05)", () => {
-    // Every provider in CMP-02 must be installable through the subcommand: this
+  test("install-completions zsh-git prints the fpath _git_fi (COMPLETE-05)", () => {
+    // Every provider in COMPLETE-02 must be installable through the subcommand: this
     // is the file git's own zsh wrapper dispatches to, and without a target for
     // it `git fi <TAB>` has no completion on a stock macOS/Homebrew git.
     const r = runFi(["install-completions", "zsh-git"], dir);
@@ -111,8 +111,8 @@ describe("argument handling (no repo required)", () => {
     assert.match(r.stderr, /install-completions <bash\|zsh\|zsh-git>/);
   });
 
-  test("--write installs both zsh files into a new directory (CMP-06)", () => {
-    // One command covers both providers in CMP-02 — the point of --write is that
+  test("--write installs both zsh files into a new directory (COMPLETE-06)", () => {
+    // One command covers both providers in COMPLETE-02 — the point of --write is that
     // the user doesn't have to work out which _git they have.
     const target = join(dir, "fpath", "nested");
     const r = runFi(["install-completions", "--write", target], dir);
@@ -124,7 +124,7 @@ describe("argument handling (no repo required)", () => {
     assert.match(r.stdout, /compinit/);
   });
 
-  test("--write with a target installs only that file (CMP-06)", () => {
+  test("--write with a target installs only that file (COMPLETE-06)", () => {
     const target = join(dir, "fpath-one");
     const r = runFi(["install-completions", "zsh-git", "--write", target], dir);
     assert.equal(r.status, 0, r.stderr);
@@ -132,7 +132,7 @@ describe("argument handling (no repo required)", () => {
     assert.throws(() => readFileSync(join(target, "_git-fi"), "utf8"));
   });
 
-  test("--write rejects bash, which has no fpath (CMP-06)", () => {
+  test("--write rejects bash, which has no fpath (COMPLETE-06)", () => {
     const target = join(dir, "fpath-bash");
     const r = runFi(["install-completions", "bash", "--write", target], dir);
     assert.equal(r.status, 1);
@@ -140,7 +140,7 @@ describe("argument handling (no repo required)", () => {
     assert.throws(() => readFileSync(join(target, "git-fi.bash"), "utf8"));
   });
 
-  test("--write aborts without a directory (CMP-06)", () => {
+  test("--write aborts without a directory (COMPLETE-06)", () => {
     const r = runFi(["install-completions", "--write"], dir);
     assert.equal(r.status, 1);
     assert.match(r.stderr, /--write needs a directory/);
@@ -152,7 +152,7 @@ describe("argument handling (no repo required)", () => {
     assert.match(r.stderr, /Unknown option: --install/);
   });
 
-  test("--write names an unwritable directory and how to fix it (CMP-06)", () => {
+  test("--write names an unwritable directory and how to fix it (COMPLETE-06)", () => {
     const r = runFi(["install-completions", "--write", "/dev/null/nope"], dir);
     assert.equal(r.status, 1);
     assert.match(r.stderr, /\/dev\/null\/nope/);
@@ -160,7 +160,7 @@ describe("argument handling (no repo required)", () => {
   });
 });
 
-describe("--update (UPD-05)", () => {
+describe("--update (UPDATE-05)", () => {
   let dir: string;
   let path: string;
   let argvLog: string;
@@ -229,7 +229,7 @@ describe("--update (UPD-05)", () => {
   });
 });
 
-describe("postinstall completion install (CMP-07)", () => {
+describe("postinstall completion install (COMPLETE-07)", () => {
   const script = fileURLToPath(new URL("../scripts/postinstall.mjs", import.meta.url));
   let dir: string;
   before(() => {
@@ -281,13 +281,13 @@ describe("postinstall completion install (CMP-07)", () => {
   });
 });
 
-describe("generated completions (CMP-02)", () => {
+describe("generated completions (COMPLETE-02)", () => {
   const read = (name: string) =>
     readFileSync(fileURLToPath(new URL(`../completions/${name}`, import.meta.url)), "utf8");
 
   test("the git-native completer reads $words, not COMP_WORDS", () => {
     // git's zsh wrapper leaves COMP_WORDS unset, so action detection must read
-    // the command line from git's portable $words array (see CMP-02).
+    // the command line from git's portable $words array (see COMPLETE-02).
     for (const name of ["git-fi.bash", "_git_fi"]) {
       const src = read(name);
       assert.match(src, /for w in "\$\{words\[@\]\}"/, `${name} should iterate $words`);
@@ -333,7 +333,7 @@ describe("preflight checks", () => {
   });
 });
 
-describe("non-interactive bootstrap (MG-15)", () => {
+describe("non-interactive bootstrap (MERGE-15)", () => {
   let sb: Sandbox;
   before(() => {
     sb = makeSandbox();
@@ -364,11 +364,11 @@ describe("non-interactive bootstrap (MG-15)", () => {
   });
 });
 
-describe("commit message format (BL-01..BL-04)", () => {
+describe("commit message format (STORAGE-01..STORAGE-04)", () => {
   const fiMessage = (sb: Sandbox) =>
     sb.git(["log", "-1", "--format=%B", "origin/fi"]);
 
-  test("always writes the legacy format during the rollout (BL-04)", () => {
+  test("always writes the legacy format during the rollout (STORAGE-04)", () => {
     const sb = makeSandbox();
     try {
       sb.pushBranch("feature-a", "a.txt", "a\n");
@@ -393,7 +393,7 @@ describe("commit message format (BL-01..BL-04)", () => {
     }
   });
 
-  test("reads a terse-format fi; writes stay legacy, not terse (BL-02/BL-04)", () => {
+  test("reads a terse-format fi; writes stay legacy, not terse (STORAGE-02/STORAGE-04)", () => {
     const sb = makeSandbox();
     try {
       sb.pushBranch("feature-a", "a.txt", "a\n");
@@ -519,7 +519,7 @@ describe("pruning via --again", () => {
     assert.match(r.stdout, /re-merged fi/);
   });
 
-  // TRM-09. The annotations are drawn to be rewritten in place; off a TTY the
+  // TERM-09. The annotations are drawn to be rewritten in place; off a TTY the
   // rewrite never comes, so drawing them at all would leave a log whose only
   // statement of the outcome is the *initial* verb — "re-merging" — for an
   // operation that finished.
@@ -558,7 +558,7 @@ describe("pruning via --again", () => {
   });
 });
 
-describe("--bare / --json on non-list actions (OPT-08)", () => {
+describe("--bare / --json on non-list actions (OPTION-08)", () => {
   let sb: Sandbox;
   before(() => {
     sb = makeSandbox();
@@ -591,7 +591,7 @@ describe("--bare / --json on non-list actions (OPT-08)", () => {
     JSON.parse(r.stdout);
   });
 
-  test("--abort --json still produces JSON (CMD-06)", () => {
+  test("--abort --json still produces JSON (COMMAND-06)", () => {
     const r = runFi(["--abort", "--json"], sb.work);
     assert.equal(r.status, 0, r.stderr);
     assert.equal(JSON.parse(r.stdout).command, "abort");
@@ -711,10 +711,19 @@ describe("CI hint", () => {
   });
   after(() => sb.cleanup());
 
-  test("plain list shows the GITLAB_ACCESS_TOKEN hint", () => {
+  // The suite runs off a TTY, which is itself one of the suppressing conditions
+  // (LIST-04) — so every case here is a negative. The hint's positive path needs a
+  // real terminal; `hintsEnabled` is unit-tested for the rest in style.test.ts.
+  test("no hint off a TTY — a pipe has no reader to export anything", () => {
     const r = runFi([], sb.work);
     assert.equal(r.status, 0, r.stderr);
-    assert.match(r.stdout, /GITLAB_ACCESS_TOKEN/);
+    assert.doesNotMatch(r.stdout, /GITLAB_ACCESS_TOKEN/);
+  });
+
+  test("no hint under $CI, the case the runner hit", () => {
+    const r = runFi([], sb.work, { CI: "true" });
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(r.stdout, /GITLAB_ACCESS_TOKEN/);
   });
 
   test("GIT_FI_NO_HINTS suppresses the hint", () => {

@@ -31,7 +31,10 @@ _git_fi () {
 	# git sets $cur and the $words array in both bash and zsh (its zsh wrapper
 	# runs under ksh emulation and does NOT populate COMP_WORDS), so read the
 	# command line from $words when detecting the action flag.
+	# A flag carrying its value inline (--auth=login) completes the value, not
+	# the flag list — the -* arm below would otherwise re-offer flags forever.
 	case "$cur" in
+@@VALUED_FLAG_ARMS@@
 	-*)
 		__gitcomp "@@LONG_FLAGS@@"
 		return

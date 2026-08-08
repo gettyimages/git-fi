@@ -67,7 +67,7 @@ With `--json` (`-j`), output is a structured JSON object:
 }
 ```
 
-The `ci` array is present only when `GITLAB_ACCESS_TOKEN` is set; `status` is the raw GitLab pipeline status (`success`, `failed`, `running`, `pending`, `skipped`, ...).
+The `ci` array is present only when a GitLab token is configured (see [CI Integration](ci-integration.md)); `status` is the raw GitLab pipeline status (`success`, `failed`, `running`, `pending`, `skipped`, ...).
 
 Both flags work with any action, not just `list` — they pick an output *format*, so a mutation reports its resulting branch list the same way:
 
@@ -156,10 +156,16 @@ Shows only branches currently in `fi`. Select which to remove.
 | `-s` | `--select` | Interactive branch picker (requires a TTY) |
 | `-y` | `--yes` | Bootstrap fi without the confirmation prompt (for CI/scripts) |
 | `-u` | `--update` | Update git-fi itself to the latest published version |
+|  | `--auth[=<action>]` | Report which GitLab token is in effect; =login stores one, =logout removes it |
+|  | `--host <hostname>` | Which GitLab host --auth acts on (default: from the origin remote) |
 | `-V` | `--version` | Print version and exit |
 | `-h` | `--help` | Show this help |
 
 <!-- END GENERATED: options -->
+
+`--auth` and `--host` are the only flags without a short form. Every other flag is typed in the course of ordinary work; these two are typed once per machine, so they don't spend one of the remaining single letters. See [CI Integration](ci-integration.md) for what `--auth` stores and where.
+
+The verb rides on the flag rather than being a subcommand (`git fi auth login`) because a lone positional argument to `git fi` is a list filter — an `auth` subcommand would reserve that word and stop `git fi auth` from filtering for auth-related branches.
 
 ## Branch Name Resolution
 

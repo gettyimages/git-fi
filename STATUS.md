@@ -2,7 +2,7 @@
 
 Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 
-**Last updated:** 2026-08-06
+**Last updated:** 2026-08-08
 
 Locations name the file and the enclosing symbol rather than a line range, so an
 edit elsewhere in the same file leaves the row correct. `git grep` the symbol to
@@ -12,8 +12,8 @@ land on it.
 
 | Status  | Count |
 |---------|-------|
-| Covered | 107   |
-| Total   | 107   |
+| Covered | 121   |
+| Total   | 121   |
 
 ## Pre-flight Checks
 
@@ -40,6 +40,8 @@ land on it.
 | OPTION-09 | `--select` excludes machine modes | Covered | `src/index.ts` (`parseArgs`) |
 | OPTION-11 | `--debug` traces and times every git call | Covered | `src/git.ts` (`setDebug`, `git`), `src/index.ts` (`main`) |
 | OPTION-10 | `--update`  | Covered | `src/index.ts` (`parseArgs`, `main`), `src/help.ts` (`OPTIONS`) |
+| OPTION-12 | `--auth[=<action>]` | Covered | `src/index.ts` (`parseArgs`, `main`), `src/help.ts` (`OPTIONS`, `flagLabel`) |
+| OPTION-13 | `--host <hostname>` | Covered | `src/index.ts` (`parseArgs`), `src/help.ts` (`OPTIONS`) |
 
 ## Help & Documentation
 
@@ -159,6 +161,23 @@ land on it.
 |--------|------------------|---------|------------------------|
 | FORMAT-01 | Bullet list      | Covered | `src/style.ts` (`bulletList`) |
 | FORMAT-02 | Annotation line  | Covered | `src/merge.ts` (`mergeProcess`) |
+
+## Authentication
+
+| ID    | Description         | Status  | Location                  |
+|-------|---------------------|---------|---------------------------|
+| AUTH-01 | Resolution order, `$CI` reversal | Covered | `src/auth.ts` (`resolveToken`, `computeResolution`), `src/gitlab.ts` (`gitlabToken`) |
+| AUTH-02 | Memoized once per run | Covered | `src/auth.ts` (`resolveToken`, `resolutionCache`) |
+| AUTH-03 | `config.json` location, per-host shape | Covered | `src/auth.ts` (`configPath`, `readConfig`, `storeToken`, `SCHEMA_VERSION`) |
+| AUTH-04 | 0700/0600, refuse loose modes | Covered | `src/auth.ts` (`readConfig`, `writeConfig`, `POSIX_MODES`) |
+| AUTH-05 | Action as a flag value, not a subcommand | Covered | `src/index.ts` (`parseArgs`), `src/help.ts` (`OPTIONS`) |
+| AUTH-06 | `login` / `status` / `logout` | Covered | `src/auth.ts` (`cmdAuth`), `src/index.ts` (`parseArgs`, `main`) |
+| AUTH-07 | Host from origin, `--host` override | Covered | `src/index.ts` (`parseArgs`, `main`), `src/auth.ts` (`requireHost`) |
+| AUTH-08 | Token from stdin only | Covered | `src/auth.ts` (`readSecret`, `authLogin`) |
+| AUTH-09 | Validate, warn on excess scope | Covered | `src/auth.ts` (`inspectToken`, `excessScopes`, `authLogin`) |
+| AUTH-10 | Prefilled token form link | Covered | `src/auth.ts` (`tokenFormUrl`, `authLogin`) |
+| AUTH-11 | Status fields, redaction, shadowing | Covered | `src/auth.ts` (`authStatus`, `tokenTail`) |
+| AUTH-12 | Completion offers the three verbs | Covered | `src/help.ts` (`OPTIONS`: `values`), `scripts/gen-docs.ts` (`valuedFlagArms`, `zshSpec`) |
 
 ## GitLab CI
 

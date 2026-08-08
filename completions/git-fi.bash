@@ -37,9 +37,15 @@ _git_fi () {
 	# git sets $cur and the $words array in both bash and zsh (its zsh wrapper
 	# runs under ksh emulation and does NOT populate COMP_WORDS), so read the
 	# command line from $words when detecting the action flag.
+	# A flag carrying its value inline (--auth=login) completes the value, not
+	# the flag list — the -* arm below would otherwise re-offer flags forever.
 	case "$cur" in
+	--auth=*)
+		__gitcomp "login status logout" "" "${cur#--auth=}"
+		return
+		;;
 	-*)
-		__gitcomp "--add --remove --force --again --abort --debug --bare --json --select --yes --update --version --help"
+		__gitcomp "--add --remove --force --again --abort --debug --bare --json --select --yes --update --auth --host --version --help"
 		return
 		;;
 	esac
@@ -63,7 +69,7 @@ _git_fi () {
 		# No action flag yet: offer the actions/options and subcommands, not a
 		# branch dump. The branch argument completes once an action flag is
 		# present (a bare positional is only a list-filter pattern).
-		__gitcomp "--add --remove --force --again --abort --debug --bare --json --select --yes --update --version --help help install-completions"
+		__gitcomp "--add --remove --force --again --abort --debug --bare --json --select --yes --update --auth --host --version --help help install-completions"
 		;;
 	esac
 }

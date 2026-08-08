@@ -100,7 +100,7 @@ git-fi also *reads* a compact **terse** format (`(feature-auth, feature-search, 
 
 ### 9. Output
 
-On success, git-fi prints the branch list table (identical to `list` output, including the `fi` pipeline line when `GITLAB_ACCESS_TOKEN` is set), so you see the final state without running a separate command:
+On success, git-fi prints the branch list table (identical to `list` output, including the `fi` pipeline line when a GitLab token is configured), so you see the final state without running a separate command:
 
 ```text
 Branch         │ Date       │ Author │ Pipeline

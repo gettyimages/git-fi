@@ -15,10 +15,10 @@ export function progressEnabled(opts: Options): boolean {
 }
 
 /**
- * Whether advisory output is wanted — the `GITLAB_ACCESS_TOKEN` hint (`LIST-04`)
- * and the update notice (`UPDATE-03`) share this gate. A hint asks the reader to go
- * export something, so it is addressed to a person at a terminal: in a CI job or
- * a pipe there is nobody to act on it, and it becomes a line every build log
+ * Whether advisory output is wanted — the CI-status hint (`LIST-04`) and the
+ * update notice (`UPDATE-03`) share this gate. A hint asks the reader to go run
+ * something, so it is addressed to a person at a terminal: in a CI job or a
+ * pipe there is nobody to act on it, and it becomes a line every build log
  * carries forever.
  */
 export function hintsEnabled(opts: Options, tty = isTTY): boolean {

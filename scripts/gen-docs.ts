@@ -10,7 +10,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { ACTIONS, OPTIONS, SUBCOMMANDS, TAGLINE, DOCS_URL, type Flag } from "../src/help.js";
+import { ACTIONS, OPTIONS, SUBCOMMANDS, TAGLINE, DOCS_URL, longForm, type Flag } from "../src/help.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
@@ -32,7 +32,12 @@ function roff(s: string): string {
 }
 
 function manEntry(f: Flag): string {
-  return `.TP\n.BR \\-${f.short} ", " \\-\\-${f.long}\n${roff(f.desc)}`;
+  // A long-only flag (OPTION-12, OPTION-13) has no short form to pair with, so
+  // it gets a plain .B rather than a .BR of two alternatives.
+  const head = f.short
+    ? `.BR \\-${f.short} ", " ${roff(longForm(f))}`
+    : `.B ${roff(longForm(f))}`;
+  return `.TP\n${head}\n${roff(f.desc)}`;
 }
 
 const man =
@@ -64,6 +69,18 @@ const man =
 
 const longFlags = [...ACTIONS, ...OPTIONS].map((f) => `--${f.long}`).join(" ");
 
+// `--auth=<TAB>` completes its verbs (AUTH-12). Emitted as shell case arms so a
+// new valued flag in help.ts picks up completion without editing the template.
+const valuedFlagArms = [...ACTIONS, ...OPTIONS]
+  .filter((f) => f.values)
+  .map(
+    (f) =>
+      `\t--${f.long}=*)\n` +
+      `\t\t__gitcomp "${f.values!.join(" ")}" "" "\${cur#--${f.long}=}"\n` +
+      `\t\treturn\n\t\t;;`
+  )
+  .join("\n");
+
 // The git-completion-format body (defines _git_fi) is shared by two outputs:
 // completions/git-fi.bash, sourced by bash, and completions/_git_fi, autoloaded
 // from the zsh fpath when git's own completion wrapper — not zsh's built-in
@@ -72,7 +89,9 @@ const longFlags = [...ACTIONS, ...OPTIONS].map((f) => `--${f.long}`).join(" ");
 const gitNativeBody = readFileSync(
   join(here, "completion", "git-fi.bash.tmpl"),
   "utf8"
-).replaceAll("@@LONG_FLAGS@@", longFlags);
+)
+  .replaceAll("@@LONG_FLAGS@@", longFlags)
+  .replace("@@VALUED_FLAG_ARMS@@", valuedFlagArms);
 
 const bash =
   `# ${GENERATED}\n` +
@@ -94,8 +113,33 @@ const gitNativeZsh =
   `# For zsh's built-in _git, see completions/_git-fi.\n` +
   gitNativeBody;
 
-const zshSpec = (f: Flag): string =>
-  `    '(-${f.short} --${f.long})'{-${f.short},--${f.long}}'[${f.desc}]'`;
+// A zsh _arguments spec is a single-quoted word whose description runs to the
+// matching `]`, so either character in a description silently truncates the
+// spec and leaves the completion file unparseable. Caught here rather than at
+// the reader's next `<TAB>`.
+function checkZshSafe(f: Flag): void {
+  const offender = /['\]]/.exec(f.desc);
+  if (offender) {
+    throw new Error(
+      `--${f.long}: description contains ${offender[0]}, which breaks its zsh completion spec. ` +
+        `Reword it in src/help.ts.`
+    );
+  }
+}
+
+const zshSpec = (f: Flag): string => {
+  checkZshSafe(f);
+  if (f.short) {
+    return `    '(-${f.short} --${f.long})'{-${f.short},--${f.long}}'[${f.desc}]'`;
+  }
+  // Long-only (OPTION-12, OPTION-13): no short form to pair with, so it is
+  // spelled out directly. `=-` marks an argument that attaches with `=` and
+  // `::` marks it optional, which is what makes bare `--auth` the status form.
+  if (f.values) {
+    return `    '--${f.long}=-[${f.desc}]::action:(${f.values.join(" ")})'`;
+  }
+  return `    '--${f.long}[${f.desc}]:hostname:_hosts'`;
+};
 const argSpecs = [...ACTIONS, ...OPTIONS].map((f) => zshSpec(f) + " \\").join("\n");
 const zsh = template("git-fi.zsh.tmpl", GENERATED).replace("@@ARG_SPECS@@", argSpecs);
 
@@ -108,7 +152,9 @@ const zsh = template("git-fi.zsh.tmpl", GENERATED).replace("@@ARG_SPECS@@", argS
 // page. Everything outside the markers is left untouched.
 
 function mdTable(flags: Flag[]): string {
-  const rows = flags.map((f) => `| \`-${f.short}\` | \`--${f.long}\` | ${f.desc} |`);
+  const rows = flags.map(
+    (f) => `| ${f.short ? `\`-${f.short}\`` : ""} | \`${longForm(f)}\` | ${f.desc} |`
+  );
   return ["| Flag | Long | Description |", "|------|------|-------------|", ...rows].join("\n");
 }
 

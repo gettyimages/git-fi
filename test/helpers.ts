@@ -6,6 +6,13 @@ import { fileURLToPath } from "node:url";
 
 const DIST_INDEX = fileURLToPath(new URL("../dist/index.js", import.meta.url));
 
+// A developer who has run `git fi --auth=login` has a real token on disk, and
+// every run below would resolve it (AUTH-01) and start calling GitLab. Point
+// the config at an empty directory so the suite gives the same verdict on a
+// logged-in machine as on a fresh one; tests that want a stored token write
+// into their own XDG_CONFIG_HOME.
+const EMPTY_CONFIG_HOME = mkdtempSync(join(tmpdir(), "git-fi-xdg-"));
+
 export interface RunResult {
   status: number;
   stdout: string;
@@ -27,6 +34,7 @@ export function runFi(
   delete env.GITLAB_ACCESS_TOKEN;
   delete env.GIT_FI_NO_HINTS;
   env.NO_COLOR = "1";
+  env.XDG_CONFIG_HOME = EMPTY_CONFIG_HOME;
 
   // spawnSync (not execFileSync) so both stdout and stderr are captured
   // regardless of exit code — success-path messages land on stderr too.

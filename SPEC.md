@@ -49,10 +49,14 @@ flowchart TD
 | `OPTION-06` | `--help`    | `-h`  | Print a usage summary to stdout and exit 0; direct to the documentation site for full details |
 | `OPTION-07` | `--yes`     | `-y`  | Bootstrap `fi` without the confirmation prompt (see `MERGE-15`); intended for CI and scripts |
 | `OPTION-10` | `--update`  | `-u`  | Update the installed git-fi to the latest published version (see `UPDATE-05`) |
+| `OPTION-12` | `--auth[=<action>]` |  | Report which GitLab token is in effect for a host, and store or remove it (see `AUTH-06`) |
+| `OPTION-13` | `--host <hostname>` |  | Which GitLab host `--auth` acts on, overriding origin detection (see `AUTH-07`) |
 
 `OPTION-08` `--bare` and `--json` select an output format rather than a command, so git-fi shall accept either with any action. When an action other than `list` completes, git-fi shall render the resulting branch list in the requested format, exactly as `list` would (`LIST-02`, `JSON-01`). git-fi shall keep stdout free of human-readable output in these modes: the merge display and its annotations are suppressed (`TERM-07`) and any diagnostics go to stderr (`JSON-01`).
 
 `OPTION-09` If `--select` is combined with `--bare` or `--json`, then git-fi shall abort with `--select cannot be combined with <flag>`. The picker draws its interactive UI on stdout, which is the stream carrying machine output, so the two cannot both use it.
+
+`OPTION-12` and `OPTION-13` carry no short form. Every other flag has one because it is typed in the course of ordinary work; these two are typed once per machine, and spending two of the remaining single letters on them would price out a flag that gets typed daily. git-fi shall render a long-only flag in the help, man page, completions, and docs tables without inventing a short form for it.
 
 `OPTION-11` Under `--debug`, git-fi shall write each git command to stderr before running it and its elapsed seconds after it returns, including when it fails. Announcing before and timing after is what makes a hang attributable while it is still hanging, rather than only once the command returns. `--debug` applies to every git invocation in the run, not to the call sites that opt in: it describes the run, and a trace that omits the read queries cannot answer where a slow repository spends its time.
 
@@ -216,7 +220,7 @@ flowchart TD
 **Behavior:**
 
 - `LIST-02` When `--bare` is specified, git-fi shall print space-separated branch names (without `origin/` prefix) to stdout.
-- `LIST-03` When listing in normal mode, git-fi shall print a tabular list of branch names (without `origin/` prefix). Where `GITLAB_ACCESS_TOKEN` is set, git-fi shall also show CI status, last commit date, and author (see [GitLab CI Status](#gitlab-ci-status)), followed by the fi integration pipeline ID and status (see GITLAB-05).
+- `LIST-03` When listing in normal mode, git-fi shall print a tabular list of branch names (without `origin/` prefix). Where a GitLab token resolves (`AUTH-01`), git-fi shall also show CI status, last commit date, and author (see [GitLab CI Status](#gitlab-ci-status)), followed by the fi integration pipeline ID and status (see GITLAB-05).
 
 **Output (normal):**
 
@@ -226,7 +230,7 @@ Branch
 feature-a
 feature-b
 
-For enhanced CI status, export GITLAB_ACCESS_TOKEN. To suppress this hint, export GIT_FI_NO_HINTS.
+For enhanced CI status, run git fi --auth=login. To suppress this hint, export GIT_FI_NO_HINTS.
 ```
 
 **Output (bare):**
@@ -235,7 +239,7 @@ For enhanced CI status, export GITLAB_ACCESS_TOKEN. To suppress this hint, expor
 feature-a feature-b
 ```
 
-`LIST-04` git-fi shall print the hint line only when it is addressed to someone who can act on it: it shall suppress the line when `GITLAB_ACCESS_TOKEN` is already set, and otherwise under the same conditions that suppress the update notice (`UPDATE-03`) — stdout not a TTY, `$CI` set, `--bare` or `--json`, or `GIT_FI_NO_HINTS` set. In a CI job or a pipe there is no reader to export anything, so the advice becomes a line every build log carries.
+`LIST-04` git-fi shall print the hint line only when it is addressed to someone who can act on it: it shall suppress the line when a token already resolves (`AUTH-01`), and otherwise under the same conditions that suppress the update notice (`UPDATE-03`) — stdout not a TTY, `$CI` set, `--bare` or `--json`, or `GIT_FI_NO_HINTS` set. In a CI job or a pipe there is no reader to act on it, so the advice becomes a line every build log carries. The hint shall name `git fi --auth=login` rather than the environment variable: it is addressed to a person at a terminal, and that path is the one that asks for a `read_api` token (`AUTH-10`).
 
 `LIST-05` When branch names are given with no action flag, git-fi shall treat them as a single regex pattern that filters the `list` output to matching branches. If more than one pattern is given, then git-fi shall abort.
 
@@ -415,7 +419,7 @@ feature-b │ 2026-03-30 │ Bob    │ 22222 running
 fi: #12345 running
 ```
 
-If `GITLAB_ACCESS_TOKEN` is not set, the table has only a Branch column (no CI data). The `fi:` pipeline line (GITLAB-05) is also omitted.
+If no GitLab token resolves (`AUTH-01`), the table has only a Branch column (no CI data). The `fi:` pipeline line (GITLAB-05) is also omitted.
 
 ### Failure Output
 
@@ -470,9 +474,46 @@ When parsing the fi branch's commit message, if this legacy format is detected �
 - `FORMAT-01` git-fi shall render bullet lists with each item prefixed with ` * `. When the list is empty, git-fi shall render `<Nothing>`.
 - `FORMAT-02` git-fi shall update action annotations in-place through initial, intermediate, and terminal states as defined in TERM-08.
 
+## Authentication
+
+git-fi reads the GitLab API to show pipeline status, which takes a token. Taking that token only from an environment variable rewards the expedient choice: the cheapest way to satisfy a variable is to reuse a token exported for something else, which is typically full `api` scope where git-fi needs only `read_api`. So git-fi asks for a credential of its own, stores it, and says when the token you supplied is broader than the one it needs.
+
+`GITLAB_ACCESS_TOKEN` is the second source, because a CI job's credential arrives as a variable. At a terminal git-fi checks the stored configuration first and falls back to the variable; in a pipeline the variable is the only source git-fi reads. `AUTH-01` is the whole rule.
+
+git-fi stores its own token rather than borrowing another tool's. Shelling out to `glab api` would mean holding no credential, but `glab` is built around one token per forge, and that token is scoped for everything its owner does there. A separate stored credential is what makes a `read_api`-only context possible.
+
+- `AUTH-01` git-fi shall resolve the GitLab token for a host from two sources: the stored configuration (`AUTH-03`) and the `GITLAB_ACCESS_TOKEN` environment variable. Where `$CI` is set, git-fi shall not read the stored configuration at all — the environment variable is the only source there, and a pipeline with none set has no token. Otherwise git-fi shall check the stored configuration for the host first and fall back to the environment variable, so a host with nothing stored resolves the exported one. The principle is to prefer the deliberate credential over the ambient one: at a terminal the stored token is the deliberate one, and in a pipeline the credential is the job's. Declining to *read* the file in CI, rather than ranking it second, is what makes a config file a container image happens to carry structurally incapable of supplying a pipeline's token. An environment variable set to the empty string shall be treated as absent, and shall not shadow a stored token.
+- `AUTH-02` git-fi shall resolve the token at most once per invocation, memoizing the result, so every consumer of the GitLab API within a run uses the same token and the same source.
+- `AUTH-03` The stored configuration shall live at `$XDG_CONFIG_HOME/git-fi/config.json`, falling back to `~/.config/git-fi/config.json`. It shall carry a `schemaVersion` field and a `hosts` object keyed by GitLab hostname, each entry recording the token, the scopes and expiry reported at login (`AUTH-08`), and the time it was stored:
+
+  ```json
+  {
+    "schemaVersion": 1,
+    "hosts": {
+      "gitlab.example.com": {
+        "token": "glpat-xxxxxxxxxxxxxxxxxxxx",
+        "scopes": ["read_api"],
+        "expiresAt": "2027-01-01",
+        "storedAt": "2026-08-08T19:42:25.241Z"
+      }
+    }
+  }
+  ```
+
+  Keying by host is what lets one machine hold a token for a self-hosted instance and another for `gitlab.com` without either being sent to the wrong host: a repository whose origin is a host with no stored entry falls through to `GITLAB_ACCESS_TOKEN` rather than reusing a neighbour's credential.
+- `AUTH-04` git-fi shall create the configuration directory with mode `0700` and the file with mode `0600`, and shall refuse to read the file when its mode grants any group or world permission, aborting with the offending mode and the `chmod` that corrects it. A `0600` file is only an improvement over an exported variable because fewer processes can read it, so this check is what the storage rests on rather than a nicety. Where the platform has no POSIX file modes (Windows), git-fi shall store the file without setting or checking the mode.
+- `AUTH-05` git-fi shall carry the token action as the value of an `--auth` flag rather than as a subcommand. A lone positional argument to `git fi` is a list filter (`LIST-05`), so an `auth` subcommand would reserve that word and stop `git fi auth` from filtering for auth-related branches. `install-completions` and `help` (`HELP-01`, `COMPLETE-05`) get away with being words because nobody filters on those.
+- `AUTH-06` `--auth` shall report status (`AUTH-11`), `--auth=login` shall prompt for and store a token (`AUTH-08`), and `--auth=logout` shall remove the stored token for the host. `--auth=status` shall be accepted as the explicit spelling of the bare form. Any other value shall abort naming the three accepted actions. `--auth` shall collide with the actions in `COMMAND-*` the way they collide with each other, and shall reject branch-name arguments.
+- `AUTH-07` git-fi shall determine the host for `--auth` from the origin remote (`GITLAB-02`), and `--host <hostname>` shall override that. Because the override supplies the host directly, `--auth --host <hostname>` shall work outside a git repository, so a token can be stored once from anywhere. Where neither source yields a host, git-fi shall abort saying no GitLab origin was detected and naming `--host`. `--host` shall be rejected with any action other than `--auth`.
+- `AUTH-08` `--auth=login` shall read the token from stdin only, never from an argument value: argv is visible to `ps` and a token typed on the command line lands in shell history. At a TTY git-fi shall prompt with terminal echo disabled; off a TTY it shall read piped stdin, so `... | git fi --auth=login` works from a password manager.
+- `AUTH-09` Before storing, `--auth=login` shall validate the token against `GET /api/v4/personal_access_tokens/self` on the target host, and shall not store a token the API rejects. When the reported scopes include anything beyond `read_api`, git-fi shall store the token and warn that it is broader than git-fi needs, naming the scopes it carries. Telling you at the moment you supply it is what addresses the incentive to reuse a broad token; documentation the reader may never open does not.
+- `AUTH-10` The `--auth=login` prompt shall link the prefilled token form for the target host, `https://<host>/-/user_settings/personal_access_tokens?name=git-fi&scopes=read_api`, which GitLab populates from those query parameters. The narrow token is then the low-effort path rather than the one that costs an extra decision.
+- `AUTH-11` `--auth` answers which credential is in effect, which nothing else in the tool reveals: with two possible sources and a token that can expire or be over-scoped, the failure modes are all silent ones. It shall print the host, which source the live token came from, the scopes and expiry recorded at login, and the last 4 characters of the token — enough to tell two tokens apart — and shall never print the token itself. Where a stored token is taking precedence over a set `GITLAB_ACCESS_TOKEN` (`AUTH-01`), it shall say the export is being shadowed, since an export that is not taking effect is otherwise invisible. Where no token resolves, it shall say so and name `--auth=login`. Status shall issue no network request: it reports what login recorded, so it answers offline and stays fast. A token sourced from the environment has no recorded scopes or expiry, and status shall say that rather than implying none exist.
+- `AUTH-12` Shell completion (`COMPLETE-01`) shall offer `login`, `status`, and `logout` as the values of `--auth`.
+
 ## GitLab CI Status
 
-`GITLAB-01` When `GITLAB_ACCESS_TOKEN` is set, git-fi shall fetch pipeline status for each branch from the GitLab API and display a table with columns: Branch, Date, Author, Pipeline. git-fi shall show status with emoji indicators:
+`GITLAB-01` When a GitLab token resolves for the origin's host (`AUTH-01`), git-fi shall fetch pipeline status for each branch from the GitLab API and display a table with columns: Branch, Date, Author, Pipeline. git-fi shall show status with emoji indicators:
 
 | Emoji | Status |
 | --- | --- |
@@ -487,13 +528,13 @@ Where the emoji will not be drawn as a glyph, the word is shown instead (`TERM-1
 
 `GITLAB-02` git-fi shall parse the origin URL to extract the GitLab project path. git-fi shall support both SSH (`git@gitlab.example.com:path/to/repo`) and HTTPS (`https://gitlab.example.com/path/to/repo`) formats, with optional `.git` suffix removed.
 
-`GITLAB-03` If a GitLab API call fails with a non-404 HTTP error, then git-fi shall abort with a clear error message explaining what failed and suggest unsetting `GITLAB_ACCESS_TOKEN` to use basic mode. When the API returns HTTP 404 for an individual branch (e.g. a deleted branch), git-fi shall treat it as `missing` status rather than a fatal error.
+`GITLAB-03` If a GitLab API call fails with a non-404 HTTP error, then git-fi shall abort with a clear error message explaining what failed and naming the way back to basic mode for the source the token came from (`AUTH-01`) — `git fi --auth=logout` for a stored token, unsetting `GITLAB_ACCESS_TOKEN` for an exported one. When the API returns HTTP 404 for an individual branch (e.g. a deleted branch), git-fi shall treat it as `missing` status rather than a fatal error.
 
 `GITLAB-04` When a GitLab project is detected, git-fi shall render branch names and pipeline IDs as clickable terminal hyperlinks (OSC 8). A branch shall link to its comparison against the default branch (`/-/compare/<default>...<branch>`) rather than its file tree — a reader scanning fi is asking what a branch adds, which the compare view answers and a tree listing does not. Hyperlinks are deliberately not tied to the color conditions in `TERM-05`: `NO_COLOR` asks for no color, not for no links, so a plain terminal keeps clickable references.
 
 `GITLAB-09` Where an OSC 8 sequence would not be rendered — stdout not a TTY, or `--bare` / `--json` — an unrendered sequence drops the address entirely, so git-fi shall write the branch compare reference out as a markdown link, `[<branch>](<url>)`. Markdown rather than plain text because of where a line from a build log goes next: pasted into Slack, an issue, or an MR comment, it arrives as a working link. Pipeline IDs shall stay bare there: the branch comparison is what a reader leaves a build log to open, and carrying both URLs inline pushes the table past 200 columns, where the wrap costs more than the second link is worth.
 
-`GITLAB-05` **Pipeline link after merge:** When `GITLAB_ACCESS_TOKEN` is set and a merge operation succeeds, git-fi shall fetch the pipeline for the `fi` branch matching the just-pushed SHA and display it as `fi: #<id> <status>`, where `#<id>` is a clickable hyperlink (OSC 8) and the status indicator uses the same set as GITLAB-01, worded off a TTY per `TERM-10`. The `fi:` prefix distinguishes this integration pipeline from the per-branch pipelines shown in the list table. GitLab registers the pipeline for a push asynchronously, so if no matching pipeline is found yet, git-fi shall retry with escalating delays of 500 ms, 1 s, and 2 s, returning as soon as one appears so the common case pays only the shortest wait. If the API call fails or no matching pipeline appears, the line is silently omitted.
+`GITLAB-05` **Pipeline link after merge:** When a GitLab token resolves (`AUTH-01`) and a merge operation succeeds, git-fi shall fetch the pipeline for the `fi` branch matching the just-pushed SHA and display it as `fi: #<id> <status>`, where `#<id>` is a clickable hyperlink (OSC 8) and the status indicator uses the same set as GITLAB-01, worded off a TTY per `TERM-10`. The `fi:` prefix distinguishes this integration pipeline from the per-branch pipelines shown in the list table. GitLab registers the pipeline for a push asynchronously, so if no matching pipeline is found yet, git-fi shall retry with escalating delays of 500 ms, 1 s, and 2 s, returning as soon as one appears so the common case pays only the shortest wait. If the API call fails or no matching pipeline appears, the line is silently omitted.
 
 `GITLAB-06` When the GitLab commits API returns HTTP 404 for a branch in the CI table, git-fi shall display a warning indicator next to the branch name to signal the branch no longer exists on the remote.
 
@@ -525,8 +566,9 @@ These are standard [GitLab predefined variables](https://docs.gitlab.com/ci/vari
 
 | Variable | Purpose |
 |----------|---------|
-| `GITLAB_ACCESS_TOKEN` | When set (and non-empty), enables GitLab CI status display in `list`. If set to an empty string, abort with a clear error. |
-| `GIT_FI_NO_HINTS` | When set, suppresses the hint about `GITLAB_ACCESS_TOKEN` (`LIST-04`) and the update notice (`UPDATE-03`). Both are already suppressed off a TTY and under `$CI`, so this is for opting out at an interactive terminal. |
+| `GITLAB_ACCESS_TOKEN` | A GitLab token, enabling CI status display in `list`. Checked after a stored token for the host, and under `$CI` it is the only source git-fi reads (`AUTH-01`); an empty value is treated as absent. |
+| `XDG_CONFIG_HOME` | Base directory for the stored token (`AUTH-03`); defaults to `~/.config` |
+| `GIT_FI_NO_HINTS` | When set, suppresses the CI-status hint (`LIST-04`) and the update notice (`UPDATE-03`). Both are already suppressed off a TTY and under `$CI`, so this is for opting out at an interactive terminal. |
 | `GIT_FI_NO_FETCH` | When set, skips the fetch on read-only operations (`list`) and operates on already-fetched remote-tracking refs (`PRE-05`); set by shell completion to stay offline. Mutating operations always fetch. |
 | `NO_UPDATE_NOTIFIER` | When set, suppresses the update notice (`UPDATE-03`) |
 | `NO_COLOR` | When set, disables all color output ([no-color.org](https://no-color.org)) |
@@ -549,7 +591,7 @@ The `command` field names the action that ran — `list`, `add`, `remove`, `forc
 }
 ```
 
-`JSON-02` Where `GITLAB_ACCESS_TOKEN` is set, git-fi shall include a `ci` array in the JSON output. When the variable is not set, git-fi shall omit the `ci` array.
+`JSON-02` Where a GitLab token resolves (`AUTH-01`), git-fi shall include a `ci` array in the JSON output. When no token resolves, git-fi shall omit the `ci` array.
 
 ## Exit Codes
 

@@ -6,18 +6,36 @@ Forge support is pluggable: git-fi detects the forge from the `origin` remote an
 
 | Forge | Status | Enabled with |
 |-------|--------|--------------|
-| GitLab | Supported | `GITLAB_ACCESS_TOKEN` |
+| GitLab | Supported | `git fi --auth=login` |
 | GitHub | Planned | — |
 
 ## GitLab
 
-Set the `GITLAB_ACCESS_TOKEN` environment variable to enable pipeline status:
+Store a token once per machine:
 
 ```bash
-export GITLAB_ACCESS_TOKEN="glpat-xxxxxxxxxxxxxxxxxxxx"
+git fi --auth=login
 ```
 
-When set, `git fi` (list mode) shows each branch's pipeline status in a table, followed by a line for the `fi` branch's own pipeline:
+It prints a link to GitLab's token form with the name and scope prefilled, reads the token from stdin (never from an argument, which `ps` can see and your shell writes to history), checks it against GitLab, and writes it to `$XDG_CONFIG_HOME/git-fi/config.json` with the directory `0700` and the file `0600`. git-fi refuses to read that file if it later becomes readable by anyone else.
+
+git-fi only reads pipeline status, so a **`read_api`** token is all it needs. If you hand it a broader one, it stores it and tells you which extra scopes it carries.
+
+The token is stored per host, so a self-hosted instance and `gitlab.com` can each have their own, and a repo on a host you've never logged into won't be sent a neighbour's token. To store one from outside a repository, name the host:
+
+```bash
+git fi --auth=login --host gitlab.com
+```
+
+`git fi --auth` reports which token is in effect, and `git fi --auth=logout` removes it.
+
+Piping works too, so a password manager can supply the value:
+
+```bash
+pass show gitlab/git-fi | git fi --auth=login
+```
+
+Once a token resolves, `git fi` (list mode) shows each branch's pipeline status in a table, followed by a line for the `fi` branch's own pipeline:
 
 ```text
 Branch         │ Date       │ Author │ Pipeline
@@ -40,7 +58,20 @@ Each pipeline's GitLab status maps to an emoji on a terminal, and to a word anyw
 | ➖ | `none` | `missing` | No pipeline found (or branch deleted) |
 | ⏭️ | `skipped` | `skipped` | Pipeline skipped |
 
-If `GITLAB_ACCESS_TOKEN` is unset, the list shows only a `Branch` column and the `fi:` line is omitted. A per-branch HTTP 404 (e.g. a deleted branch) is shown as `missing`; any other GitLab API error aborts with a message suggesting you unset `GITLAB_ACCESS_TOKEN` to use basic mode.
+With no token, the list shows only a `Branch` column and the `fi:` line is omitted. A per-branch HTTP 404 (e.g. a deleted branch) is shown as `missing`; any other GitLab API error aborts with a message naming how to run without CI status, matched to where the live token came from.
+
+### Where the token comes from
+
+There are two sources: the token `--auth=login` stores, and a `GITLAB_ACCESS_TOKEN` environment variable.
+
+| Context | Sources git-fi reads |
+|---------|----------------------|
+| Your terminal | The stored token first, then `GITLAB_ACCESS_TOKEN` |
+| A CI job (`CI` set) | `GITLAB_ACCESS_TOKEN` only — the config file is not read |
+
+In a pipeline the credential belongs to the job and arrives as a variable, so git-fi doesn't consult the config file there at all. That's stronger than ranking it second: a `config.json` that a container image happens to carry can't supply a pipeline's token even by accident. Give CI jobs the variable.
+
+`git fi --auth` tells you which token is live, and says so explicitly when a stored token is shadowing an export.
 
 ## Output in a job log
 
@@ -106,6 +137,7 @@ This gives teams a continuously updated integration environment that reflects al
 
 | Variable | Purpose |
 |----------|---------|
-| `GITLAB_ACCESS_TOKEN` | Enable GitLab pipeline status in branch listings |
+| `GITLAB_ACCESS_TOKEN` | A GitLab token for pipeline status. Checked after a stored token, and the only source git-fi reads under `CI`; prefer `git fi --auth=login` at a terminal |
+| `XDG_CONFIG_HOME` | Where the stored token lives (`<XDG_CONFIG_HOME>/git-fi/config.json`); defaults to `~/.config` |
 | `GIT_FI_NO_HINTS` | Suppress hint messages at an interactive terminal. A CI job needs nothing set — git-fi suppresses hints on its own when `CI` is set or stdout isn't a terminal, since there's nobody there to act on the advice. |
 | `NO_COLOR` | Disable color output (respects [no-color.org](https://no-color.org) convention) |

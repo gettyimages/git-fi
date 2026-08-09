@@ -5,6 +5,55 @@ GitHub Release by the release workflow (`.github/workflows/release.yml`).
 
 <!-- releases below -->
 
+## v1.2.0 (2026-08-09)
+
+### Requires Node 22 or newer
+
+git-fi declares `"node": ">=22"`. Node 18 and 20 are both past end of life, and
+nothing tested git-fi on them. On an older Node, npm reports an engine mismatch
+on install — upgrade Node, or stay on v1.1.0.
+
+### Features
+
+- GitLab tokens are stored per machine instead of exported. `git fi --auth=login`
+  prints a link to GitLab's token form with the name and `read_api` scope
+  prefilled, reads the token from stdin (never from an argument, which `ps` can
+  see and your shell writes to history), checks it against GitLab, and writes it
+  to `$XDG_CONFIG_HOME/git-fi/config.json` with the directory `0700` and the file
+  `0600`. git-fi refuses to read that file if it later becomes readable by anyone
+  else. Pipeline status only needs `read_api`, so that is all the prompt asks
+  for; a broader token is stored with a note of the extra scopes it carries.
+- Tokens are kept per host, so a self-hosted instance and `gitlab.com` can each
+  have their own, and a repo on a host you have never logged into won't be sent a
+  neighbour's token. To store one from outside a repository, name the host:
+  `git fi --auth=login --host gitlab.com`.
+- `git fi --auth` reports which token is in effect, and says so explicitly when a
+  stored token is shadowing an export. `git fi --auth=logout` removes it.
+- An exported `GITLAB_ACCESS_TOKEN` keeps working, so nothing has to migrate. At
+  a terminal git-fi prefers the stored token; in a CI job the credential belongs
+  to the job, so git-fi reads the variable only and does not consult the config
+  file there at all. Give CI runners the variable as before.
+- Login reads stdin, so a password manager can supply the value:
+  `pass show gitlab/git-fi | git fi --auth=login`.
+
+### Fixes
+
+- `git fi --update` works on Windows. It failed there before it ever reached npm.
+  One consequence of the fix: with the shell doing the executable lookup, a
+  missing npm is the shell's error to report and the shell's exit code to return,
+  so git-fi's own `Could not run npm` message is a guarantee on POSIX only.
+
+### Other
+
+- CI runs the test suite on Windows as well as Linux, across Node 22, 24, and 26.
+  Windows is in the matrix because git-fi takes a different path where the
+  platform has no POSIX file modes: it stores the token without setting or
+  checking `0600`.
+- The test runner is handed explicit paths rather than a shell glob, so a pattern
+  that stops matching fails loudly instead of reporting a green suite that ran
+  nothing.
+
+
 ## v1.1.0 (2026-08-07)
 
 ## v1.1.0

@@ -229,8 +229,15 @@ describe("--update (UPDATE-05)", () => {
     const empty = join(dir, "empty");
     mkdirSync(empty, { recursive: true });
     const r = runFi(["--update"], dir, { PATH: empty });
-    assert.equal(r.status, 1);
-    assert.match(r.stderr, /Could not run npm/);
+    if (process.platform === "win32") {
+      // The shell resolves npm there (see updateSelf), so spawn succeeds and a
+      // missing command is cmd's error to report and cmd's exit code to pick —
+      // git-fi never sees a spawn failure of its own to translate.
+      assert.notEqual(r.status, 0, r.stderr);
+    } else {
+      assert.equal(r.status, 1);
+      assert.match(r.stderr, /Could not run npm/);
+    }
   });
 
   test("collides with the actions the way they collide with each other", () => {

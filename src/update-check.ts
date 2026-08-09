@@ -102,14 +102,13 @@ export function notifyUpdate(name: string, current: string, opts: Options): void
  * than a redundant reinstall.
  */
 export function updateSelf(name: string): never {
-  // On Windows npm is npm.cmd, and node's spawn does no PATHEXT lookup — the
-  // bare name fails there with ENOENT before npm is ever reached.
-  const npm = spawnSync(process.platform === "win32" ? "npm.cmd" : "npm", [
-    "install",
-    "-g",
-    `${name}@latest`,
-  ], {
+  const npm = spawnSync("npm", ["install", "-g", `${name}@latest`], {
     stdio: "inherit",
+    // On Windows npm is npm.cmd, which node refuses to spawn directly (EINVAL,
+    // the CVE-2024-27980 hardening) and finds by bare name not at all — so the
+    // shell does the PATHEXT lookup. Every argument here is a fixed literal,
+    // so there is nothing for cmd's parser to mangle.
+    shell: process.platform === "win32",
   });
   if (npm.error) {
     process.stderr.write(`Could not run npm: ${npm.error.message}\n`);

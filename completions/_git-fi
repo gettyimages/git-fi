@@ -17,6 +17,8 @@ _git-fi() {
     '(-s --select)'{-s,--select}'[Interactive branch picker (requires a TTY)]' \
     '(-y --yes)'{-y,--yes}'[Bootstrap fi without the confirmation prompt (for CI/scripts)]' \
     '(-u --update)'{-u,--update}'[Update git-fi itself to the latest published version]' \
+    '--auth=-[Report which GitLab token is in effect; =login stores one, =logout removes it]::action:(login status logout)' \
+    '--host[Which GitLab host --auth acts on (default: from the origin remote)]:hostname:_hosts' \
     '(-V --version)'{-V,--version}'[Print version and exit]' \
     '(-h --help)'{-h,--help}'[Show this help]' \
     '*: :__git_fi_branches'

@@ -1,6 +1,7 @@
 import type { Options, CIResult } from "./types.js";
 import { makeStyle, colorEnabled, createSpinner, printTable, abort } from "./style.js";
 import { git } from "./git.js";
+import { resolveToken, type TokenResolution } from "./auth.js";
 
 export const STATUS_EMOJI: Record<string, string> = {
   success: "\u2705",
@@ -67,6 +68,24 @@ function parseOriginUrl(url: string | null): GitlabProject | null {
   return null;
 }
 
+/**
+ * The token for this repository's GitLab host, or null when there is none
+ * (AUTH-01). Every consumer goes through here rather than reading the
+ * environment itself, so the list table, the JSON `ci` array, the picker, and
+ * the post-merge `fi:` line cannot end up disagreeing about which token —
+ * or whether one exists at all.
+ */
+export function gitlabToken(opts: Options): TokenResolution | null {
+  return resolveToken(detectGitlabProject()?.host ?? null, opts);
+}
+
+/** How to go back to basic mode, named for wherever the live token came from. */
+function basicModeHint(resolved: TokenResolution): string {
+  return resolved.source === "config"
+    ? "To use git-fi without CI status, run 'git fi --auth=logout'."
+    : "To use git-fi without CI status, unset GITLAB_ACCESS_TOKEN and try again.";
+}
+
 interface ApiResponse {
   status: number;
   body: string;
@@ -111,10 +130,11 @@ export async function fetchGitlabCI(
   branches: string[],
   opts: Options
 ): Promise<CIResult[]> {
-  const token = process.env.GITLAB_ACCESS_TOKEN;
-  if (!token) {
-    abort("GITLAB_ACCESS_TOKEN is set but empty", opts);
+  const resolved = gitlabToken(opts);
+  if (!resolved) {
+    abort("No GitLab token available; run 'git fi --auth=login'", opts);
   }
+  const token = resolved.token;
 
   const proj = detectGitlabProject();
   if (!proj) {
@@ -187,7 +207,7 @@ export async function fetchGitlabCI(
     spin.stop();
     const msg = err instanceof Error ? err.message : String(err);
     abort(
-      `GitLab API request failed: ${msg}\n\nTo use git-fi without CI status, unset GITLAB_ACCESS_TOKEN and try again.`,
+      `GitLab API request failed: ${msg}\n\n${basicModeHint(resolved)}`,
       opts
     );
   } finally {
@@ -197,7 +217,7 @@ export async function fetchGitlabCI(
   for (const outcome of outcomes) {
     if (!outcome.ok) {
       abort(
-        `GitLab API returned HTTP ${outcome.status} for branch '${outcome.ref}': ${outcome.body}\n\nTo use git-fi without CI status, unset GITLAB_ACCESS_TOKEN and try again.`,
+        `GitLab API returned HTTP ${outcome.status} for branch '${outcome.ref}': ${outcome.body}\n\n${basicModeHint(resolved)}`,
         opts
       );
     }
@@ -223,8 +243,9 @@ export async function fetchFiPipeline(
   gitlab: GitlabProject,
   pushedSha?: string
 ): Promise<FiPipelineInfo | null> {
-  const token = process.env.GITLAB_ACCESS_TOKEN;
-  if (!token) return null;
+  const resolved = gitlabToken(opts);
+  if (!resolved) return null;
+  const token = resolved.token;
 
   const encodedProject = encodeURIComponent(gitlab.project);
   let apiUrl = `https://${gitlab.host}/api/v4/projects/${encodedProject}/pipelines?ref=fi&per_page=1`;

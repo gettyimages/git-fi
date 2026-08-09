@@ -1,9 +1,9 @@
-import { test, before, after, describe } from "node:test";
+import { test, before, after, beforeEach, afterEach, describe } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, readFileSync, readdirSync, writeFileSync, chmodSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, delimiter } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { runFi, makeSandbox, type Sandbox } from "./helpers.ts";
@@ -153,9 +153,14 @@ describe("argument handling (no repo required)", () => {
   });
 
   test("--write names an unwritable directory and how to fix it (COMPLETE-06)", () => {
-    const r = runFi(["install-completions", "--write", "/dev/null/nope"], dir);
+    // A path whose parent is a regular file, which mkdir refuses everywhere;
+    // /dev/null/nope only names an unwritable path on POSIX.
+    const blocker = join(dir, "not-a-dir");
+    writeFileSync(blocker, "");
+    const target = join(blocker, "nope");
+    const r = runFi(["install-completions", "--write", target], dir);
     assert.equal(r.status, 1);
-    assert.match(r.stderr, /\/dev\/null\/nope/);
+    assert.ok(r.stderr.includes(target), r.stderr);
     assert.match(r.stderr, /Pick a directory you own/);
   });
 });
@@ -173,12 +178,28 @@ describe("--update (UPDATE-05)", () => {
     // Stand-in npm: records the arguments git-fi handed it, and exits with
     // whatever the test asks for. Running the real npm would reinstall the
     // developer's global git-fi mid-suite.
+    //
+    // The recording lives in a node script behind a per-platform launcher: the
+    // shebang a lone `sh` shim relies on means nothing to Windows, which needs
+    // an `npm.cmd` to match how it resolves npm on PATH.
+    const shim = join(dir, "npm-shim.mjs");
     writeFileSync(
-      join(bin, "npm"),
-      `#!/bin/sh\nprintf '%s\\n' "$@" > "${argvLog}"\nexit \${FAKE_NPM_EXIT:-0}\n`,
-      { mode: 0o755 }
+      shim,
+      `import { writeFileSync } from "node:fs";\n` +
+        `writeFileSync(${JSON.stringify(argvLog)}, process.argv.slice(2).join("\\n") + "\\n");\n` +
+        `process.exit(Number(process.env.FAKE_NPM_EXIT ?? 0));\n`
     );
-    path = `${bin}:${process.env.PATH}`;
+    if (process.platform === "win32") {
+      writeFileSync(
+        join(bin, "npm.cmd"),
+        `@echo off\r\n"${process.execPath}" "${shim}" %*\r\nexit /b %ERRORLEVEL%\r\n`
+      );
+    } else {
+      writeFileSync(join(bin, "npm"), `#!/bin/sh\nexec "${process.execPath}" "${shim}" "$@"\n`, {
+        mode: 0o755,
+      });
+    }
+    path = bin + delimiter + process.env.PATH;
   });
   after(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -208,8 +229,15 @@ describe("--update (UPDATE-05)", () => {
     const empty = join(dir, "empty");
     mkdirSync(empty, { recursive: true });
     const r = runFi(["--update"], dir, { PATH: empty });
-    assert.equal(r.status, 1);
-    assert.match(r.stderr, /Could not run npm/);
+    if (process.platform === "win32") {
+      // The shell resolves npm there (see updateSelf), so spawn succeeds and a
+      // missing command is cmd's error to report and cmd's exit code to pick —
+      // git-fi never sees a spawn failure of its own to translate.
+      assert.notEqual(r.status, 0, r.stderr);
+    } else {
+      assert.equal(r.status, 1);
+      assert.match(r.stderr, /Could not run npm/);
+    }
   });
 
   test("collides with the actions the way they collide with each other", () => {
@@ -262,7 +290,9 @@ describe("postinstall completion install (COMPLETE-07)", () => {
   test("an unwritable prefix reports the manual command without failing", () => {
     // A postinstall that exits non-zero fails `npm install -g` outright, so a
     // root-owned prefix has to degrade to advice, not an error.
-    const r = run({ npm_config_global: "true", npm_config_prefix: "/dev/null/nope" });
+    const blocker = join(dir, "not-a-prefix");
+    writeFileSync(blocker, "");
+    const r = run({ npm_config_global: "true", npm_config_prefix: join(blocker, "nope") });
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /install-completions --write/);
   });
@@ -714,21 +744,200 @@ describe("CI hint", () => {
   // The suite runs off a TTY, which is itself one of the suppressing conditions
   // (LIST-04) — so every case here is a negative. The hint's positive path needs a
   // real terminal; `hintsEnabled` is unit-tested for the rest in style.test.ts.
-  test("no hint off a TTY — a pipe has no reader to export anything", () => {
+  test("no hint off a TTY — a pipe has no reader to act on the advice", () => {
     const r = runFi([], sb.work);
     assert.equal(r.status, 0, r.stderr);
-    assert.doesNotMatch(r.stdout, /GITLAB_ACCESS_TOKEN/);
+    assert.doesNotMatch(r.stdout, /--auth=login/);
   });
 
   test("no hint under $CI, the case the runner hit", () => {
     const r = runFi([], sb.work, { CI: "true" });
     assert.equal(r.status, 0, r.stderr);
-    assert.doesNotMatch(r.stdout, /GITLAB_ACCESS_TOKEN/);
+    assert.doesNotMatch(r.stdout, /--auth=login/);
   });
 
   test("GIT_FI_NO_HINTS suppresses the hint", () => {
     const r = runFi([], sb.work, { GIT_FI_NO_HINTS: "1" });
     assert.equal(r.status, 0, r.stderr);
-    assert.doesNotMatch(r.stdout, /GITLAB_ACCESS_TOKEN/);
+    assert.doesNotMatch(r.stdout, /--auth=login/);
+  });
+});
+
+describe("--auth (AUTH-05, AUTH-06, AUTH-07, AUTH-11)", () => {
+  let sb: Sandbox;
+  let configHome: string;
+  const HOST = "gitlab.example.com";
+
+  /** A config file as `--auth=login` would have written it. */
+  function seedToken(scopes = ["read_api"]): void {
+    mkdirSync(join(configHome, "git-fi"), { recursive: true });
+    writeFileSync(
+      join(configHome, "git-fi", "config.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        hosts: {
+          [HOST]: {
+            token: "glpat-abcdefghij9876",
+            scopes,
+            expiresAt: "2027-01-01",
+            storedAt: "2026-08-08T00:00:00.000Z",
+          },
+        },
+      }),
+      { mode: 0o600 }
+    );
+  }
+
+  before(() => {
+    sb = makeSandbox();
+    // The sandbox origin is a local path, so give it a GitLab-shaped one for
+    // the host detection --auth reads (AUTH-07).
+    sb.git(["remote", "set-url", "origin", `git@${HOST}:group/repo.git`]);
+  });
+  after(() => sb.cleanup());
+
+  beforeEach(() => {
+    configHome = mkdtempSync(join(tmpdir(), "git-fi-cli-xdg-"));
+  });
+  afterEach(() => rmSync(configHome, { recursive: true, force: true }));
+
+  test("collides with the actions the way they collide with each other", () => {
+    const r = runFi(["--add", "--auth"], sb.work);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /Cannot combine --add with --auth/);
+  });
+
+  test("rejects branch names — a token action takes no branch", () => {
+    const r = runFi(["--auth", "feature-a"], sb.work);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /--auth does not accept branch names/);
+  });
+
+  test("an unrecognized action names the three that exist", () => {
+    const r = runFi(["--auth=renew"], sb.work, { XDG_CONFIG_HOME: configHome });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /login, status, or logout/);
+  });
+
+  test("--host outside --auth is rejected rather than silently ignored", () => {
+    const r = runFi(["--host", "gitlab.com"], sb.work);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /--host is only valid with --auth/);
+  });
+
+  test("--host with no value is rejected, not treated as a branch", () => {
+    const r = runFi(["--auth", "--host"], sb.work);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /--host requires a hostname/);
+  });
+
+  test("with nothing stored, status says so and names the login", () => {
+    const r = runFi(["--auth"], sb.work, { XDG_CONFIG_HOME: configHome });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, new RegExp(`Host:\\s+${HOST}`));
+    assert.match(r.stdout, /git fi --auth=login/);
+  });
+
+  test("bare --auth and --auth=status are the same command", () => {
+    const e = { XDG_CONFIG_HOME: configHome };
+    assert.equal(
+      runFi(["--auth"], sb.work, e).stdout,
+      runFi(["--auth=status"], sb.work, e).stdout
+    );
+  });
+
+  test("status reports the stored token's scopes, expiry, and last 4 — never the token", () => {
+    seedToken();
+    const r = runFi(["--auth"], sb.work, { XDG_CONFIG_HOME: configHome });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /Scopes:\s+read_api/);
+    assert.match(r.stdout, /Expires:\s+2027-01-01/);
+    assert.match(r.stdout, /Token:\s+\.\.\.9876/);
+    assert.doesNotMatch(r.stdout, /glpat-abcdefghij9876/, "the value must never be printed");
+  });
+
+  test("status says when a stored token is shadowing an export", () => {
+    seedToken();
+    const r = runFi(["--auth"], sb.work, {
+      XDG_CONFIG_HOME: configHome,
+      GITLAB_ACCESS_TOKEN: "glpat-exported",
+    });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /GITLAB_ACCESS_TOKEN is set and being ignored/);
+  });
+
+  test("status warns when the stored token is broader than read_api", () => {
+    seedToken(["api"]);
+    const r = runFi(["--auth"], sb.work, { XDG_CONFIG_HOME: configHome });
+    assert.match(r.stdout, /broader than git-fi needs/);
+    assert.match(r.stdout, /it carries api/);
+  });
+
+  test("an exported token reports its source without inventing scopes for it", () => {
+    const r = runFi(["--auth"], sb.work, {
+      XDG_CONFIG_HOME: configHome,
+      GITLAB_ACCESS_TOKEN: "glpat-exported",
+    });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /Source:\s+GITLAB_ACCESS_TOKEN/);
+    assert.match(r.stdout, /not recorded for an exported token/);
+  });
+
+  test(
+    "a config file readable beyond its owner is refused, not read",
+    { skip: process.platform === "win32" },
+    () => {
+      seedToken();
+      chmodSync(join(configHome, "git-fi", "config.json"), 0o644);
+      const r = runFi(["--auth"], sb.work, { XDG_CONFIG_HOME: configHome });
+      assert.equal(r.status, 1);
+      assert.match(r.stderr, /readable beyond its owner/);
+      assert.match(r.stderr, /chmod 600/);
+    }
+  );
+
+  test("logout removes the stored token, and names the export it falls back to", () => {
+    seedToken();
+    const r = runFi(["--auth=logout"], sb.work, {
+      XDG_CONFIG_HOME: configHome,
+      GITLAB_ACCESS_TOKEN: "glpat-exported",
+    });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /Removed the stored token/);
+    assert.match(r.stdout, /GITLAB_ACCESS_TOKEN is set; git-fi will use it for this host/);
+
+    const later = runFi(["--auth"], sb.work, { XDG_CONFIG_HOME: configHome });
+    assert.match(later.stdout, /Token:\s+none/);
+  });
+
+  test("logout with nothing stored is not an error", () => {
+    const r = runFi(["--auth=logout"], sb.work, { XDG_CONFIG_HOME: configHome });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /No stored token/);
+  });
+
+  test("--host makes --auth work outside a repository, which is the point of it", () => {
+    const outside = mkdtempSync(join(tmpdir(), "git-fi-norepo-"));
+    try {
+      const r = runFi(["--auth", "--host", "gitlab.com"], outside, {
+        XDG_CONFIG_HOME: configHome,
+      });
+      assert.equal(r.status, 0, r.stderr);
+      assert.match(r.stdout, /Host:\s+gitlab\.com/);
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  test("without a GitLab origin and without --host, it names the override", () => {
+    const outside = mkdtempSync(join(tmpdir(), "git-fi-norepo-"));
+    try {
+      const r = runFi(["--auth"], outside, { XDG_CONFIG_HOME: configHome });
+      assert.equal(r.status, 1);
+      assert.match(r.stderr, /No GitLab origin detected/);
+      assert.match(r.stderr, /--host <hostname>/);
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
   });
 });

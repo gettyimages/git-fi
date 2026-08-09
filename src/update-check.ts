@@ -104,6 +104,11 @@ export function notifyUpdate(name: string, current: string, opts: Options): void
 export function updateSelf(name: string): never {
   const npm = spawnSync("npm", ["install", "-g", `${name}@latest`], {
     stdio: "inherit",
+    // On Windows npm is npm.cmd, which node refuses to spawn directly (EINVAL,
+    // the CVE-2024-27980 hardening) and finds by bare name not at all — so the
+    // shell does the PATHEXT lookup. Every argument here is a fixed literal,
+    // so there is nothing for cmd's parser to mangle.
+    shell: process.platform === "win32",
   });
   if (npm.error) {
     process.stderr.write(`Could not run npm: ${npm.error.message}\n`);

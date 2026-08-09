@@ -7,6 +7,8 @@ import { cmdList, cmdAdd, cmdRemove, cmdForce, cmdAgain, cmdAbort, cmdSelect } f
 import { notifyUpdate, updateSelf } from "./update-check.js";
 import { renderHelp } from "./help.js";
 import { installCompletions } from "./install-completions.js";
+import { cmdAuth } from "./auth.js";
+import { detectGitlabProject } from "./gitlab.js";
 
 const require = createRequire(import.meta.url);
 const { name, version } = require("../package.json");
@@ -21,6 +23,8 @@ function parseArgs(argv: string[]) {
   };
   let action: string | null = null;
   let filterPattern: string | undefined;
+  let authAction: string | undefined;
+  let hostFlag: string | undefined;
   const branches: string[] = [];
 
   // `install-completions` owns its own arguments (a target, `--write <dir>`),
@@ -33,10 +37,34 @@ function parseArgs(argv: string[]) {
       action: "install-completions",
       branches: argv.slice(1),
       filterPattern,
+      authAction,
+      hostFlag,
     };
   }
 
-  for (const arg of argv) {
+  // Indexed rather than for-of because `--host` consumes the argument after it.
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+
+    // `--auth` carries its verb as a value rather than as a subcommand: a lone
+    // positional to `git fi` is a list filter, so an `auth` subcommand would
+    // reserve that word (AUTH-05).
+    if (arg === "--auth" || arg.startsWith("--auth=")) {
+      if (action) abort(`Cannot combine --${action} with --auth`, opts);
+      action = "auth";
+      authAction = arg === "--auth" ? "status" : arg.slice("--auth=".length);
+      continue;
+    }
+
+    if (arg === "--host" || arg.startsWith("--host=")) {
+      const value = arg === "--host" ? argv[++i] : arg.slice("--host=".length);
+      // A following flag is a missing value, not a hostname — without this,
+      // `git fi --host --auth` swallows the action and silently lists instead.
+      if (!value || value.startsWith("-")) abort("--host requires a hostname", opts);
+      hostFlag = value;
+      continue;
+    }
+
     switch (arg) {
       case "--debug":
       case "-d":
@@ -123,6 +151,8 @@ function parseArgs(argv: string[]) {
       action: "install-completions",
       branches: branches.slice(1),
       filterPattern,
+      authAction,
+      hostFlag,
     };
   }
 
@@ -130,6 +160,14 @@ function parseArgs(argv: string[]) {
   // silently reinstalls git-fi and never touches the branch.
   if (action === "update" && branches.length > 0) {
     abort("--update does not accept branch names", opts);
+  }
+
+  if (action === "auth" && branches.length > 0) {
+    abort("--auth does not accept branch names", opts);
+  }
+
+  if (hostFlag !== undefined && action !== "auth") {
+    abort("--host is only valid with --auth", opts);
   }
 
   if (!action && branches.length === 0 && !opts.select) action = "list";
@@ -165,12 +203,12 @@ function parseArgs(argv: string[]) {
     abort("--select requires an interactive terminal", opts);
   }
 
-  return { opts, action: action!, branches, filterPattern };
+  return { opts, action: action!, branches, filterPattern, authAction, hostFlag };
 }
 
 async function main() {
   const argv = process.argv.slice(2);
-  const { opts, action, branches, filterPattern } = parseArgs(argv);
+  const { opts, action, branches, filterPattern, authAction, hostFlag } = parseArgs(argv);
   setDebug(opts.debug);
 
   // Runs anywhere (no repo needed) and must not touch stdout beyond the script,
@@ -185,6 +223,13 @@ async function main() {
   // noise.
   if (action === "update") {
     updateSelf(name);
+  }
+
+  // Also not a repo operation: `--host` supplies the host directly, so a login
+  // must work from any directory (AUTH-07) — which pre-flight would refuse.
+  if (action === "auth") {
+    await cmdAuth(authAction!, hostFlag ?? detectGitlabProject()?.host ?? null, opts);
+    return;
   }
 
   // Before preflight: an update notice should surface even when the command

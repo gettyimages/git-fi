@@ -8,10 +8,21 @@
 export interface Flag {
   /** Long form without the leading dashes, e.g. "add". */
   long: string;
-  /** Single-character short form without the dash, e.g. "a". */
-  short: string;
+  /**
+   * Single-character short form without the dash, e.g. "a". Absent for the
+   * once-per-machine flags (OPTION-12, OPTION-13) — the single letters are
+   * worth more to a flag someone types daily.
+   */
+  short?: string;
   /** One-line description. */
   desc: string;
+  /**
+   * Argument syntax appended to the long form in help, man, and docs, e.g.
+   * "[=<action>]" or " <hostname>". Flags without one take no value.
+   */
+  arg?: string;
+  /** Completion candidates for the flag's value (AUTH-12). */
+  values?: string[];
 }
 
 export const DOCS_URL = "https://gettyimages.github.io/git-fi/";
@@ -34,9 +45,25 @@ export const OPTIONS: Flag[] = [
   { long: "select", short: "s", desc: "Interactive branch picker (requires a TTY)" },
   { long: "yes", short: "y", desc: "Bootstrap fi without the confirmation prompt (for CI/scripts)" },
   { long: "update", short: "u", desc: "Update git-fi itself to the latest published version" },
+  {
+    long: "auth",
+    desc: "Report which GitLab token is in effect; =login stores one, =logout removes it",
+    arg: "[=<action>]",
+    values: ["login", "status", "logout"],
+  },
+  {
+    long: "host",
+    desc: "Which GitLab host --auth acts on (default: from the origin remote)",
+    arg: " <hostname>",
+  },
   { long: "version", short: "V", desc: "Print version and exit" },
   { long: "help", short: "h", desc: "Show this help" },
 ];
+
+/** Long form with its argument syntax, e.g. `--auth[=<action>]`. */
+export function longForm(f: Flag): string {
+  return `--${f.long}${f.arg ?? ""}`;
+}
 
 export interface Subcommand {
   /** Invocation, e.g. "install-completions <bash|zsh|zsh-git>". */
@@ -50,8 +77,10 @@ export const SUBCOMMANDS: Subcommand[] = [
   { usage: "install-completions --write <dir>", desc: "Write both zsh completion files onto an fpath directory" },
 ];
 
+// A long-only flag is indented by the width of the "-x, " it does not have, so
+// every long form still starts in the same column.
 function flagLabel(f: Flag): string {
-  return `-${f.short}, --${f.long}`;
+  return f.short ? `-${f.short}, ${longForm(f)}` : `    ${longForm(f)}`;
 }
 
 /** Plain-text help, shared by `git fi -h` and `git fi help`. */

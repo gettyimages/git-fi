@@ -11,7 +11,7 @@ import {
   ensureFetched,
   isInteractive,
 } from "./git.js";
-import { fetchGitlabCI, printCITable, detectGitlabProject, fetchFiPipeline, statusLabel, branchCompareUrl } from "./gitlab.js";
+import { fetchGitlabCI, printCITable, detectGitlabProject, fetchFiPipeline, statusLabel, branchCompareUrl, gitlabToken } from "./gitlab.js";
 import { mergeProcess } from "./merge.js";
 import { pickBranches } from "./ui.js";
 import { DOCS_URL } from "./help.js";
@@ -20,7 +20,7 @@ async function fetchPickerCI(
   branches: string[],
   opts: Options
 ): Promise<Map<string, CIResult> | undefined> {
-  if (!process.env.GITLAB_ACCESS_TOKEN) return undefined;
+  if (!gitlabToken(opts)) return undefined;
   const results = await fetchGitlabCI(branches, opts);
   const map = new Map<string, CIResult>();
   for (const r of results) map.set(r.branch, r);
@@ -80,7 +80,7 @@ export async function cmdList(
       command,
       branches: shortNames,
     };
-    if (process.env.GITLAB_ACCESS_TOKEN) {
+    if (gitlabToken(opts)) {
       const ci = await fetchGitlabCI(branches, opts);
       obj.ci = ci.map((r) => ({
         branch: r.branch.replace(/^origin\//, ""),
@@ -96,7 +96,7 @@ export async function cmdList(
 
   const gitlab = detectGitlabProject();
 
-  if (process.env.GITLAB_ACCESS_TOKEN) {
+  if (gitlabToken(opts)) {
     const ci = await fetchGitlabCI(branches, opts);
     printCITable(ci, opts, gitlab, defBranch);
 
@@ -120,9 +120,11 @@ export async function cmdList(
 
   process.stdout.write("\n");
 
-  if (!process.env.GITLAB_ACCESS_TOKEN && hintsEnabled(opts)) {
+  // Names the login rather than the export (LIST-04): the hint only ever
+  // reaches a person at a terminal, and that path asks for a read_api token.
+  if (!gitlabToken(opts) && hintsEnabled(opts)) {
     process.stdout.write(
-      "For enhanced CI status, export GITLAB_ACCESS_TOKEN. To suppress this hint, export GIT_FI_NO_HINTS.\n"
+      "For enhanced CI status, run git fi --auth=login. To suppress this hint, export GIT_FI_NO_HINTS.\n"
     );
   }
 }

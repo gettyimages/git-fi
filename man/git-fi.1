@@ -45,6 +45,12 @@ Bootstrap fi without the confirmation prompt (for CI/scripts)
 .BR \-u ", " \-\-update
 Update git\-fi itself to the latest published version
 .TP
+.B \-\-auth[=<action>]
+Report which GitLab token is in effect; =login stores one, =logout removes it
+.TP
+.B \-\-host <hostname>
+Which GitLab host \-\-auth acts on (default: from the origin remote)
+.TP
 .BR \-V ", " \-\-version
 Print version and exit
 .TP

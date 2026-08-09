@@ -102,7 +102,13 @@ export function notifyUpdate(name: string, current: string, opts: Options): void
  * than a redundant reinstall.
  */
 export function updateSelf(name: string): never {
-  const npm = spawnSync("npm", ["install", "-g", `${name}@latest`], {
+  // On Windows npm is npm.cmd, and node's spawn does no PATHEXT lookup — the
+  // bare name fails there with ENOENT before npm is ever reached.
+  const npm = spawnSync(process.platform === "win32" ? "npm.cmd" : "npm", [
+    "install",
+    "-g",
+    `${name}@latest`,
+  ], {
     stdio: "inherit",
   });
   if (npm.error) {

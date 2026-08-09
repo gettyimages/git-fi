@@ -6,12 +6,21 @@ on:
   pull_request:
 
 jobs:
+  # Windows is a matrix dimension rather than a single extra job because git-fi
+  # takes a different path where the platform has no POSIX file modes — it
+  # stores the token without setting or checking 0600 (AUTH-04) — and because
+  # node's own Windows behavior (path handling, spawn, the test runner) varies
+  # by version, so pinning one version would cover the platform but not the
+  # combination.
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        node: [18, 20, 22]
+        os: [ubuntu-latest, windows-latest]
+        # Both active LTS lines, plus Current for early warning on what becomes
+        # the next LTS. The low end is the `engines` floor in package.json.
+        node: [22, 24, 26]
     steps:
       - uses: actions/checkout@v4
 
@@ -39,7 +48,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - run: npm ci

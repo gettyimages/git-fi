@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, rmSync, readFileSync, readdirSync, writeFileSync, chmodSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, delimiter } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { runFi, makeSandbox, type Sandbox } from "./helpers.ts";
@@ -153,9 +153,14 @@ describe("argument handling (no repo required)", () => {
   });
 
   test("--write names an unwritable directory and how to fix it (COMPLETE-06)", () => {
-    const r = runFi(["install-completions", "--write", "/dev/null/nope"], dir);
+    // A path whose parent is a regular file, which mkdir refuses everywhere;
+    // /dev/null/nope only names an unwritable path on POSIX.
+    const blocker = join(dir, "not-a-dir");
+    writeFileSync(blocker, "");
+    const target = join(blocker, "nope");
+    const r = runFi(["install-completions", "--write", target], dir);
     assert.equal(r.status, 1);
-    assert.match(r.stderr, /\/dev\/null\/nope/);
+    assert.ok(r.stderr.includes(target), r.stderr);
     assert.match(r.stderr, /Pick a directory you own/);
   });
 });
@@ -173,12 +178,28 @@ describe("--update (UPDATE-05)", () => {
     // Stand-in npm: records the arguments git-fi handed it, and exits with
     // whatever the test asks for. Running the real npm would reinstall the
     // developer's global git-fi mid-suite.
+    //
+    // The recording lives in a node script behind a per-platform launcher: the
+    // shebang a lone `sh` shim relies on means nothing to Windows, which needs
+    // an `npm.cmd` to match how it resolves npm on PATH.
+    const shim = join(dir, "npm-shim.mjs");
     writeFileSync(
-      join(bin, "npm"),
-      `#!/bin/sh\nprintf '%s\\n' "$@" > "${argvLog}"\nexit \${FAKE_NPM_EXIT:-0}\n`,
-      { mode: 0o755 }
+      shim,
+      `import { writeFileSync } from "node:fs";\n` +
+        `writeFileSync(${JSON.stringify(argvLog)}, process.argv.slice(2).join("\\n") + "\\n");\n` +
+        `process.exit(Number(process.env.FAKE_NPM_EXIT ?? 0));\n`
     );
-    path = `${bin}:${process.env.PATH}`;
+    if (process.platform === "win32") {
+      writeFileSync(
+        join(bin, "npm.cmd"),
+        `@echo off\r\n"${process.execPath}" "${shim}" %*\r\nexit /b %ERRORLEVEL%\r\n`
+      );
+    } else {
+      writeFileSync(join(bin, "npm"), `#!/bin/sh\nexec "${process.execPath}" "${shim}" "$@"\n`, {
+        mode: 0o755,
+      });
+    }
+    path = bin + delimiter + process.env.PATH;
   });
   after(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -262,7 +283,9 @@ describe("postinstall completion install (COMPLETE-07)", () => {
   test("an unwritable prefix reports the manual command without failing", () => {
     // A postinstall that exits non-zero fails `npm install -g` outright, so a
     // root-owned prefix has to degrade to advice, not an error.
-    const r = run({ npm_config_global: "true", npm_config_prefix: "/dev/null/nope" });
+    const blocker = join(dir, "not-a-prefix");
+    writeFileSync(blocker, "");
+    const r = run({ npm_config_global: "true", npm_config_prefix: join(blocker, "nope") });
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /install-completions --write/);
   });

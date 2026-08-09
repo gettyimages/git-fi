@@ -13,7 +13,7 @@
     "build": "tsc && npm run gen:docs",
     "prepare": "tsc",
     "postinstall": "node scripts/postinstall.mjs",
-    "test": "tsc && npm run verify:generated && node --import tsx --test test/*.test.ts",
+    "test": "tsc && npm run verify:generated && node scripts/run-tests.mjs",
     "verify:generated": "node --import tsx scripts/gen-docs.ts --check",
     "prepublishOnly": "npm test",
     "trial:on": "bash scripts/trial.sh on",
@@ -45,7 +45,7 @@
     "ci"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",

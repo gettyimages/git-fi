@@ -89,13 +89,18 @@ export function makeSandbox(): Sandbox {
   const origin = join(root, "origin.git");
   const work = join(root, "work");
 
+  // An empty directory rather than /dev/null, which git for Windows cannot
+  // resolve — either way the repo has no hooks to run.
+  const noHooks = join(root, "no-hooks");
+  mkdirSync(noHooks);
+
   execFileSync("git", ["init", "--quiet", "--bare", "-b", "main", origin]);
   mkdirSync(work);
   git(work, ["init", "--quiet", "-b", "main"]);
   git(work, ["config", "user.email", "test@example.com"]);
   git(work, ["config", "user.name", "Test"]);
   git(work, ["config", "commit.gpgsign", "false"]);
-  git(work, ["config", "core.hooksPath", "/dev/null"]);
+  git(work, ["config", "core.hooksPath", noHooks]);
   git(work, ["config", "push.default", "simple"]);
   git(work, ["remote", "add", "origin", origin]);
 

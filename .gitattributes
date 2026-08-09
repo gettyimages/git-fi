@@ -1,0 +1,6 @@
+# LF in the working tree on every platform. Git for Windows defaults to
+# core.autocrlf=true, which rewrites a checkout to CRLF — that breaks two things
+# at once: the completion scripts and man page ship in the npm package and are
+# read by shells and man(1), and `npm run verify:generated` compares the
+# generator's LF output byte-for-byte against what is on disk.
+* text=auto eol=lf

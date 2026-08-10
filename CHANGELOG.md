@@ -5,6 +5,28 @@ GitHub Release by the release workflow (`.github/workflows/release.yml`).
 
 <!-- releases below -->
 
+## v1.2.1 (2026-08-10)
+
+### Fixes
+
+- `git fi` says `(no branches)` when `fi` holds nothing. It previously printed no
+  branch output at all in that case, so the run came back carrying only the `fi:`
+  pipeline line and read as a command that had failed. At a terminal it also
+  follows the list with how to add a branch. `--bare` and `--json` are unchanged:
+  the marker is human output and stays out of both.
+
+### Other
+
+- The quickstart carries a callout for migrating off the Ruby gem, which shipped
+  through 0.9.3400163. `git fi` runs whichever `git-fi` comes first on your
+  `PATH`, so the gem has to go before the npm package goes on; opening a new
+  shell afterward is the step that gets missed, and skipping it leaves `git fi`
+  reporting an error from a gem that is no longer installed.
+- The README and the quickstart said Node 18 was enough. `package.json` has
+  required Node 22 since v1.2.0, so anyone following the docs onto Node 18 would
+  have hit an engine mismatch at install time.
+
+
 ## v1.2.0 (2026-08-09)
 
 ### Requires Node 22 or newer

@@ -8,7 +8,9 @@ This README is for working on git-fi itself. To install and use it, see the [doc
 
 ## Local development
 
-Requires Node.js >= 18 and git >= 2.13.0.
+Requires Node.js >= 22 and git >= 2.13.0.
+
+The Node floor is the `engines` field in `package.json`, and it tracks active LTS: 22 is the oldest line still supported upstream, and CI runs both LTS lines plus Current. Raising it means moving `engines` and the CI matrix together.
 
 The git floor tracks the newest git feature the code calls rather than a support policy. Today that feature is `git branch -r --format=`, which backs the batched branch listing (`PERF-01`) and which git gained in 2.13.0; every other invocation is older. Reaching for a newer git feature means raising the floor in `PRE-02` and `src/git.ts` together, and naming the feature that moved it so the next person doesn't have to re-derive the number.
 

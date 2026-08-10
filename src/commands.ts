@@ -96,6 +96,12 @@ export async function cmdList(
 
   const gitlab = detectGitlabProject();
 
+  // A zero-row table prints nothing at all (LIST-07), which reads as a command
+  // that failed to produce output rather than as an fi with nothing in it.
+  if (branches.length === 0) {
+    process.stdout.write(`${s.italic("(no branches)")}\n`);
+  }
+
   if (gitlabToken(opts)) {
     const ci = await fetchGitlabCI(branches, opts);
     printCITable(ci, opts, gitlab, defBranch);
@@ -119,6 +125,10 @@ export async function cmdList(
   }
 
   process.stdout.write("\n");
+
+  if (branches.length === 0 && hintsEnabled(opts)) {
+    process.stdout.write("Add a branch with git fi --add <branch>.\n");
+  }
 
   // Names the login rather than the export (LIST-04): the hint only ever
   // reaches a person at a terminal, and that path asks for a read_api token.

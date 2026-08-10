@@ -53,6 +53,7 @@ export function makeStyle(opts: Options) {
     redBold: (s: string) => `${esc("1;31")}${s}${reset}`,
     bold: (s: string) => `${esc("1")}${s}${reset}`,
     dim: (s: string) => `${esc("2")}${s}${reset}`,
+    italic: (s: string) => `${esc("3")}${s}${reset}`,
     fi: () => (on ? `${esc("1")}fi${reset}` : "fi"),
     // Two renderings because the two kinds of reference are worth different
     // amounts of width off a TTY. `link` decorates — losing it costs nothing a

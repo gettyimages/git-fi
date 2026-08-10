@@ -97,7 +97,7 @@ land on it.
 | LIST-04 | Hint suppression     | Covered | `src/style.ts` (`hintsEnabled`), `src/commands.ts` (`cmdList`) |
 | LIST-05 | Filter mode          | Covered | `src/commands.ts` (`cmdList`) |
 | LIST-06 | Insertion order      | Covered | `src/git.ts` (`parseBranchList`) |
-| LIST-07 | Empty list omits table | Covered | `src/style.ts` (`printTable`) |
+| LIST-07 | Empty list shows `(no branches)` | Covered | `src/style.ts` (`printTable`, `makeStyle`), `src/commands.ts` (`cmdList`) |
 
 ## Interactive Selection
 

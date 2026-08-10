@@ -14,6 +14,16 @@ This puts `git-fi` on your `PATH`, which is what makes the `git fi` subcommand w
 npx @gettyimages/git-fi --help
 ```
 
+> [!TIP|label:Migrating from older versions]
+> 💎 git-fi shipped as a Ruby gem through 0.9.3400163. `git fi` runs whichever `git-fi` comes first on your `PATH`, so remove the gem before you install the npm package:
+>
+> ```bash
+> gem uninstall git-fi
+> npm install -g @gettyimages/git-fi
+> ```
+>
+> Then open a new shell. If `git fi --version` still reports a `0.x` version, an older install is ahead of npm's on your `PATH`; `which -a git-fi` lists every one in resolution order.
+
 ### Updating
 
 ```bash
@@ -27,8 +37,6 @@ If that reports an unknown option, you're on a version that predates the flag; u
 ```bash
 npm install -g @gettyimages/git-fi
 ```
-
-`git fi` runs whichever `git-fi` comes first on your `PATH`. An older install — such as the legacy Ruby gem — can shadow a freshly installed npm version. Run `which -a git-fi`; if more than one path is listed, remove the older one (e.g. `gem uninstall git-fi`) so `git fi` resolves to the version you intend.
 
 > Working on git-fi itself? The [README](https://github.com/gettyimages/git-fi#readme) covers running from source.
 
@@ -89,7 +97,7 @@ From any git repository:
 git fi
 ```
 
-If `fi` doesn't exist yet, you'll see an empty list.
+If `fi` exists but nothing has been added to it, the list reads `(no branches)`. If `fi` doesn't exist in the repository at all, git-fi says so and tells you how to bootstrap it.
 
 ### 2. Add a branch
 

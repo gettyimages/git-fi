@@ -514,6 +514,40 @@ describe("add / remove / list lifecycle", () => {
   });
 });
 
+describe("empty fi (LIST-07)", () => {
+  let sb: Sandbox;
+  before(() => {
+    sb = makeSandbox();
+    sb.pushBranch("feature-a", "a.txt", "a\n");
+    sb.bootstrapFi();
+  });
+  after(() => sb.cleanup());
+
+  test("list says so rather than printing no output at all", () => {
+    const r = runFi([], sb.work);
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /\(no branches\)/);
+  });
+
+  test("removing the last branch leaves the same marker", () => {
+    assert.equal(runFi(["--add", "feature-a"], sb.work).status, 0);
+    const r = runFi(["--remove", "feature-a"], sb.work);
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(listedBranches(sb), []);
+    assert.match(r.stdout, /\(no branches\)/);
+  });
+
+  test("the marker stays out of --bare and --json", () => {
+    const bare = runFi(["--bare"], sb.work);
+    assert.equal(bare.status, 0, bare.stderr);
+    assert.equal(bare.stdout.trim(), "");
+
+    const json = runFi(["--json"], sb.work);
+    assert.equal(json.status, 0, json.stderr);
+    assert.deepEqual(JSON.parse(json.stdout).branches, []);
+  });
+});
+
 describe("pruning via --again", () => {
   let sb: Sandbox;
   before(() => {

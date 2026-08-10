@@ -86,7 +86,7 @@ Branch                                                                          
 fi: #12345 running
 ```
 
-The outcome verb names the action: `added to fi`, `removed from fi`, `replaced fi`, `re-merged fi`. Everything below it is the resulting state of `fi`, so a job log is two facts deep — what happened, and what's enlisted now.
+The outcome verb names the action: `added to fi`, `removed from fi`, `replaced fi`, `re-merged fi`. Everything below it is the resulting state of `fi`, so a job log is two facts deep: what happened, and which branches `fi` holds now.
 
 On a terminal the branch name is a clickable link to that comparison and the table stays narrow. A job log can't render the escape sequence, so the reference is written out as markdown — copy a row into Slack, an issue, or an MR comment and the link works there. Pipeline IDs stay bare: carrying both URLs inline pushed the table past 200 columns, and the comparison is the one you leave the log to read.
 

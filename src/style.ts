@@ -1,12 +1,12 @@
-import type { Options } from "./types.js";
+import type { Options, BranchReadiness } from "./types.js";
 
 const isTTY = process.stdout.isTTY === true;
 const isStderrTTY = process.stderr.isTTY === true;
 
-export function colorEnabled(opts: Options): boolean {
+export function colorEnabled(opts: Options, tty = isTTY): boolean {
   if (process.env.NO_COLOR !== undefined) return false;
   if (opts.bare || opts.json) return false;
-  return isTTY;
+  return tty;
 }
 
 export function progressEnabled(opts: Options): boolean {
@@ -40,8 +40,8 @@ export function hyperlinksEnabled(opts: Options, tty = isTTY): boolean {
   return tty;
 }
 
-export function makeStyle(opts: Options) {
-  const on = colorEnabled(opts);
+export function makeStyle(opts: Options, tty = isTTY) {
+  const on = colorEnabled(opts, tty);
   const links = hyperlinksEnabled(opts);
   const esc = (code: string) => (on ? `\x1b[${code}m` : "");
   const reset = esc("0");
@@ -54,6 +54,9 @@ export function makeStyle(opts: Options) {
     bold: (s: string) => `${esc("1")}${s}${reset}`,
     dim: (s: string) => `${esc("2")}${s}${reset}`,
     italic: (s: string) => `${esc("3")}${s}${reset}`,
+    // Closes with SGR 29 (strike off) rather than a full reset, so this can be
+    // applied to the bare name and still sit inside a color or hyperlink span.
+    strike: (s: string) => `${esc("9")}${s}${esc("29")}`,
     fi: () => (on ? `${esc("1")}fi${reset}` : "fi"),
     // Two renderings because the two kinds of reference are worth different
     // amounts of width off a TTY. `link` decorates — losing it costs nothing a
@@ -138,6 +141,57 @@ export function bulletList(
       })
       .join("\n") + "\n"
   );
+}
+
+/**
+ * Strike a branch name that has already landed (READY-07). Applied to the bare
+ * name, before any color or hyperlink wraps it.
+ */
+export function strikeIfMerged(
+  name: string,
+  readiness: BranchReadiness | undefined,
+  opts: Options,
+  tty = isTTY
+): string {
+  return readiness?.merged ? makeStyle(opts, tty).strike(name) : name;
+}
+
+/**
+ * The marker that follows a branch name (READY-02, READY-07): `merged` for a
+ * branch that has landed, otherwise `↓12` where the arrow will be drawn and
+ * `behind 12` where it will not (TERM-10). Empty for a branch level with the
+ * default branch — most branches trail it most of the time, so the marker only
+ * appears where there is something to say — and empty for a branch whose count
+ * git could not produce, which is a different thing from being level with it.
+ *
+ * `merged` supersedes the behind count rather than joining it: a landed branch
+ * trails the default branch by definition, and rebasing is not what it needs.
+ */
+function readinessMarker(
+  readiness: BranchReadiness | undefined,
+  opts: Options,
+  tty = isTTY
+): string {
+  if (!readiness) return "";
+  const s = makeStyle(opts, tty);
+  if (readiness.merged) return s.dim("merged");
+  if (!readiness.behind) return "";
+  return s.dim(
+    colorEnabled(opts, tty)
+      ? `↓${readiness.behind}`
+      : `behind ${readiness.behind}`
+  );
+}
+
+/** A rendered branch cell: the decorated label plus its readiness marker. */
+export function withReadiness(
+  label: string,
+  readiness: BranchReadiness | undefined,
+  opts: Options,
+  tty = isTTY
+): string {
+  const marker = readinessMarker(readiness, opts, tty);
+  return marker ? `${label} ${marker}` : label;
 }
 
 function visibleLength(s: string): number {

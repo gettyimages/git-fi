@@ -1,7 +1,15 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { colorEnabled, hintsEnabled, hyperlinksEnabled, makeStyle } from "../src/style.ts";
+import {
+  colorEnabled,
+  hintsEnabled,
+  hyperlinksEnabled,
+  makeStyle,
+  strikeIfMerged,
+  withReadiness,
+} from "../src/style.ts";
 import type { Options } from "../src/types.ts";
+import type { BranchReadiness } from "../src/types.ts";
 
 const OPTS: Options = { debug: false, bare: false, json: false, select: false, yes: false };
 
@@ -96,5 +104,57 @@ describe("link rendering", () => {
 
   test("link drops to plain text, keeping the table narrow", () => {
     assert.equal(s.link("1284412", "https://gitlab.example.com/group/proj/-/pipelines/1284412"), "1284412");
+  });
+});
+
+// The `tty` argument is what makes the drawn rendering testable: the suite runs
+// off a terminal, so without it only the worded arm is ever reachable.
+describe("readiness rendering (READY-02, READY-07)", () => {
+  const behind = (n: number | null): BranchReadiness => ({
+    ahead: 3,
+    behind: n,
+    merged: false,
+  });
+  const landed: BranchReadiness = { ahead: 0, behind: 14, merged: true };
+
+  test("a trailing branch carries the arrow where it will be drawn", () => {
+    withEnv({ NO_COLOR: undefined }, () => {
+      assert.equal(
+        withReadiness("feature-a", behind(12), OPTS, true).replace(/\x1b\[[0-9;]*m/g, ""),
+        "feature-a ↓12"
+      );
+    });
+  });
+
+  test("and the word where it will not (TERM-10)", () => {
+    assert.equal(withReadiness("feature-a", behind(12), OPTS, false), "feature-a behind 12");
+  });
+
+  test("a branch level with the default branch carries nothing", () => {
+    assert.equal(withReadiness("feature-a", behind(0), OPTS, false), "feature-a");
+  });
+
+  test("an unknown count is not a zero — no marker, and nothing invented", () => {
+    // Null is what a shallow clone and a missing origin/<default> both produce.
+    assert.equal(withReadiness("feature-a", behind(null), OPTS, false), "feature-a");
+  });
+
+  test("a branch git-fi knows nothing about carries nothing", () => {
+    assert.equal(withReadiness("feature-a", undefined, OPTS, false), "feature-a");
+  });
+
+  test("merged supersedes the behind count rather than stacking with it", () => {
+    assert.equal(withReadiness("bugfix-nav", landed, OPTS, false), "bugfix-nav merged");
+    assert.doesNotMatch(withReadiness("bugfix-nav", landed, OPTS, false), /behind/);
+  });
+
+  test("a landed name is struck, and the word rides along for terminals that will not draw it", () => {
+    withEnv({ NO_COLOR: undefined }, () => {
+      assert.equal(strikeIfMerged("bugfix-nav", landed, OPTS, true), "\x1b[9mbugfix-nav\x1b[29m");
+    });
+    // SGR 29 rather than a full reset, so the strike can sit inside a color or
+    // hyperlink span without closing it.
+    assert.equal(strikeIfMerged("bugfix-nav", landed, OPTS, false), "bugfix-nav");
+    assert.equal(strikeIfMerged("feature-a", behind(12), OPTS, true), "feature-a");
   });
 });

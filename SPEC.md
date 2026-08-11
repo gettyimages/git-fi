@@ -19,7 +19,7 @@ git-fi is invoked as a git subcommand. It must be run from the repository root (
 Before any command executes, git-fi runs the following pre-flight checks:
 
 1. `PRE-01` If no `.git` directory exists in the current working directory, then git-fi shall abort with `No .git directory found.` followed by a line pointing to the documentation site (`https://gettyimages.github.io/git-fi/#/`) for newcomers.
-2. `PRE-02` If the git version is below 2.13.0, then git-fi shall abort with: `git version X is too old, please upgrade to at least 2.13.0.` The floor is set by `git branch -r --format=...`, which the batched branch listing depends on (`PERF-01`) and which git gained in 2.13.0; every other git invocation git-fi makes predates it. An implementation that reaches the same listing another way may state its own floor here.
+2. `PRE-02` If the git version is below 2.41.0, then git-fi shall abort with: `git version X is too old, please upgrade to at least 2.41.0.` The floor is set by the `%(ahead-behind:<commit-ish>)` format atom, which carries the per-branch behind count (`READY-01`) and which git gained in 2.41.0. Behind it sit `git merge-tree --write-tree` (2.38.0), which conflict attribution uses (`READY-03`), and `git branch -r --format=...` (2.13.0), which the batched branch listing uses (`PERF-01`); every other git invocation git-fi makes predates all three. The floor is worth naming as a cost: 2.41.0 was released 2023-06-01, so a long-support distribution still shipping an older git needs a newer one installed — Ubuntu 22.04 carries 2.34.1, for one. Note where the cost actually falls, though: `merge-tree` alone puts the floor at 2.38.0 (2022-10), which already excludes 22.04, so reaching the behind count another way would move the floor by three releases rather than back to 2.13.0. An implementation that drops both may state its own floor here.
 3. `PRE-03` If `git config push.default` is `upstream` or `tracking`, then git-fi shall abort with: `Your default git push config is set to a hazardous option.`
 4. `PRE-04` git-fi shall run `git fetch --quiet --prune --no-tags origin` once per invocation, memoizing to avoid redundant fetches. `--no-tags` because git-fi reads branches and never a tag, so asking for the tag refspec buys nothing it uses. What that saves is server-dependent and can be large: on one GitLab project, paired runs measured 12–15 s with tags against 1–2 s without, repeatably and while transferring no tags at all (the local and remote tag sets were identical); on another project of similar size and tag count on the same host, both forms took about a second. Tag count, missing tags, annotated-vs-lightweight, and repo size were each ruled out as the difference, so the cost is something server-side that git-fi can only decline to pay, not predict. A consequence worth knowing: `git fi` no longer refreshes tags as a side effect, so a stale tag is `git fetch`'s job rather than this one's.
 5. `PRE-05` Where `GIT_FI_NO_FETCH` is set, git-fi shall skip the fetch (`PRE-04`) on read-only operations (`list`) and operate on the already-fetched remote-tracking refs. Shell completion sets this so tab-completion stays offline. Mutating operations always fetch regardless, so an integration merge never builds on stale refs. (All environment variables are catalogued in [Environment Variables](#environment-variables).)
@@ -29,7 +29,7 @@ Before any command executes, git-fi runs the following pre-flight checks:
 flowchart TD
     A[git fi invoked] --> B{.git exists?}
     B -- no --> B1[ABORT: No .git directory found]
-    B -- yes --> C{git >= 2.13.0?}
+    B -- yes --> C{git >= 2.41.0?}
     C -- no --> C1[ABORT: git version too old]
     C -- yes --> D{push.default safe?}
     D -- no --> D1[ABORT: hazardous push config]
@@ -103,6 +103,9 @@ flowchart TD
 - **Warnings** (dead branches, already-merged) — yellow
 - **Errors** and abort messages — red, bold
 - **Bullet markers** (` * `) — dim
+- **Behind indicator** (`↓12`) — dim (`READY-02`)
+- **Merged branch** (`bugfix-nav merged`) — name struck through, `merged` dim (`READY-07`)
+- **Conflict attribution** (`conflicts with main`) — red, bold (`READY-04`)
 
 `TERM-05` When stdout is not a TTY, `--bare` or `--json` is specified, or the `NO_COLOR` environment variable is set, the system shall disable all color output (see [no-color.org](https://no-color.org)).
 
@@ -151,7 +154,7 @@ flowchart TD
 | force  | `replaced fi`     |
 | again  | `re-merged fi`    |
 
-In human mode this line goes to stdout, ahead of the branch list, so a reader cannot see the two reordered; under `--bare` or `--json`, stdout is machine-only (`JSON-02`) and it goes to stderr. On failure there is no outcome line: the `MERGE-11` diagnostics carry it.
+In human mode this line goes to stdout, ahead of the branch list, so a reader cannot see the two reordered; under `--bare` or `--json`, stdout is machine-only (`JSON-01`) and it goes to stderr. On failure there is no outcome line: the `MERGE-11` diagnostics carry it.
 
 The display exists to be a canvas for the in-place rewrites, and the branch list it shows is repeated by the table that follows (`LIST-03`). Printed where the rewrites cannot happen, it leaves the *initial* verb (`<- re-merging`, for an operation that finished) as the log's only statement of the outcome.
 
@@ -220,7 +223,7 @@ flowchart TD
 **Behavior:**
 
 - `LIST-02` When `--bare` is specified, git-fi shall print space-separated branch names (without `origin/` prefix) to stdout.
-- `LIST-03` When listing in normal mode, git-fi shall print a tabular list of branch names (without `origin/` prefix). Where a GitLab token resolves (`AUTH-01`), git-fi shall also show CI status, last commit date, and author (see [GitLab CI Status](#gitlab-ci-status)), followed by the fi integration pipeline ID and status (see GITLAB-05).
+- `LIST-03` When listing in normal mode, git-fi shall print a tabular list of branch names (without `origin/` prefix), each carrying the behind indicator where it applies (`READY-02`). Where a GitLab token resolves (`AUTH-01`), git-fi shall also show CI status, last commit date, and author (see [GitLab CI Status](#gitlab-ci-status)), followed by the fi integration pipeline ID and status (see GITLAB-05).
 
 **Output (normal):**
 
@@ -228,10 +231,13 @@ flowchart TD
 Branch
 ──────────────
 feature-a
-feature-b
+feature-b ↓12
+bugfix-nav merged
 
 For enhanced CI status, run git fi --auth=login. To suppress this hint, export GIT_FI_NO_HINTS.
 ```
+
+`bugfix-nav` is struck through on a terminal (`READY-07`), which a code block cannot show.
 
 **Output (bare):**
 
@@ -379,7 +385,7 @@ flowchart TD
    `MERGE-15` Bootstrapping requires explicit confirmation. If `--yes` (`OPTION-07`) is given, git-fi shall bootstrap without prompting. Otherwise the prompt (MERGE-05) requires an interactive terminal: if no `origin/fi` ref exists after fetch and either stdin or stdout is not a TTY, then git-fi shall abort without prompting: `Bootstrapping fi requires confirmation; re-run with --yes or from an interactive terminal.` This keeps an unattended process from creating and force-pushing a new fi branch with no explicit confirmation. Once `origin/fi` exists, every command operates non-interactively.
 
 6. `MERGE-06` When branches in the list no longer exist on origin, git-fi shall remove them and warn on stderr: `Ignoring branches that no longer exist:`
-7. `MERGE-07` When a branch is already an ancestor of the default branch, git-fi shall exclude it from the merge and warn on stderr: `X already in main`. Because the branch list is stored in the resulting commit message (see [Branch List Storage](#branch-list-storage)), excluding the branch also drops it from fi.
+7. `MERGE-07` When a branch is already an ancestor of the default branch (`READY-07`), git-fi shall exclude it from the merge and warn on stderr: `X already in main`. Because the branch list is stored in the resulting commit message (see [Branch List Storage](#branch-list-storage)), excluding the branch also drops it from fi.
 8. `MERGE-08` git-fi shall create a temporary fi branch via `git checkout --quiet -B fi origin/<default_branch>`.
 9. `MERGE-09` git-fi shall merge via `git merge --no-commit --quiet --no-ff --no-edit <branch1> <branch2> ...`
 10. `MERGE-10` When the merge succeeds, git-fi shall:
@@ -389,7 +395,7 @@ flowchart TD
     - Print the branch list table (identical to `list` output, including the fi pipeline per GITLAB-05) so the user sees the final state without running a separate command.
 11. `MERGE-11` When the merge fails, git-fi shall:
     - Abort the failed merge (leave the working tree clean).
-    - Print failed branch names.
+    - Attribute each failing branch (`READY-05`) and print the failed branch names with the remedy each one calls for (`READY-04`).
     - List any new untracked files created during the failed merge, with suggested `rm` commands.
     - Abort with: `Aborted due to merge failures`
 12. `MERGE-12` After the merge process completes (success or failure), git-fi shall:
@@ -410,10 +416,10 @@ On a TTY, the annotation line(s) update in-place to show the terminal state (see
 fi:
  * feature-a
  * feature-b  <- added
-Branch    │ Date       │ Author │ Pipeline
-──────────┼────────────┼────────┼──────────
-feature-a │ 2026-03-30 │ Alice  │ 11111 ✅
-feature-b │ 2026-03-30 │ Bob    │ 22222 ✅
+Branch        │ Date       │ Author │ Pipeline
+──────────────┼────────────┼────────┼──────────
+feature-a     │ 2026-03-30 │ Alice  │ 11111 ✅
+feature-b ↓12 │ 2026-03-30 │ Bob    │ 22222 ✅
 fi: #12345 ⏳
 ```
 
@@ -421,10 +427,10 @@ Off a TTY — a CI job log, or a piped run — the display and its annotations a
 
 ```
 added to fi
-Branch    │ Date       │ Author │ Pipeline
-──────────┼────────────┼────────┼──────────
-feature-a │ 2026-03-30 │ Alice  │ 11111 success
-feature-b │ 2026-03-30 │ Bob    │ 22222 running
+Branch              │ Date       │ Author │ Pipeline
+────────────────────┼────────────┼────────┼──────────
+feature-a           │ 2026-03-30 │ Alice  │ 11111 success
+feature-b behind 12 │ 2026-03-30 │ Bob    │ 22222 running
 fi: #12345 running
 ```
 
@@ -432,14 +438,26 @@ If no GitLab token resolves (`AUTH-01`), the table has only a Branch column (no 
 
 ### Failure Output
 
+Each failing branch is named with what it conflicts with and the remedy that clears it (`READY-04`):
+
 ```
 Failed trying to merge branch(es):
 
- * feature-a
- * feature-b
+ * feature-a (bob@example.com)  conflicts with main
+     * src/config.ts
+     git checkout feature-a && git rebase origin/main && git push --force-with-lease
+ * feature-c (cara@example.com)  conflicts with feature-b (bob@example.com)
+     * src/router.ts
+     * src/routes.ts
+     rebase feature-c onto feature-b (or the reverse) and settle the overlap there
+
+Or temporarily remove them from fi — the conflict comes back when they do:
+  git fi -r feature-a feature-c
 
 Aborted due to merge failures
 ```
+
+Both branches are in fi here, so both are offered to `-r`. On a failed `--add` the branch never entered fi and the line leaves it out (`READY-04`).
 
 If new untracked files were created during the failed merge:
 
@@ -451,6 +469,52 @@ Some extra untracked files have been left as a result of the failed merge(s):
 You can delete these by running:
   rm "conflict-file.txt"
 ```
+
+## Merge Readiness
+
+A branch list that merged cleanly yesterday can fail today: the default branch moves, and branches gain commits. When it does fail, the message `Failed trying to merge branch(es)` names the whole failing set without saying whose problem it is, and the reflex it invites is `--force` — replace fi with one branch and start over, discarding everyone else's integration. The usual fix is smaller than that: one or two branches need a rebase. These requirements make that difference visible.
+
+`READY-01` git-fi shall report, for each branch, how many commits of the default branch it does not yet contain — its *behind* count — read from the `%(ahead-behind:origin/<default>)` field of the batched `git branch -r` listing rather than from a `git rev-list --count` per branch (`PERF-01`). The listing shall be memoized per invocation (`PERF-02`), so the counts cost one `git branch -r` at most however many callers ask for them. The atom sets the git floor (`PRE-02`), and git-fi shall ask for it only on the listing whose caller reads the counts: it costs git a revision walk per ref, which the candidate listing behind `--select` would spend and discard.
+
+Three conditions leave the counts *unknown*, and git-fi shall represent unknown as distinct from zero — zero is a real position, level with the default branch:
+
+- **No `origin/<default>` ref.** The atom is fatal when its argument does not resolve, and the default branch resolves to a name that need not exist as a ref (`BRANCH-05`). git-fi shall check the ref first and ask for the atom only when it is there, so a repo without one still lists its branches.
+- **A shallow clone.** The walk stops at the graft, so a count describes the fetched window rather than the branch: one measured 1 ahead and 6 behind reports 2 and 2. git-fi shall treat the *behind* count as unknown wherever `git rev-parse --is-shallow-repository` is true — it is reported to a reader as a number (`READY-02`), and a wrong one is worse than none, in an environment where the output is read long afterwards. The *ahead* count is kept: the only thing derived from it is already-merged status (`READY-07`), and truncation moves that the safe way, since a window hiding a branch's commits makes it look more ahead rather than less. A landed branch can therefore go unpruned in a shallow clone, but a live one is never declared merged.
+- **A field that did not parse.** `%(authoremail:trim)` is free text a commit author chooses, so it can carry the field separator; git-fi shall discard any listing line that does not split into exactly the number of fields the format asked for, and shall strip control characters from the fields it keeps (`READY-04`).
+
+`READY-02` When listing branches (`LIST-03`), git-fi shall mark each branch with a nonzero behind count (`READY-01`) as `↓N` beside its name, dim, and shall word it `behind N` under the `TERM-10` conditions where the glyph is not the right carrier. A branch whose count is unknown (`READY-01`) carries no marker, the same as one level with the default branch: the marker states a position, and there is none to state. The marker sits inside the Branch cell rather than in a column of its own: the table has only a Branch column when no token resolves (`LIST-03`), and a column that is blank for most rows costs more width than the signal is worth. It is dim because most branches are behind most of the time — being behind is not itself a problem, and the marker earns attention only once a conflict (`READY-04`) names the branch.
+
+`READY-03` git-fi shall determine, for a given branch list, which branches cannot be merged and what each one conflicts with, by merging the list incrementally with `git merge-tree --write-tree`: starting from `origin/<default>` and adding branches one at a time in insertion order (`LIST-06`), wrapping each accumulated tree with `git commit-tree` to carry into the next step. A branch whose merge-tree reports a conflict shall be probed against `origin/<default>` alone, which separates the two cases: failing there too means it conflicts with the default branch, and failing only against the accumulated set means it conflicts with something already in that set. In the second case git-fi shall probe the branch pairwise against each branch already merged and name the ones that actually conflict, rather than naming the accumulated set as a whole — the difference between "rebase these two" and "everything is broken" is the point of attributing at all. Where no single peer conflicts — the overlap appears only in the combination — git-fi shall name the accumulated set, which is then the honest answer. Conflicted paths come from `--name-only -z`, whose NUL separators keep a path with a non-ASCII byte or a newline intact; the line-based form C-quotes such a path into a string that matches nothing on disk. A branch that fails is left out of the accumulated set, so one conflict does not cascade into a verdict against every branch after it.
+
+A nonzero exit is not by itself a conflict. `git merge-tree` exits 1 for an unresolvable ref and for a shallow clone's unrelated histories as well as for a conflict, writing nothing to stdout in the error cases, and exits 128 for others. The tree OID is what separates them: a conflict always writes one. git-fi shall treat a probe that produced no tree OID as *could not attribute*, and shall abandon attribution for the whole list rather than filing the branch as conflicting with the default branch — a false first verdict propagates, because the branch is then left out of the accumulated set and every branch after it is measured against a set it should have joined.
+
+`READY-04` git-fi shall report each conflicting branch (`READY-03`) with the remedy its case calls for:
+
+- **Conflicts with the default branch** — the branch needs rebasing onto the default branch and re-pushing, and git-fi shall print that command line.
+- **Conflicts with a peer** — git-fi shall name the peer branches and say that one needs rebasing onto the other, so the two owners can settle the overlap between them rather than each discovering it at release time.
+
+Every branch named shall carry its tip author's email, so the report says who is responsible for the fix rather than leaving the reader to work out whose branch it is. The email comes from the `%(authoremail:trim)` field of the same batched listing (`PERF-01`), and it identifies whoever last moved the branch — git records no branch owner, so a bot-pushed tip reports the bot. The default branch is named bare: it is nobody's to rebase.
+
+The email is chosen by whoever wrote the commit and git accepts ANSI escapes in one: `git fsck --strict` passes them and the format atom emits the bytes verbatim. Printed beside a command line, `\e[2K` or `\e[A` would let a branch tip repaint text git-fi had already written. git-fi shall strip control characters from listing fields as they are read (`READY-01`), rather than leaving each printing site to remember.
+
+The command lines the report prints are executed by a person pasting them, so a branch name in one shall be single-quoted. A ref name may contain backticks, `;`, `&&`, `|`, `>`, quotes and a leading `-`, and single quotes are the only form that stops command substitution — inside double quotes a backtick still expands. A name with nothing a shell reads shall be left bare, so the common case still reads as something a person would have typed.
+
+Either way git-fi shall list the conflicted paths beneath the branch as list items — a single path is still rendered as a list, so the shape does not change with the count — capping the list and counting the remainder rather than dropping it silently.
+
+git-fi shall close the report with the `--remove` command line that takes the failing branches out of fi, marked as temporary and placed below the fixes. Unlike `--force` it drops only the named branches, so the rest of fi survives; it defers the conflict rather than resolving it, which is why it follows the rebases instead of leading. The line shall name only the failing branches fi actually holds: a branch that failed on the way *in* was never added, so there is nothing to remove, and where none of the failing branches is in fi the line is omitted. git-fi shall not offer `--force` as a remedy at all: replacing fi with one branch discards the other branches' integration instead of resolving anything, and naming the pair is what makes the smaller fix visible.
+
+`READY-05` When the merge fails (`MERGE-11`), git-fi shall run attribution (`READY-03`) over the branch list it tried to merge and print the result (`READY-04`) in place of the bare list of failed branch names.
+
+Attribution can name nobody, in two ways that call for different things to be said, and git-fi shall say which rather than falling back to the bare list alone:
+
+- **Every branch merged cleanly on its own.** The combined merge (`MERGE-09`) is git's octopus strategy, which has no rename detection, while `merge-tree` uses the newer engine, which has — so a branch renaming a file and a branch editing it fail the combined merge and come back clean from every probe. git-fi shall report that the conflict is in the combination.
+- **A probe could not run** (`READY-03`). git-fi shall report that nothing names the branch at fault, and point at `--debug` for what git reported.
+
+`READY-06` A branch list that merges cleanly shall cost attribution (`READY-03`) one `git merge-tree` and one `git commit-tree` per branch. Each branch that fails costs one further probe against the default branch, and where the default branch is not the cause, one pairwise probe per branch already in the set — so a list on which every branch fails that way is quadratic in the branch count. That growth is left uncapped where the path list is capped (`READY-04`), because it is bounded by the branch count rather than by a repository's contents and is only reached after a merge has already failed. Attribution shall read and write nothing outside the object database — no ref, no index, no working tree, and the intermediate commits it writes are unreferenced, so `git gc` reclaims them. It therefore imposes no clean-index precondition of its own (`ADD-01`, `MERGE-02`) and leaves the cleanup in `MERGE-11` and `MERGE-12` to run exactly as it would have.
+
+`READY-07` A branch with nothing ahead of the default branch — the *ahead* half of the same `%(ahead-behind:...)` field (`READY-01`) — has landed: every commit it carries is already on the default branch, and the next mutation drops it from fi (`MERGE-07`). git-fi shall determine already-merged status from that field rather than from a separate `git branch -r --merged` invocation, so one listing answers both questions (`PERF-01`), and shall derive it in one place, so the display and the pruning cannot disagree about what "landed" means.
+
+An unknown ahead count (`READY-01`) shall read as *not* merged. Pruning rewrites fi's branch list and force-pushes it, so a missing signal has to fail towards keeping someone's branch: `git branch -r --merged` could not answer "merged" by accident, and a count derived from a parse can. When listing, git-fi shall strike the branch name through and mark it `merged`, and shall suppress the behind marker for it (`READY-02`) — a landed branch trails the default branch by definition, and rebasing is not what it needs. The word accompanies the strikethrough rather than replacing it: not every terminal draws SGR 9, and a name that silently renders unstruck would carry no signal at all, the same reason `GITLAB-06` words a deleted branch instead of only coloring it.
 
 ## Branch List Storage
 
@@ -587,20 +651,52 @@ These are standard [GitLab predefined variables](https://docs.gitlab.com/ci/vari
 
 `JSON-01` When `--json` is specified, git-fi shall write a single JSON object to stdout. git-fi shall direct all human-readable output (progress, hints, warnings) to stderr only.
 
-The `command` field names the action that ran — `list`, `add`, `remove`, `force`, `again`, or `abort` — so a caller can tell what produced the branch list:
+The `command` field names the action that ran — `list`, `add`, `remove`, `force`, `again`, or `abort` — so a caller can tell what produced the branch list. `branches` is an array of objects in display order (`LIST-06`), each carrying everything git-fi knows about that branch:
 
 ```json
 {
   "command": "list",
-  "branches": ["feature-a", "feature-b"],
-  "ci": [
-    {"branch": "feature-a", "status": "success", "author": "Name", "date": "2026-03-13"},
-    {"branch": "feature-b", "status": "failed", "author": "Name", "date": "2026-03-12"}
+  "branches": [
+    {
+      "name": "feature-a",
+      "ahead": 5,
+      "behind": 0,
+      "merged": false,
+      "ci": {
+        "status": "success",
+        "pipelineId": "11111",
+        "author": "Name",
+        "date": "2026-03-13",
+        "branchMissing": false
+      }
+    },
+    {"name": "feature-b", "ahead": 3, "behind": 12, "merged": false, "ci": null},
+    {"name": "feature-c", "ahead": 0, "behind": 14, "merged": true, "ci": null}
   ]
 }
 ```
 
-`JSON-02` Where a GitLab token resolves (`AUTH-01`), git-fi shall include a `ci` array in the JSON output. When no token resolves, git-fi shall omit the `ci` array.
+Everything about a branch is nested under it rather than spread across arrays keyed by branch name. Parallel arrays make a consumer join on the name to answer "what is the state of this branch", and let the arrays disagree about which branches exist; one object per branch cannot.
+
+`JSON-02` Where a GitLab token resolves (`AUTH-01`), git-fi shall populate each branch's `ci` object. Where no token resolves, or the path taken does not reach the API, `ci` shall be `null` — present and empty rather than absent, so a consumer reads the same shape either way.
+
+`JSON-03` Each branch shall carry its `ahead` and `behind` counts and its `merged` flag (`READY-01`, `READY-07`). Counts git could not produce shall be `null` rather than `0`, which is a real position — level with the default branch.
+
+When a merge fails under `--json`, git-fi shall write the object rather than only aborting, and shall still exit non-zero (`EXIT-02`) — a pipeline that stops on the exit code should not have to scrape stderr to learn which branch needs the rebase. Nothing is pushed on that path, so `branches` is fi as it still stands, the same thing it means after an action that succeeded; the set the merge tried is a different list and gets its own name, `attempted`. `conflicts` carries the attribution (`READY-03`), and is empty where attribution named nobody (`READY-05`). The failure object reaches no API, so every `ci` in it is `null`. `with` names what the branch conflicts with, the default branch by its own name:
+
+```json
+{
+  "command": "add",
+  "branches": [
+    {"name": "feature-b", "ahead": 2, "behind": 7, "merged": false, "ci": null}
+  ],
+  "attempted": ["feature-b", "feature-a", "feature-c"],
+  "conflicts": [
+    {"branch": "feature-a", "with": ["main"], "paths": ["src/config.ts"]},
+    {"branch": "feature-c", "with": ["feature-b"], "paths": ["src/router.ts"]}
+  ]
+}
+```
 
 ## Exit Codes
 
@@ -611,8 +707,8 @@ The `command` field names the action that ran — `list`, `add`, `remove`, `forc
 
 Every git query and API call costs a process spawn or a network round trip, and both scale with the number of branches in fi. These requirements keep that cost flat rather than linear, so a large fi stays as responsive as a small one.
 
-- `PERF-01` git-fi shall not issue a per-branch git invocation for a question one invocation can answer for every branch at once. Branch existence shall come from a single `git for-each-ref refs/remotes`; already-merged status from a single `git branch -r --merged origin/<default>` (in place of a `git merge-base --is-ancestor` per branch); and branch commit dates from the `%(committerdate:short)` field of the `git branch -r` listing that already enumerates them (in place of a `git log -1` per branch).
-- `PERF-02` git-fi shall resolve the default branch (`BRANCH-05`) and the GitLab project (`GITLAB-02`) at most once per invocation, memoizing the result. Both are derived from refs and remotes that the fetch (`PRE-04`) has already settled before any command reads them.
+- `PERF-01` git-fi shall not issue a per-branch git invocation for a question one invocation can answer for every branch at once. Branch existence shall come from a single `git for-each-ref refs/remotes`; and branch commit dates, behind counts (`READY-01`), and already-merged status (`READY-07`) from the `%(committerdate:short)` and `%(ahead-behind:...)` fields of the one `git branch -r` listing that already enumerates them — in place of a `git log -1` and a `git rev-list --count` per branch, a `git merge-base --is-ancestor` per branch, and the separate `git branch -r --merged origin/<default>` the ahead half supersedes.
+- `PERF-02` git-fi shall resolve the default branch (`BRANCH-05`) and the GitLab project (`GITLAB-02`) at most once per invocation, memoizing the result, and shall memoize the unfiltered `git branch -r` listing (`PERF-01`) the same way — several paths ask it for candidate branches, behind counts, merged status and tip authors independently. All are derived from refs and remotes that the fetch (`PRE-04`) has already settled before any command reads them.
 - `PERF-03` git-fi shall issue GitLab API calls concurrently under the bound in `GITLAB-07`, never serially per branch.
 
 ## Platform Compatibility
@@ -635,3 +731,7 @@ git-fi notifies the user when a newer version has been published to npm, without
 - `UPDATE-03` git-fi shall suppress both the notice and the background check when stdout is not a TTY, when `$CI` is set, when `--json` or `--bare` is used, when `$GIT_FI_NO_HINTS` or `$NO_UPDATE_NOTIFIER` is set, or when the running build is a dev build (`BUILD-01`). The notice names `git fi --update`, which installs the published global over the linked checkout and takes the trial down with it.
 - `UPDATE-04` The cache shall live at `$XDG_CACHE_HOME/git-fi/update-check.json`, falling back to `~/.cache/git-fi/update-check.json`.
 - `UPDATE-05` `--update` (`-u`) shall update the installed git-fi by running `npm install -g <package>@latest` with npm's stdio inherited, exiting with npm's exit code and adding no output of its own. Where the platform resolves npm through a `.cmd` shim (Windows), git-fi shall spawn it through the shell, which is the only path left: node finds nothing under the bare name and refuses a direct `.cmd` with `EINVAL`. A consequence is that a missing npm is then the shell's error to report rather than git-fi's, so the `Could not run npm` message is a POSIX-only guarantee. It shall run before the update notice and the pre-flight checks, so it works from any directory. It shall consult neither the cache nor the registry first: the throttle in `UPDATE-02` serves the passive notice, whereas `--update` is an explicit request to install now, and a redundant reinstall is a better answer than refusing one. It shall collide with the actions in `COMMAND-*` the way they collide with each other, and shall reject branch-name arguments.
+
+## Future Requirements
+
+`FUT-01` (→ `READY`) `--check [<branch>...]` shall report merge readiness for the branches currently in fi plus any named branches as candidate additions, running attribution (`READY-03`) and printing the result (`READY-04`) without merging, committing, pushing, or otherwise changing fi. This is the dry run for "will my add land, and if not, whose rebase clears it?" — the question the `--force` reflex currently answers destructively. Because attribution touches no working tree (`READY-06`), `--check` shall run against a dirty index. It needs a global option (`OPTION-*`) with a collision rule against the mutating actions, branch-argument completion matching `--add`'s (`COMPLETE-03`), and entries in the help, man page, and docs.

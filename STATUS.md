@@ -12,8 +12,9 @@ land on it.
 
 | Status  | Count |
 |---------|-------|
-| Covered | 123   |
-| Total   | 123   |
+| Covered | 129   |
+| Planned | 1     |
+| Total   | 130   |
 
 ## Pre-flight Checks
 
@@ -146,6 +147,18 @@ land on it.
 | MERGE-14 | Bootstrap link           | Covered | `src/ui.ts` (`confirm`) |
 | MERGE-15 | Bootstrap confirmation / `--yes` | Covered | `src/merge.ts` (`mergeProcess`) |
 
+## Merge Readiness
+
+| ID    | Description              | Status  | Location                  |
+|-------|--------------------------|---------|---------------------------|
+| READY-01 | Behind count           | Covered | `src/git.ts` (`listRemoteBranches`, `cachedListing`, `branchReadiness`) |
+| READY-02 | Behind marker         | Covered | `src/style.ts` (`readinessMarker`, `withReadiness`), `src/commands.ts` (`cmdList`), `src/gitlab.ts` (`printCITable`) |
+| READY-03 | Merge-tree attribution | Covered | `src/readiness.ts` (`attributeConflicts`, `mergeTree`, `commitTree`) |
+| READY-04 | Per-branch remedy     | Covered | `src/readiness.ts` (`renderConflicts`, `shq`) |
+| READY-05 | Attribution on failure | Covered | `src/merge.ts` (`mergeProcess`) |
+| READY-06 | Bounded probes        | Covered | `src/readiness.ts` (`attributeConflicts`) |
+| READY-07 | Merged branch marker  | Covered | `src/git.ts` (`branchReadiness`, `mergedRemoteBranches`), `src/style.ts` (`strikeIfMerged`) |
+
 ## Branch List Storage
 
 | ID    | Description           | Status  | Location                |
@@ -198,7 +211,8 @@ land on it.
 | ID    | Description           | Status  | Location                  |
 |-------|-----------------------|---------|---------------------------|
 | JSON-01 | JSON to stdout, human output to stderr | Covered | `src/commands.ts` (`cmdList`), `src/merge.ts` (`mergeProcess`), `src/ui.ts` (`confirm`) |
-| JSON-02 | CI array conditional  | Covered | `src/commands.ts` (`cmdList`) |
+| JSON-02 | Per-branch `ci`, null without a token | Covered | `src/commands.ts` (`cmdList`), `src/json.ts` (`branchJson`) |
+| JSON-03 | Per-branch counts, `conflicts` on failure | Covered | `src/json.ts` (`branchJson`), `src/merge.ts` (`mergeProcess`) |
 
 ## Exit Codes
 
@@ -212,7 +226,7 @@ land on it.
 | ID     | Description                    | Status  | Location                       |
 |--------|--------------------------------|---------|--------------------------------|
 | PERF-01 | Batched git queries, not per-branch | Covered | `src/git.ts` (`listRemoteBranches`, `existingRemoteRefs`, `mergedRemoteBranches`), `src/merge.ts` (`mergeProcess`) |
-| PERF-02 | Default branch and project memoized | Covered | `src/git.ts` (`defaultBranch`), `src/gitlab.ts` (`detectGitlabProject`) |
+| PERF-02 | Default branch, project and listing memoized | Covered | `src/git.ts` (`defaultBranch`, `cachedListing`), `src/gitlab.ts` (`detectGitlabProject`) |
 | PERF-03 | Concurrent GitLab API calls    | Covered | `src/gitlab.ts` (`mapLimit`, `fetchGitlabCI`) |
 
 ## Platform
@@ -237,3 +251,9 @@ land on it.
 | UPDATE-03 | Suppression conditions   | Covered | `src/style.ts` (`hintsEnabled`), `src/update-check.ts` (`suppressed`), `src/build-info.ts` (`isDevBuild`) |
 | UPDATE-04 | Cache location           | Covered | `src/update-check.ts` (`cachePath`) |
 | UPDATE-05 | `--update` installs the latest version | Covered | `src/update-check.ts` (`updateSelf`), `src/index.ts` (`parseArgs`, `main`) |
+
+## Future Requirements
+
+| ID     | Description              | Status  | Location                       |
+|--------|--------------------------|---------|--------------------------------|
+| FUT-01 | `--check` dry run     | Planned | —                     |

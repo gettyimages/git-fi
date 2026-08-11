@@ -1,6 +1,6 @@
 import type { Options, CIResult } from "./types.js";
-import { makeStyle, colorEnabled, createSpinner, printTable, abort } from "./style.js";
-import { git } from "./git.js";
+import { makeStyle, colorEnabled, createSpinner, printTable, abort, withReadiness, strikeIfMerged } from "./style.js";
+import { git, branchReadiness } from "./git.js";
 import { resolveToken, type TokenResolution } from "./auth.js";
 
 export const STATUS_EMOJI: Record<string, string> = {
@@ -310,15 +310,22 @@ export function printCITable(
   defaultBranch: string
 ): void {
   const s = makeStyle(opts);
+  const readiness = branchReadiness(defaultBranch);
   const headers = ["Branch", "Date", "Author", "Pipeline"];
   const rows = ciResults.map((item) => {
     const branchName = item.branch.replace(/^origin\//, "");
+    const r = readiness.get(item.branch);
+    const text = strikeIfMerged(branchName, r, opts);
     const nameText = item.branchMissing
       ? s.yellow(`${branchName} (deleted)`)
       : gitlab
-        ? s.linkOrMarkdown(s.cyan(branchName), branchCompareUrl(gitlab, branchName, defaultBranch))
-        : s.cyan(branchName);
-    const branchLabel = nameText;
+        ? s.linkOrMarkdown(s.cyan(text), branchCompareUrl(gitlab, branchName, defaultBranch))
+        : s.cyan(text);
+    // A deleted branch has no readiness worth reporting — the remedy is to drop
+    // it from fi, not to rebase it.
+    const branchLabel = item.branchMissing
+      ? nameText
+      : withReadiness(nameText, r, opts);
     const status = item.status in STATUS_EMOJI ? item.status : "missing";
     const label = statusLabel(status, opts);
     const pipeline = item.pipelineId

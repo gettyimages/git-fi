@@ -487,7 +487,15 @@ describe("add / remove / list lifecycle", () => {
     assert.equal(r.status, 0, r.stderr);
     const obj = JSON.parse(r.stdout);
     assert.equal(obj.command, "list");
-    assert.deepEqual(obj.branches, ["feature-a", "feature-b"]);
+    assert.deepEqual(
+      obj.branches.map((b: { name: string }) => b.name),
+      ["feature-a", "feature-b"]
+    );
+    // Every branch carries its own state — no arrays keyed by name to join on.
+    assert.deepEqual(obj.branches[0].ci, null);
+    assert.equal(obj.branches[0].merged, false);
+    assert.equal(typeof obj.branches[0].ahead, "number");
+    assert.equal(typeof obj.branches[0].behind, "number");
   });
 
   test("remove rebuilds fi without the branch", () => {
@@ -640,7 +648,10 @@ describe("--bare / --json on non-list actions (OPTION-08)", () => {
     assert.equal(r.status, 0, r.stderr);
     const parsed = JSON.parse(r.stdout);
     assert.equal(parsed.command, "add");
-    assert.deepEqual(parsed.branches, ["feature-a"]);
+    assert.deepEqual(
+      parsed.branches.map((b: { name: string }) => b.name),
+      ["feature-a"]
+    );
   });
 
   test("--add --bare emits only the branch names on stdout", () => {

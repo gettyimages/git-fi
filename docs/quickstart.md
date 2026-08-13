@@ -22,7 +22,24 @@ npx @gettyimages/git-fi --help
 > npm install -g @gettyimages/git-fi
 > ```
 >
-> Then open a new shell. If `git fi --version` still reports a `0.x` version, an older install is ahead of npm's on your `PATH`; `which -a git-fi` lists every one in resolution order.
+> Let `gem uninstall` do the removal rather than deleting the gem's files by hand. RubyGems puts launchers named `git-fi` in Ruby's own `bin` directory, outside the gem directory, and that directory can sit earlier on `PATH` than npm's. Delete the gem by hand and those launchers stay behind pointing at code that is gone, so `git fi` fails with whatever the dead launcher produces: a Ruby `cannot load such file` error, or `Maybe git-fi is broken?`.
+>
+> Then open a new shell. If `git fi --version` still reports a `0.x` version, or you get the broken-launcher error above, an older `git-fi` is ahead of npm's on your `PATH`. List every one in resolution order and delete those outside npm's own prefix (`npm config get prefix`):
+>
+> ```bash
+> which -a git-fi
+> ```
+>
+> git-fi says so itself where it can: `--version` names any other `git-fi` that `PATH` resolves ahead of it. When the other one is winning, `git fi` never reaches git-fi to ask, so reach it directly instead — `npx @gettyimages/git-fi --version` prints the version and the launcher standing in front of it.
+
+> [!TIP|label:Migrating on Windows]
+> Run `gem uninstall` from a shell started as administrator where Ruby is installed system-wide (under `C:\tools`, say). Without it the removal can quietly not happen; `gem list git` before and after tells you whether it did.
+>
+> A leftover launcher with no file extension gives `Program 'git-fi' failed to run: No application is associated with the specified file`. `Get-Command` names the one that wins and lists the rest in resolution order:
+>
+> ```powershell
+> Get-Command git-fi -All
+> ```
 
 ### Updating
 

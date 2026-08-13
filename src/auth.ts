@@ -14,7 +14,7 @@ import { makeStyle, abort } from "./style.js";
 const SCHEMA_VERSION = 1;
 
 /** The only scope git-fi's reads need. Anything else is more than it asked for. */
-const REQUIRED_SCOPE = "read_api";
+export const REQUIRED_SCOPE = "read_api";
 
 const API_TIMEOUT_MS = 10000;
 

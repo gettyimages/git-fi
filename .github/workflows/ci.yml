@@ -32,6 +32,70 @@ jobs:
       - run: npm ci
       - run: npm test
 
+  # The matrix above drives the compiled binary straight out of the checkout, so
+  # nothing there installs globally or reaches git-fi by the name a shell
+  # resolves. That left the whole of INSTALL-01 untested: a user migrating off
+  # the Ruby gem had a launcher left in Ruby's bin directory, ahead of npm's
+  # prefix on PATH, and `git fi` ran that one instead. Windows PowerShell rather
+  # than pwsh because that is the shell the report came from.
+  windows-install:
+    runs-on: windows-latest
+    defaults:
+      run:
+        # INSTALL-01 writes its report to stderr, and this shell defaults
+        # ErrorActionPreference to stop — which turns a native command writing
+        # anything to stderr into a step failure. Every step below opts out.
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm pack
+
+      - name: git fi reaches the global install, and says nothing extra
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $tgz = (Get-ChildItem gettyimages-git-fi-*.tgz).FullName
+          npm install -g $tgz
+          $v = (git fi --version) -join ''
+          if ($v -notmatch '^git-fi \d+\.\d+\.\d+$') { throw "git fi --version said: $v" }
+
+          # Nothing is shadowing it, so the notice must stay quiet. Without this
+          # the same-install check could regress to reporting every install as
+          # shadowed by its own launcher and no assertion here would notice.
+          $all = (& git fi --version 2>&1 | Out-String)
+          if ($all -match 'ahead of this one') { throw "unexpected shadow report: $all" }
+
+      - name: a launcher ahead of it on PATH is reported (INSTALL-01)
+        run: |
+          $ErrorActionPreference = 'Continue'
+
+          # Shaped like what RubyGems leaves behind: no extension, and no gem
+          # under it any more.
+          $stale = Join-Path $PWD 'stale'
+          New-Item -ItemType Directory -Force $stale | Out-Null
+          Set-Content (Join-Path $stale 'git-fi') "#!/usr/bin/env ruby`nrequire 'git_fi'"
+          $env:PATH = "$stale;$env:PATH"
+
+          # Reached by path rather than by name, which is the only way the copy
+          # being shadowed gets to say anything at all (`npx` for the user who
+          # hit this).
+          $prefix = (npm config get prefix).Trim()
+          $entry = Join-Path $prefix 'node_modules\@gettyimages\git-fi\dist\index.js'
+
+          $stdout = & node $entry --version 2>$null
+          if (($stdout -join '') -notmatch '^git-fi \d+\.\d+\.\d+$') {
+            throw "stdout should carry only the version, got: $($stdout -join '')"
+          }
+
+          $all = (& node $entry --version 2>&1 | Out-String)
+          if ($all -notmatch 'stale') { throw "expected the shadow report, got: $all" }
+
   # Fail if the committed man page, completions, or docs tables are stale — i.e.
   # someone changed src/help.ts without re-running the generator. Keeps the
   # generated artifacts honest, since they ship in the npm package and the docs

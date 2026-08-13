@@ -14,7 +14,9 @@ git fi [options] [<branch>...]
 
 git-fi is invoked as a git subcommand. It must be run from the repository root (a `.git` directory must exist in the current working directory).
 
-## Pre-flight Checks
+## `PRE`
+
+Pre-flight Checks
 
 Before any command executes, git-fi runs the following pre-flight checks:
 
@@ -37,13 +39,15 @@ flowchart TD
     E --> F[Dispatch command]
 ```
 
-## Global Options
+## `OPTION`
+
+Global Options
 
 | ID       | Flag        | Short | Description                                                               |
 |----------|-------------|-------|---------------------------------------------------------------------------|
 | `OPTION-01` | `--debug`   | `-d`  | Trace every git command with its elapsed time (`OPTION-11`); remove `--quiet` from git invocations |
 | `OPTION-02` | `--bare`    | `-b`  | Machine-readable output: space-separated branch names (any action, `OPTION-08`) |
-| `OPTION-03` | `--json`    | `-j`  | Structured JSON output (any action, `OPTION-08`; see [JSON Output](#json-output)) |
+| `OPTION-03` | `--json`    | `-j`  | Structured JSON output (any action, `OPTION-08`; see [JSON Output](#json)) |
 | `OPTION-04` | `--select`  | `-s`  | Interactive branch picker for `--add` / `--remove` (requires TTY)         |
 | `OPTION-05` | `--version` | `-V`  | Print the current version string to stdout and exit 0 (see `BUILD-02` for a dev build) |
 | `OPTION-06` | `--help`    | `-h`  | Print a usage summary to stdout and exit 0; direct to the documentation site for full details |
@@ -60,13 +64,17 @@ flowchart TD
 
 `OPTION-11` Under `--debug`, git-fi shall write each git command to stderr before running it and its elapsed seconds after it returns, including when it fails. Announcing before and timing after is what makes a hang attributable while it is still hanging, rather than only once the command returns. `--debug` applies to every git invocation in the run, not to the call sites that opt in: it describes the run, and a trace that omits the read queries cannot answer where a slow repository spends its time.
 
-## Help & Documentation
+## `HELP`
+
+Help & Documentation
 
 `HELP-01` When `help` is given as the sole argument, git-fi shall print the usage summary to stdout and exit 0. (git routes the `--help` flag to `man git-fi`; the bare `help` word and `-h` reach git-fi directly, providing a man-independent path to the summary.)
 
 `HELP-02` git-fi shall ship a man page (`git-fi.1`, declared via the package `man` field) so that `git fi --help` — which git routes to `man git-fi` — displays the manual.
 
-## Shell Completion
+## `COMPLETE`
+
+Shell Completion
 
 `COMPLETE-01` git-fi shall provide shell completion for bash and zsh, discovered by git for the `git fi` subcommand, completing the action/option flags and branch-name arguments.
 
@@ -82,7 +90,9 @@ flowchart TD
 
 `COMPLETE-07` Installing git-fi globally shall install the zsh completion files, so `git fi <TAB>` works without a further step. They shall go under npm's own prefix (`<prefix>/share/zsh/site-functions`, the directory Homebrew and `/usr/local` zsh setups carry on their fpath, and the prefix npm already links the man page into); git-fi shall write nothing outside that prefix and shall not edit the user's rc files. A local (non-global) install shall install nothing. A prefix that cannot be resolved or written shall not fail the install: git-fi shall report the `COMPLETE-06` command that finishes the job and exit 0.
 
-## Terminal Output
+## `TERM`
+
+Terminal Output
 
 ### General
 
@@ -220,7 +230,7 @@ flowchart TD
 **Behavior:**
 
 - `LIST-02` When `--bare` is specified, git-fi shall print space-separated branch names (without `origin/` prefix) to stdout.
-- `LIST-03` When listing in normal mode, git-fi shall print a tabular list of branch names (without `origin/` prefix). Where a GitLab token resolves (`AUTH-01`), git-fi shall also show CI status, last commit date, and author (see [GitLab CI Status](#gitlab-ci-status)), followed by the fi integration pipeline ID and status (see GITLAB-05).
+- `LIST-03` When listing in normal mode, git-fi shall print a tabular list of branch names (without `origin/` prefix). Where a GitLab token resolves (`AUTH-01`), git-fi shall also show CI status, last commit date, and author (see [GitLab CI Status](#gitlab)), followed by the fi integration pipeline ID and status (see GITLAB-05).
 
 **Output (normal):**
 
@@ -276,7 +286,7 @@ Add a branch with git fi --add <branch>.
 
 **Process:**
 
-1. `ADD-02` git-fi shall get the current branch list from fi (via commit message parsing — see [Branch List Storage](#branch-list-storage)).
+1. `ADD-02` git-fi shall get the current branch list from fi (via commit message parsing — see [Branch List Storage](#storage)).
 2. `ADD-03` git-fi shall append new branches and deduplicate.
 3. `ADD-04` git-fi shall run the merge process with the full list.
 
@@ -379,7 +389,7 @@ flowchart TD
    `MERGE-15` Bootstrapping requires explicit confirmation. If `--yes` (`OPTION-07`) is given, git-fi shall bootstrap without prompting. Otherwise the prompt (MERGE-05) requires an interactive terminal: if no `origin/fi` ref exists after fetch and either stdin or stdout is not a TTY, then git-fi shall abort without prompting: `Bootstrapping fi requires confirmation; re-run with --yes or from an interactive terminal.` This keeps an unattended process from creating and force-pushing a new fi branch with no explicit confirmation. Once `origin/fi` exists, every command operates non-interactively.
 
 6. `MERGE-06` When branches in the list no longer exist on origin, git-fi shall remove them and warn on stderr: `Ignoring branches that no longer exist:`
-7. `MERGE-07` When a branch is already an ancestor of the default branch, git-fi shall exclude it from the merge and warn on stderr: `X already in main`. Because the branch list is stored in the resulting commit message (see [Branch List Storage](#branch-list-storage)), excluding the branch also drops it from fi.
+7. `MERGE-07` When a branch is already an ancestor of the default branch, git-fi shall exclude it from the merge and warn on stderr: `X already in main`. Because the branch list is stored in the resulting commit message (see [Branch List Storage](#storage)), excluding the branch also drops it from fi.
 8. `MERGE-08` git-fi shall create a temporary fi branch via `git checkout --quiet -B fi origin/<default_branch>`.
 9. `MERGE-09` git-fi shall merge via `git merge --no-commit --quiet --no-ff --no-edit <branch1> <branch2> ...`
 10. `MERGE-10` When the merge succeeds, git-fi shall:
@@ -452,7 +462,9 @@ You can delete these by running:
   rm "conflict-file.txt"
 ```
 
-## Branch List Storage
+## `STORAGE`
+
+Branch List Storage
 
 `STORAGE-01` The **preferred** commit-message format (**terse**) encodes the branch list in the fi branch's commit message as `(branch-a, branch-b)@[shorthash]`. When no branches are present, the format is `@[shorthash]`. Branch names are stored without the `origin/` prefix. (When git-fi writes this format is governed by `STORAGE-04`.)
 
@@ -478,12 +490,16 @@ When parsing the fi branch's commit message, if this legacy format is detected �
 
 `BRANCH-05` git-fi shall determine the mainline branch for the repository (typically `main` or `master`) via `git symbolic-ref refs/remotes/origin/HEAD`, extracting the last path component. If the symbolic ref is not set, then git-fi shall fall back to probing `origin/main` and `origin/master`.
 
-## Formatting Helpers
+## `FORMAT`
+
+Formatting Helpers
 
 - `FORMAT-01` git-fi shall render bullet lists with each item prefixed with ` * `. When the list is empty, git-fi shall render `<Nothing>`.
 - `FORMAT-02` git-fi shall update action annotations in-place through initial, intermediate, and terminal states as defined in TERM-08.
 
-## Authentication
+## `AUTH`
+
+Authentication
 
 git-fi reads the GitLab API to show pipeline status, which takes a token. Taking that token only from an environment variable rewards the expedient choice: the cheapest way to satisfy a variable is to reuse a token exported for something else, which is typically full `api` scope where git-fi needs only `read_api`. So git-fi asks for a credential of its own, stores it, and says when the token you supplied is broader than the one it needs.
 
@@ -519,8 +535,11 @@ git-fi stores its own token rather than borrowing another tool's. Shelling out t
 - `AUTH-10` The `--auth=login` prompt shall link the prefilled token form for the target host, `https://<host>/-/user_settings/personal_access_tokens?name=git-fi&scopes=read_api`, which GitLab populates from those query parameters. The narrow token is then the low-effort path rather than the one that costs an extra decision.
 - `AUTH-11` `--auth` answers which credential is in effect, which nothing else in the tool reveals: with two possible sources and a token that can expire or be over-scoped, the failure modes are all silent ones. It shall print the host, which source the live token came from, the scopes and expiry recorded at login, and the last 4 characters of the token — enough to tell two tokens apart — and shall never print the token itself. Where a stored token is taking precedence over a set `GITLAB_ACCESS_TOKEN` (`AUTH-01`), it shall say the export is being shadowed, since an export that is not taking effect is otherwise invisible. Where no token resolves, it shall say so and name `--auth=login`. Status shall issue no network request: it reports what login recorded, so it answers offline and stays fast. A token sourced from the environment has no recorded scopes or expiry, and status shall say that rather than implying none exist.
 - `AUTH-12` Shell completion (`COMPLETE-01`) shall offer `login`, `status`, and `logout` as the values of `--auth`.
+- `AUTH-13` Where the GitLab API rejects the token with HTTP 401, git-fi shall report the credential rather than the request: the host, which source supplied the token (`AUTH-01`), and the prefilled token form (`AUTH-10`) that issues a replacement. It shall name `--auth=login` as the way to store the new token, adding for an environment-sourced token that a stored one takes precedence over the export. The branch the failing request happened to name shall not appear, since a rejected credential is not about any one branch, and GitLab's response body shall not be printed: for 401 it restates the status in JSON, whereas for other statuses it carries the only detail git-fi has. The way back to basic mode (`GITLAB-03`) shall remain offered, but as the alternative to fixing the token rather than the only way out.
 
-## GitLab CI Status
+## `GITLAB`
+
+GitLab CI Status
 
 `GITLAB-01` When a GitLab token resolves for the origin's host (`AUTH-01`), git-fi shall fetch pipeline status for each branch from the GitLab API and display a table with columns: Branch, Date, Author, Pipeline. git-fi shall show status with emoji indicators:
 
@@ -583,7 +602,9 @@ These are standard [GitLab predefined variables](https://docs.gitlab.com/ci/vari
 | `NO_COLOR` | When set, disables all color output ([no-color.org](https://no-color.org)) |
 | `XDG_CACHE_HOME` | Base directory for the update-check cache (`UPDATE-04`); defaults to `~/.cache` |
 
-## JSON Output
+## `JSON`
+
+JSON Output
 
 `JSON-01` When `--json` is specified, git-fi shall write a single JSON object to stdout. git-fi shall direct all human-readable output (progress, hints, warnings) to stderr only.
 
@@ -602,12 +623,16 @@ The `command` field names the action that ran — `list`, `add`, `remove`, `forc
 
 `JSON-02` Where a GitLab token resolves (`AUTH-01`), git-fi shall include a `ci` array in the JSON output. When no token resolves, git-fi shall omit the `ci` array.
 
-## Exit Codes
+## `EXIT`
+
+Exit Codes
 
 - `EXIT-01` When an operation completes successfully, git-fi shall exit with code `0`.
 - `EXIT-02` When an operation fails, git-fi shall exit with a non-zero code.
 
-## Performance
+## `PERF`
+
+Performance
 
 Every git query and API call costs a process spawn or a network round trip, and both scale with the number of branches in fi. These requirements keep that cost flat rather than linear, so a large fi stays as responsive as a small one.
 
@@ -615,18 +640,32 @@ Every git query and API call costs a process spawn or a network round trip, and 
 - `PERF-02` git-fi shall resolve the default branch (`BRANCH-05`) and the GitLab project (`GITLAB-02`) at most once per invocation, memoizing the result. Both are derived from refs and remotes that the fetch (`PRE-04`) has already settled before any command reads them.
 - `PERF-03` git-fi shall issue GitLab API calls concurrently under the bound in `GITLAB-07`, never serially per branch.
 
-## Platform Compatibility
+## `PLATFORM`
+
+Platform Compatibility
 
 - `PLATFORM-01` git-fi shall suppress stderr from git commands. When `--debug` is set or `show_errors` is explicitly requested, git-fi shall allow stderr output.
 
-## Build Provenance
+## `BUILD`
+
+Build Provenance
 
 A developer can put an unpublished checkout on PATH under the same `git fi` name the published install uses. These requirements keep the two tellable apart, so a bug report names the build it came from.
 
 - `BUILD-01` git-fi shall treat itself as a dev build when a `.git` entry exists at its own package root. A published tarball carries none — npm's `files` list ships `dist`, `man`, `completions`, and the postinstall script — so the marker separates a linked checkout from an installed copy. It shall be read at the package root rather than the working directory, which is a git repository on every ordinary run.
 - `BUILD-02` On a dev build, `--version` (`OPTION-05`) shall report the released version followed by `-dev.g<short-sha>`, naming the commit the build came from, and shall append `.dirty` when the checkout's tree differs from that commit. The `g` prefix is what keeps the identifier valid semver: a sha of all digits would otherwise read as a numeric identifier, which may not carry leading zeros. When no commit can be read, git-fi shall report `-dev` alone rather than dropping the marker.
 
-## Update Notification
+## `INSTALL`
+
+Install Integrity
+
+`git fi` runs whichever `git-fi` comes first on `PATH`, so an installation can be complete and still never run. The state is silent from both ends: npm reports success, and the copy that would notice is the one not being reached.
+
+- `INSTALL-01` Where the `git-fi` that `PATH` resolves first is not the copy executing, `--version` shall report it on stderr: the launcher `git fi` reaches, the copy answering, and how to resolve the two (delete the launcher, or move npm's prefix earlier on `PATH`). Reaching the running copy some other way — `npx`, an absolute path — is the state in which the report can be made at all, and asking which git-fi is installed is the moment it answers a question already being asked. It shall not print on any other command: a second installation is not itself a fault, and a line on every run would be noise to whoever has a reason for it. stdout shall carry only the version string, so anything parsing it is unaffected. `GIT_FI_NO_HINTS` shall suppress it; the update notice's other suppressions (`UPDATE-03`) shall not, since a pipeline reporting which binary it ran is the case this exists for. An unreadable `PATH` entry, an unresolvable entry point, or no `git-fi` on `PATH` at all shall leave the command silent rather than failing it.
+
+## `UPDATE`
+
+Update Notification
 
 git-fi notifies the user when a newer version has been published to npm, without ever blocking or delaying a command.
 

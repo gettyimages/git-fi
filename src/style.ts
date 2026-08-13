@@ -23,8 +23,18 @@ export function progressEnabled(opts: Options): boolean {
  */
 export function hintsEnabled(opts: Options, tty = isTTY): boolean {
   if (opts.bare || opts.json) return false;
-  if (process.env.CI || process.env.GIT_FI_NO_HINTS) return false;
+  if (process.env.CI || hintsOptedOut()) return false;
   return tty;
+}
+
+/**
+ * The explicit half of the gate above, split out because one advisory wants it
+ * alone: the INSTALL-01 notice answers a question the user just asked, so the
+ * ambient conditions (CI, a pipe) are not reasons to withhold it, while the
+ * switch someone set on purpose still is.
+ */
+export function hintsOptedOut(): boolean {
+  return Boolean(process.env.GIT_FI_NO_HINTS);
 }
 
 /**

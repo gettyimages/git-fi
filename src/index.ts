@@ -10,6 +10,7 @@ import { installCompletions } from "./install-completions.js";
 import { cmdAuth } from "./auth.js";
 import { detectGitlabProject } from "./gitlab.js";
 import { describeVersion } from "./build-info.js";
+import { warnIfShadowed } from "./which.js";
 
 const require = createRequire(import.meta.url);
 const { name, version } = require("../package.json");
@@ -90,6 +91,9 @@ function parseArgs(argv: string[]) {
       case "--version":
       case "-V":
         process.stdout.write(`git-fi ${describeVersion(version)}\n`);
+        // Someone asking which git-fi they have is exactly who needs to hear
+        // that a different one answers to `git fi` (INSTALL-01).
+        warnIfShadowed(opts);
         process.exit(0);
       case "--help":
       case "-h":

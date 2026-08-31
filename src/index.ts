@@ -9,6 +9,7 @@ import { renderHelp } from "./help.js";
 import { installCompletions } from "./install-completions.js";
 import { cmdAuth } from "./auth.js";
 import { detectGitlabProject } from "./gitlab.js";
+import { describeVersion } from "./build-info.js";
 
 const require = createRequire(import.meta.url);
 const { name, version } = require("../package.json");
@@ -88,7 +89,7 @@ function parseArgs(argv: string[]) {
         break;
       case "--version":
       case "-V":
-        process.stdout.write(`git-fi ${version}\n`);
+        process.stdout.write(`git-fi ${describeVersion(version)}\n`);
         process.exit(0);
       case "--help":
       case "-h":

@@ -2,7 +2,7 @@
 
 Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 
-**Last updated:** 2026-08-08
+**Last updated:** 2026-08-31
 
 Locations name the file and the enclosing symbol rather than a line range, so an
 edit elsewhere in the same file leaves the row correct. `git grep` the symbol to
@@ -12,8 +12,8 @@ land on it.
 
 | Status  | Count |
 |---------|-------|
-| Covered | 121   |
-| Total   | 121   |
+| Covered | 123   |
+| Total   | 123   |
 
 ## Pre-flight Checks
 
@@ -221,12 +221,19 @@ land on it.
 |--------|--------------------|---------|-----------------------|
 | PLATFORM-01 | Stderr suppression | Covered | `src/git.ts` (`git`)  |
 
+## Build Provenance
+
+| ID     | Description              | Status  | Location                       |
+|--------|--------------------------|---------|--------------------------------|
+| BUILD-01 | Dev build detection      | Covered | `src/build-info.ts` (`isDevBuild`) |
+| BUILD-02 | `--version` names the commit | Covered | `src/build-info.ts` (`describeVersion`), `src/index.ts` (`parseArgs`) |
+
 ## Update Notification
 
 | ID     | Description              | Status  | Location                       |
 |--------|--------------------------|---------|--------------------------------|
 | UPDATE-01 | Deferred update notice   | Covered | `src/update-check.ts` (`notifyUpdate`, `updateNotice`) |
 | UPDATE-02 | Throttled background check | Covered | `src/update-check.ts` (`notifyUpdate`), `src/update-worker.ts` |
-| UPDATE-03 | Suppression conditions   | Covered | `src/style.ts` (`hintsEnabled`), `src/update-check.ts` (`suppressed`) |
+| UPDATE-03 | Suppression conditions   | Covered | `src/style.ts` (`hintsEnabled`), `src/update-check.ts` (`suppressed`), `src/build-info.ts` (`isDevBuild`) |
 | UPDATE-04 | Cache location           | Covered | `src/update-check.ts` (`cachePath`) |
 | UPDATE-05 | `--update` installs the latest version | Covered | `src/update-check.ts` (`updateSelf`), `src/index.ts` (`parseArgs`, `main`) |

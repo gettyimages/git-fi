@@ -42,6 +42,8 @@ on)
 		echo "Completion already loaded in $zshrc"
 	fi
 	echo
+	echo "Linked $(node "$root/dist/index.js" --version)"
+	echo
 	echo "Open a new terminal, then try:  git fi <TAB>   git fi -a <TAB>   git-fi <TAB>"
 	;;
 off)

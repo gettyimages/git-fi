@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Options } from "./types.js";
 import { makeStyle, hintsEnabled } from "./style.js";
+import { isDevBuild } from "./build-info.js";
 
 const ONE_DAY_MS = 1000 * 60 * 60 * 24;
 
@@ -28,9 +29,11 @@ export function isNewer(latest: string, current: string): boolean {
 
 // The machine-output, CI, non-TTY, and GIT_FI_NO_HINTS conditions are the shared
 // advisory gate (LIST-04 says the same of the token hint); NO_UPDATE_NOTIFIER is
-// this notice's own opt-out.
+// this notice's own opt-out. A dev build is excluded too (UPDATE-03): the notice
+// names `git fi --update`, which installs the published global over the linked
+// checkout and takes the trial down with it.
 function suppressed(opts: Options): boolean {
-  return !hintsEnabled(opts) || Boolean(process.env.NO_UPDATE_NOTIFIER);
+  return !hintsEnabled(opts) || Boolean(process.env.NO_UPDATE_NOTIFIER) || isDevBuild();
 }
 
 /**

@@ -45,7 +45,7 @@ flowchart TD
 | `OPTION-02` | `--bare`    | `-b`  | Machine-readable output: space-separated branch names (any action, `OPTION-08`) |
 | `OPTION-03` | `--json`    | `-j`  | Structured JSON output (any action, `OPTION-08`; see [JSON Output](#json-output)) |
 | `OPTION-04` | `--select`  | `-s`  | Interactive branch picker for `--add` / `--remove` (requires TTY)         |
-| `OPTION-05` | `--version` | `-V`  | Print the current version string to stdout and exit 0                     |
+| `OPTION-05` | `--version` | `-V`  | Print the current version string to stdout and exit 0 (see `BUILD-02` for a dev build) |
 | `OPTION-06` | `--help`    | `-h`  | Print a usage summary to stdout and exit 0; direct to the documentation site for full details |
 | `OPTION-07` | `--yes`     | `-y`  | Bootstrap `fi` without the confirmation prompt (see `MERGE-15`); intended for CI and scripts |
 | `OPTION-10` | `--update`  | `-u`  | Update the installed git-fi to the latest published version (see `UPDATE-05`) |
@@ -619,12 +619,19 @@ Every git query and API call costs a process spawn or a network round trip, and 
 
 - `PLATFORM-01` git-fi shall suppress stderr from git commands. When `--debug` is set or `show_errors` is explicitly requested, git-fi shall allow stderr output.
 
+## Build Provenance
+
+A developer can put an unpublished checkout on PATH under the same `git fi` name the published install uses. These requirements keep the two tellable apart, so a bug report names the build it came from.
+
+- `BUILD-01` git-fi shall treat itself as a dev build when a `.git` entry exists at its own package root. A published tarball carries none — npm's `files` list ships `dist`, `man`, `completions`, and the postinstall script — so the marker separates a linked checkout from an installed copy. It shall be read at the package root rather than the working directory, which is a git repository on every ordinary run.
+- `BUILD-02` On a dev build, `--version` (`OPTION-05`) shall report the released version followed by `-dev.g<short-sha>`, naming the commit the build came from, and shall append `.dirty` when the checkout's tree differs from that commit. The `g` prefix is what keeps the identifier valid semver: a sha of all digits would otherwise read as a numeric identifier, which may not carry leading zeros. When no commit can be read, git-fi shall report `-dev` alone rather than dropping the marker.
+
 ## Update Notification
 
 git-fi notifies the user when a newer version has been published to npm, without ever blocking or delaying a command.
 
 - `UPDATE-01` When a newer published version than the running one is known from the cache, git-fi shall print a one-line update notice to stderr as it exits — regardless of exit code, and even when a pre-flight check aborts the command — naming the current and latest versions and the `git fi --update` command that performs the update (`UPDATE-05`). The check runs before the pre-flight checks so a wrong-directory or other early abort still surfaces it.
 - `UPDATE-02` git-fi shall refresh the cached latest version in a detached background process, throttled to at most once per 24 hours via the cache's `checkedAt` timestamp. The check shall be best-effort: a registry error, timeout, or spawn failure leaves the cache untouched and never surfaces or delays the command.
-- `UPDATE-03` git-fi shall suppress both the notice and the background check when stdout is not a TTY, when `$CI` is set, when `--json` or `--bare` is used, or when `$GIT_FI_NO_HINTS` or `$NO_UPDATE_NOTIFIER` is set.
+- `UPDATE-03` git-fi shall suppress both the notice and the background check when stdout is not a TTY, when `$CI` is set, when `--json` or `--bare` is used, when `$GIT_FI_NO_HINTS` or `$NO_UPDATE_NOTIFIER` is set, or when the running build is a dev build (`BUILD-01`). The notice names `git fi --update`, which installs the published global over the linked checkout and takes the trial down with it.
 - `UPDATE-04` The cache shall live at `$XDG_CACHE_HOME/git-fi/update-check.json`, falling back to `~/.cache/git-fi/update-check.json`.
 - `UPDATE-05` `--update` (`-u`) shall update the installed git-fi by running `npm install -g <package>@latest` with npm's stdio inherited, exiting with npm's exit code and adding no output of its own. Where the platform resolves npm through a `.cmd` shim (Windows), git-fi shall spawn it through the shell, which is the only path left: node finds nothing under the bare name and refuses a direct `.cmd` with `EINVAL`. A consequence is that a missing npm is then the shell's error to report rather than git-fi's, so the `Could not run npm` message is a POSIX-only guarantee. It shall run before the update notice and the pre-flight checks, so it works from any directory. It shall consult neither the cache nor the registry first: the throttle in `UPDATE-02` serves the passive notice, whereas `--update` is an explicit request to install now, and a redundant reinstall is a better answer than refusing one. It shall collide with the actions in `COMMAND-*` the way they collide with each other, and shall reject branch-name arguments.

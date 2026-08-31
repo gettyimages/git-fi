@@ -27,7 +27,10 @@ describe("argument handling (no repo required)", () => {
   test("--version prints the package version and exits 0", () => {
     const r = runFi(["--version"], dir);
     assert.equal(r.status, 0);
-    assert.equal(r.stdout.trim(), `git-fi ${version}`);
+    // The suite runs the binary out of the checkout, so it is a dev build and
+    // the string carries the commit (BUILD-02); build-info.test.ts covers the
+    // installed layout, where the version stands alone.
+    assert.match(r.stdout.trim(), new RegExp(`^git-fi ${version.replace(/\./g, "\\.")}-dev\\b`));
   });
 
   test("--help prints usage and exits 0", () => {

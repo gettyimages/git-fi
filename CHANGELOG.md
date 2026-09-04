@@ -5,6 +5,14 @@ GitHub Release by the release workflow (`.github/workflows/release.yml`).
 
 <!-- releases below -->
 
+## v1.2.2 (2026-09-04)
+
+## What's Changed
+* Let untracked files through the dirty check by @chris-peterson in https://github.com/gettyimages/git-fi/pull/14
+
+
+**Full Changelog**: https://github.com/gettyimages/git-fi/compare/v1.2.1...v1.2.2
+
 ## v1.2.1 (2026-08-10)
 
 ### Fixes

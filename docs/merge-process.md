@@ -7,7 +7,7 @@ Every mutation command (`-a`, `-r`, `-f`, `-g`) triggers the same merge process.
 ```mermaid
 %%{ init: { 'look': 'handDrawn' } }%%
 flowchart TD
-  A[Start merge] --> B[Assert clean state]
+  A[Start merge] --> B[Assert tracked files clean]
   B --> C[Capture untracked files]
   C --> D{fi exists?}
   D -- no --> E[Bootstrap confirmation]
@@ -31,7 +31,7 @@ flowchart TD
 
 ### 1. Clean state
 
-git-fi asserts that the working tree has no uncommitted changes. This protects your work from being lost during branch switching.
+git-fi asserts that no tracked file carries uncommitted changes, staged or unstaged. This protects your work from being lost during branch switching. Untracked files are left alone, so scratch files and build output do not stand in the way of a merge.
 
 ### 2. Untracked files
 

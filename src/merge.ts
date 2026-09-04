@@ -127,7 +127,7 @@ export async function mergeProcess(
     abort("There is more than one origin/fi!", opts);
   }
 
-  const statusOut = git(["status", "--porcelain"]);
+  const statusOut = git(["status", "--porcelain", "--untracked-files=no"]);
   if (statusOut && statusOut.length > 0) {
     abort("Your index is dirty", opts);
   }

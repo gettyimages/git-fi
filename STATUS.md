@@ -2,7 +2,7 @@
 
 Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 
-**Last updated:** 2026-08-31
+**Last updated:** 2026-09-03
 
 Locations name the file and the enclosing symbol rather than a line range, so an
 edit elsewhere in the same file leaves the row correct. `git grep` the symbol to
@@ -131,7 +131,7 @@ land on it.
 | ID    | Description              | Status  | Location                  |
 |-------|--------------------------|---------|---------------------------|
 | MERGE-01 | Ambiguous ref check      | Covered | `src/merge.ts` (`mergeProcess`) |
-| MERGE-02 | Dirty index check        | Covered | `src/merge.ts` (`mergeProcess`) |
+| MERGE-02 | Tracked-file dirty check | Covered | `src/merge.ts` (`mergeProcess`) |
 | MERGE-03 | Capture untracked        | Covered | `src/merge.ts` (`mergeProcess`) |
 | MERGE-04 | Fetch                    | Covered | `src/merge.ts` (`mergeProcess`), `src/git.ts` (`ensureFetched`) |
 | MERGE-05 | Bootstrap confirmation   | Covered | `src/merge.ts` (`mergeProcess`), `src/ui.ts` (`confirm`) |

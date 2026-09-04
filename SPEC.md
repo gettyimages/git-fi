@@ -330,7 +330,7 @@ The core merge operation that `--add`, `--remove`, `--force`, and `--again` all 
 flowchart TD
     A[Start merge] --> B{Ambiguous origin/fi?}
     B -- yes --> B1[ABORT: more than one origin/fi]
-    B -- no --> C{Index clean?}
+    B -- no --> C{Tracked files clean?}
     C -- no --> C1[ABORT: index is dirty]
     C -- yes --> D[Capture untracked files]
     D --> E[Fetch if needed]
@@ -359,7 +359,7 @@ flowchart TD
 ### Flow
 
 1. `MERGE-01` If more than one `origin/fi` ref exists, then git-fi shall abort with: `There is more than one origin/fi!`
-2. `MERGE-02` If uncommitted changes exist, then git-fi shall abort with `Your index is dirty`.
+2. `MERGE-02` If uncommitted changes to tracked files exist, staged or unstaged, then git-fi shall abort with `Your index is dirty`. Untracked files shall not block the merge.
 3. `MERGE-03` git-fi shall capture a snapshot of untracked files via `git ls-files --other --exclude-standard`.
 4. `MERGE-04` git-fi shall run `git fetch --quiet --prune origin` (if not already done).
 5. `MERGE-05` If no `origin/fi` ref exists after fetch, then git-fi shall require confirmation before bootstrapping. Unless `--yes` is given (`OPTION-07`, `MERGE-15`), git-fi shall display a bootstrap confirmation prompt; if the user does not enter `y`, then git-fi shall abort. Example:

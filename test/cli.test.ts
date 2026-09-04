@@ -517,6 +517,39 @@ describe("add / remove / list lifecycle", () => {
   });
 });
 
+describe("working tree state (MERGE-02)", () => {
+  let sb: Sandbox;
+  beforeEach(() => {
+    sb = makeSandbox();
+    sb.pushBranch("feature-a", "a.txt", "a\n");
+    sb.bootstrapFi();
+  });
+  afterEach(() => sb.cleanup());
+
+  test("untracked files do not block a merge", () => {
+    writeFileSync(join(sb.work, "scratch.txt"), "notes\n");
+    const r = runFi(["--add", "feature-a"], sb.work);
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(r.stderr, /index is dirty/);
+    assert.deepEqual(listedBranches(sb), ["feature-a"]);
+  });
+
+  test("an unstaged edit to a tracked file blocks the merge", () => {
+    writeFileSync(join(sb.work, "README.md"), "edited\n");
+    const r = runFi(["--add", "feature-a"], sb.work);
+    assert.notEqual(r.status, 0);
+    assert.match(r.stdout + r.stderr, /Your index is dirty/);
+  });
+
+  test("a staged change blocks the merge", () => {
+    writeFileSync(join(sb.work, "staged.txt"), "staged\n");
+    sb.git(["add", "staged.txt"]);
+    const r = runFi(["--add", "feature-a"], sb.work);
+    assert.notEqual(r.status, 0);
+    assert.match(r.stdout + r.stderr, /Your index is dirty/);
+  });
+});
+
 describe("empty fi (LIST-07)", () => {
   let sb: Sandbox;
   before(() => {

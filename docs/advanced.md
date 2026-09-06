@@ -10,7 +10,9 @@ Replace the entire `fi` branch list with only the specified branches. Everything
 git fi -f feature-auth
 ```
 
-This is useful when `fi` has accumulated stale branches and you want a clean slate with just your branch.
+This is useful when `fi` has accumulated stale branches and you want a clean slate.
+
+Not for clearing a merge conflict, though. Forcing `fi` to hold only your branch throws away everyone else's integration, and the conflict comes back the moment they add their branches again — so `git fi -f <your-branch>` trades a shared problem for a silent one. When a merge fails, the report names the branch at fault and the rebase that clears it; see [Conflict Handling](merge-process.md#conflict-handling).
 
 ### Empty fi
 

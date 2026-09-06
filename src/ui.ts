@@ -133,7 +133,7 @@ export async function pickBranches(
 }
 
 // The prompt goes to stderr, not stdout: it is human-readable output, which
-// belongs on stderr whenever stdout is carrying a machine format (JSON-02), and a
+// belongs on stderr whenever stdout is carrying a machine format (JSON-01), and a
 // prompt on stderr is the conventional shape regardless.
 export async function confirm(
   message: string,

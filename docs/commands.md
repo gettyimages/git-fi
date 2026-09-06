@@ -37,9 +37,15 @@ git fi
 
 ```text
  * feature-auth
- * feature-search
- * bugfix-nav
+ * feature-search ↓12
+ * bugfix-nav merged
 ```
+
+(`bugfix-nav` is struck through on a terminal; a code block cannot show that.)
+
+A `↓N` beside a branch means `main` has moved `N` commits past it. That on its own is normal — branches trail `main` constantly — but it's the precondition for the conflict you'd otherwise meet at merge time, so it tells you which branch to rebase first when `fi` starts failing. Off a terminal the marker is worded `behind 12`, since a log read as plain text can't rely on the arrow.
+
+A struck-through name marked `merged` has landed on `main` — every commit it carries is already there, so it's finished and no longer earning its place in `fi`. The next mutation drops it (`git fi -g` on its own is the prune), which is why the marker is transient: it shows the interval between a branch landing and `fi` catching up. The word rides alongside the strikethrough because not every terminal draws one.
 
 ### Machine-readable output
 
@@ -54,20 +60,48 @@ With `--json` (`-j`), output is a structured JSON object:
 ```json
 {
   "command": "list",
-  "branches": ["feature-auth", "feature-search", "bugfix-nav"],
-  "ci": [
+  "branches": [
     {
-      "branch": "feature-auth",
-      "status": "success",
-      "author": "Alice",
-      "date": "2026-03-30",
-      "branchMissing": false
-    }
+      "name": "feature-auth",
+      "ahead": 5,
+      "behind": 0,
+      "merged": false,
+      "ci": {
+        "status": "success",
+        "pipelineId": "11111",
+        "author": "Alice",
+        "date": "2026-03-30",
+        "branchMissing": false
+      }
+    },
+    { "name": "feature-search", "ahead": 3, "behind": 12, "merged": false, "ci": null },
+    { "name": "bugfix-nav", "ahead": 0, "behind": 14, "merged": true, "ci": null }
   ]
 }
 ```
 
-The `ci` array is present only when a GitLab token is configured (see [CI Integration](ci-integration.md)); `status` is the raw GitLab pipeline status (`success`, `failed`, `running`, `pending`, `skipped`, ...).
+Everything about a branch is nested under it, so answering "what is the state of `feature-search`?" is one lookup rather than a join across arrays keyed by name. `ahead` is what the branch would add to `main` and `behind` is what it hasn't taken in yet; `merged` says `ahead` is zero. `ci` is `null` when no GitLab token is configured (see [CI Integration](ci-integration.md)) and an object when one is; `status` is the raw GitLab pipeline status (`success`, `failed`, `running`, `pending`, `skipped`, ...).
+
+Either count is `null` where git could not produce it: a repo with no `origin/main` to compare against, a branch since deleted from origin, or — for `behind` alone — a shallow clone, whose walk stops at the graft and would otherwise report the size of the fetched window as the branch's position. A `null` is not a zero: zero means level with `main`, which is a real place to be. A branch with a `null` behind count carries no marker in the table, and one with a `null` ahead count is never treated as merged.
+
+A merge that fails writes a JSON object too, rather than only the diagnostics on stderr, and still exits non-zero — so a pipeline that stops on the exit code can read which branch needs the rebase:
+
+```json
+{
+  "command": "add",
+  "branches": [
+    { "name": "feature-auth", "ahead": 5, "behind": 0, "merged": false, "ci": null }
+  ],
+  "attempted": ["feature-auth", "feature-search"],
+  "conflicts": [
+    { "branch": "feature-search", "with": ["feature-auth"], "paths": ["src/routes.ts"] }
+  ]
+}
+```
+
+Nothing is pushed when a merge fails, so `branches` is `fi` as it still stands — the same thing it means after an action that succeeded. `attempted` is the set the merge tried. `with` names what the branch conflicts with: peer branches, or `main` by name when the branch simply needs rebasing.
+
+`conflicts` can come back empty on a failed merge. That means no single branch could be blamed: each one merges cleanly on its own, and the combined merge is what failed. The combined merge uses git's octopus strategy, which does not detect renames, so a rename against a concurrent edit fails there while every individual replay comes back clean.
 
 Both flags work with any action, not just `list` — they pick an output *format*, so a mutation reports its resulting branch list the same way:
 
@@ -75,7 +109,10 @@ Both flags work with any action, not just `list` — they pick an output *format
 $ git fi -a feature-auth --json
 {
   "command": "add",
-  "branches": ["feature-auth", "feature-search"]
+  "branches": [
+    { "name": "feature-auth", "ahead": 5, "behind": 0, "merged": false, "ci": null },
+    { "name": "feature-search", "ahead": 3, "behind": 12, "merged": false, "ci": null }
+  ]
 }
 ```
 

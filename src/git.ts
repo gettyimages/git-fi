@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
-import type { Options } from "./types.js";
+import type { Options, BranchReadiness } from "./types.js";
 import { abort, makeStyle, bulletList, createSpinner } from "./style.js";
 import { DOCS_URL } from "./help.js";
 
@@ -70,13 +70,28 @@ export function gitLines(args: string[], gitOpts?: GitOpts): string[] {
   return out.split("\n");
 }
 
-export function gitExitCode(args: string[], gitOpts: GitOpts = {}): number {
+/**
+ * Run git for a command whose nonzero exit is an answer rather than a failure —
+ * `merge-tree` reports a conflict with exit 1 and still writes the tree and the
+ * conflicted paths to stdout, which `allowFailure` would discard.
+ */
+export function gitOutcome(
+  args: string[],
+  gitOpts: GitOpts = {}
+): { status: number; out: string } {
   try {
-    git(args, gitOpts);
-    return 0;
-  } catch (err: unknown) {
-    return (err as { status?: number }).status ?? 1;
+    return { status: 0, out: git(args, gitOpts) ?? "" };
+  } catch (err) {
+    const e = err as { status?: number; stdout?: string | Buffer };
+    return {
+      status: e.status ?? 1,
+      out: (e.stdout?.toString() ?? "").trimEnd(),
+    };
   }
+}
+
+export function gitExitCode(args: string[], gitOpts: GitOpts = {}): number {
+  return gitOutcome(args, gitOpts).status;
 }
 
 export function preflightChecks(opts: Options): void {
@@ -95,9 +110,9 @@ export function preflightChecks(opts: Options): void {
   if (match) {
     const parts = match[1].split(".").map(Number);
     const ver = parts[0] * 10000 + parts[1] * 100 + parts[2];
-    if (ver < 21300) {
+    if (ver < 24100) {
       abort(
-        `git version ${match[1]} is too old, please upgrade to at least 2.13.0.`,
+        `git version ${match[1]} is too old, please upgrade to at least 2.41.0.`,
         opts
       );
     }
@@ -228,6 +243,11 @@ export function resolveBranchName(name: string): string {
   return name;
 }
 
+/** The counterpart of `resolveBranchName`: the name as a user says it. */
+export function localBranchName(name: string): string {
+  return name.replace(/^origin\//, "");
+}
+
 export function currentBranchName(): string | null {
   return git(["symbolic-ref", "--short", "HEAD"], { allowFailure: true });
 }
@@ -264,42 +284,171 @@ export function resolveBranches(
 }
 
 // `git branch --format` has no field separator of its own, so use a unit
-// separator: it cannot appear in a ref name (git rejects control characters).
+// separator. A ref name cannot contain one (git rejects control characters),
+// but `%(authoremail:trim)` is free text a commit author chooses, so the
+// separator alone does not fix the field count — see FIELD_COUNT below.
 const FIELD_SEP = "\x1f";
+
+// Every field the format asks for. A line that splits into anything else came
+// from a field carrying the separator, and there is no way to tell which value
+// landed where, so the line is dropped rather than guessed at.
+const FIELD_COUNT = 5;
 
 interface RemoteBranch {
   name: string;
   /** Commit date as YYYY-MM-DD. */
   date: string;
+  /** Commits this branch carries that the default branch does not (READY-07). */
+  ahead: number | null;
+  /** Commits of the default branch this branch does not yet contain (READY-01). */
+  behind: number | null;
+  /** Author of the branch tip — who last moved it, so who owns a rebase of it. */
+  authorEmail: string;
 }
 
-// One `git branch -r` invocation carries the name, symref, and commit date for
-// every remote branch, so callers never spawn a `git log` per candidate.
+/**
+ * Author emails are free text chosen by whoever wrote the commit, and git
+ * accepts ANSI escapes in them: `git fsck --strict` passes them, and
+ * `%(authoremail:trim)` emits the bytes verbatim. Printed raw beside the
+ * remedy in a conflict report, `\e[2K` or `\e[A` would let a branch tip
+ * repaint text git-fi had already written. Strip the controls at the boundary
+ * where the value enters, so no caller has to remember to.
+ */
+function sanitize(field: string): string {
+  return field.replace(/[\x00-\x1f\x7f-\x9f]/g, "");
+}
+
+function count(field: string | undefined): number | null {
+  const n = Number(field);
+  return field !== undefined && field !== "" && Number.isInteger(n) ? n : null;
+}
+
+// One `git branch -r` invocation carries the name, symref, commit date, ahead
+// and behind counts, and tip author for every remote branch, so callers never
+// spawn a `git log` or a `git rev-list --count` per candidate (PERF-01).
+//
+// `%(ahead-behind:)` costs git a revision walk per ref, so it is asked for only
+// where a caller reads the counts. `readiness: false` is the candidate listing,
+// which wants a name and a date.
 function listRemoteBranches(
   defBranch: string,
-  extraArgs: string[] = []
+  { extraArgs = [], readiness = true }: { extraArgs?: string[]; readiness?: boolean } = {}
 ): RemoteBranch[] {
+  // The atom is fatal when its argument does not resolve — `fatal: failed to
+  // find 'origin/x'`, exit 128 — and `defaultBranch()` falls back to a name
+  // rather than a ref that exists. Asking for it only once the ref is there
+  // keeps a repo with no `origin/HEAD` listing its branches.
+  const comparable =
+    readiness &&
+    git(["rev-parse", "--verify", "--quiet", `origin/${defBranch}`], {
+      allowFailure: true,
+    }) !== null;
+  const aheadBehindAtom = comparable
+    ? `%(ahead-behind:origin/${defBranch})`
+    : "";
+
   const lines = gitLines([
     "branch",
     "-r",
     ...extraArgs,
-    `--format=%(refname:short)${FIELD_SEP}%(symref)${FIELD_SEP}%(committerdate:short)`,
+    `--format=%(refname:short)${FIELD_SEP}%(symref)${FIELD_SEP}%(committerdate:short)${FIELD_SEP}${aheadBehindAtom}${FIELD_SEP}%(authoremail:trim)`,
   ]);
+
+  // In a shallow clone the walk stops at the graft, so a count describes the
+  // fetched window rather than the branch: one measured 1 ahead and 6 behind
+  // reports 2 and 2. `behind` is reported as a number to a reader (READY-02),
+  // where a wrong one is worse than none, so it is dropped.
+  //
+  // `ahead` is kept, because the only thing derived from it is `merged`
+  // (READY-07) and truncation moves that the safe way: a window that hides a
+  // branch's commits makes it look *more* ahead, so a landed branch can go
+  // unnoticed but a live one is never declared merged and pruned. Dropping it
+  // would instead stop MERGE-07 pruning anything in CI, where shallow clones
+  // are the default.
+  const truncated =
+    git(["rev-parse", "--is-shallow-repository"], { allowFailure: true }) ===
+    "true";
 
   const branches: RemoteBranch[] = [];
   for (const line of lines) {
-    const [name, symref, date] = line.split(FIELD_SEP);
+    const fields = line.split(FIELD_SEP);
+    if (fields.length !== FIELD_COUNT) continue;
+    const [name, symref, date, aheadBehind, authorEmail] = fields;
     // origin/HEAD renders as a bare `origin` under refname:short, so it slips
     // past a name comparison. Match the symref field, which only HEAD sets.
     if (symref) continue;
+    if (!name.startsWith("origin/")) continue;
     if (name === "origin/fi" || name === `origin/${defBranch}`) continue;
-    branches.push({ name, date });
+    const [ahead, behind] = aheadBehind.split(" ");
+    branches.push({
+      name,
+      date,
+      ahead: count(ahead),
+      behind: truncated ? null : count(behind),
+      authorEmail: sanitize(authorEmail),
+    });
   }
   return branches;
 }
 
+// PERF-02: the unfiltered listing answers several questions (candidate
+// branches, behind counts) on paths that each ask independently. The readiness
+// map is derived once alongside it, so the four callers that want it share one.
+interface RemoteBranchCache {
+  defBranch: string;
+  branches: RemoteBranch[];
+  readiness: Map<string, BranchReadiness>;
+}
+let remoteBranchCache: RemoteBranchCache | null = null;
+
+function cachedListing(defBranch: string): RemoteBranchCache {
+  if (remoteBranchCache?.defBranch !== defBranch) {
+    const branches = listRemoteBranches(defBranch);
+    const readiness = new Map<string, BranchReadiness>();
+    for (const b of branches) {
+      readiness.set(b.name, {
+        ahead: b.ahead,
+        behind: b.behind,
+        merged: b.ahead === 0,
+      });
+    }
+    remoteBranchCache = { defBranch, branches, readiness };
+  }
+  return remoteBranchCache;
+}
+
+function cachedRemoteBranches(defBranch: string): RemoteBranch[] {
+  return cachedListing(defBranch).branches;
+}
+
 export function allRemoteBranches(defBranch: string): string[] {
-  return listRemoteBranches(defBranch).map((b) => b.name);
+  return cachedRemoteBranches(defBranch).map((b) => b.name);
+}
+
+/**
+ * Tip author per remote branch, keyed by the `origin/`-prefixed name — who last
+ * moved the branch, and so who owns rebasing it out of a conflict (READY-04).
+ * It is the tip commit's author rather than a branch owner git does not record,
+ * so a bot-pushed tip reports the bot.
+ */
+export function branchAuthors(defBranch: string): Map<string, string> {
+  const authors = new Map<string, string>();
+  for (const b of cachedRemoteBranches(defBranch)) {
+    if (b.authorEmail) authors.set(b.name, b.authorEmail);
+  }
+  return authors;
+}
+
+/**
+ * Where each remote branch stands against the default branch (READY-01,
+ * READY-07), keyed by the `origin/`-prefixed name.
+ *
+ * An unknown ahead count reads as *not* merged. `merged` is what MERGE-07
+ * prunes on, and pruning rewrites fi's branch list and force-pushes it, so a
+ * missing signal has to fail towards keeping someone's branch.
+ */
+export function branchReadiness(defBranch: string): Map<string, BranchReadiness> {
+  return cachedListing(defBranch).readiness;
 }
 
 export function remoteBranchesNoMergedSince(
@@ -310,11 +459,10 @@ export function remoteBranchesNoMergedSince(
   since.setMonth(since.getMonth() - sinceMonths);
   const sinceStr = since.toISOString().slice(0, 10);
 
-  return listRemoteBranches(defBranch, [
-    "--no-merged",
-    `origin/${defBranch}`,
-    "--sort=-committerdate",
-  ])
+  return listRemoteBranches(defBranch, {
+    extraArgs: ["--no-merged", `origin/${defBranch}`, "--sort=-committerdate"],
+    readiness: false,
+  })
     .filter((b) => b.date >= sinceStr)
     .map((b) => b.name);
 }
@@ -329,17 +477,18 @@ export function existingRemoteRefs(): Set<string> {
 /**
  * Remote branches already reachable from `origin/<defBranch>`: the batched
  * equivalent of `git merge-base --is-ancestor <branch> origin/<defBranch>`.
+ *
+ * A branch with nothing ahead of the default branch has had every commit
+ * landed, which is what `git branch -r --merged` reports — so this reads the
+ * cached listing (PERF-02) rather than spending a second invocation on the
+ * same question.
  */
 export function mergedRemoteBranches(defBranch: string): Set<string> {
-  return new Set(
-    gitLines([
-      "branch",
-      "-r",
-      "--merged",
-      `origin/${defBranch}`,
-      "--format=%(refname:short)",
-    ])
-  );
+  const merged = new Set<string>();
+  for (const [name, r] of branchReadiness(defBranch)) {
+    if (r.merged) merged.add(name);
+  }
+  return merged;
 }
 
 export function isInteractive(_opts: Options): boolean {

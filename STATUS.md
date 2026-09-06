@@ -2,7 +2,7 @@
 
 Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 
-**Last updated:** 2026-09-03
+**Last updated:** 2026-09-06
 
 Locations name the file and the enclosing symbol rather than a line range, so an
 edit elsewhere in the same file leaves the row correct. `git grep` the symbol to
@@ -12,10 +12,12 @@ land on it.
 
 | Status  | Count |
 |---------|-------|
-| Covered | 123   |
-| Total   | 123   |
+| Covered | 125   |
+| Total   | 125   |
 
-## Pre-flight Checks
+## `PRE`
+
+Pre-flight Checks
 
 | ID    | Description                | Status  | Location                        |
 |-------|----------------------------|---------|---------------------------------|
@@ -25,7 +27,9 @@ land on it.
 | PRE-04 | Fetch                      | Covered | `src/git.ts` (`ensureFetched`)  |
 | PRE-05 | `GIT_FI_NO_FETCH` skips fetch | Covered | `src/git.ts` (`ensureFetched`) |
 
-## Global Options
+## `OPTION`
+
+Global Options
 
 | ID     | Description | Status  | Location               |
 |--------|-------------|---------|------------------------|
@@ -43,14 +47,18 @@ land on it.
 | OPTION-12 | `--auth[=<action>]` | Covered | `src/index.ts` (`parseArgs`, `main`), `src/help.ts` (`OPTIONS`, `flagLabel`) |
 | OPTION-13 | `--host <hostname>` | Covered | `src/index.ts` (`parseArgs`), `src/help.ts` (`OPTIONS`) |
 
-## Help & Documentation
+## `HELP`
+
+Help & Documentation
 
 | ID     | Description          | Status  | Location                  |
 |--------|----------------------|---------|---------------------------|
 | HELP-01 | `help` subcommand    | Covered | `src/index.ts` (`parseArgs`), `src/help.ts` (`renderHelp`) |
 | HELP-02 | Man page             | Covered | `man/git-fi.1` (generated), `package.json` (`man`), `scripts/gen-docs.ts` |
 
-## Shell Completion
+## `COMPLETE`
+
+Shell Completion
 
 | ID     | Description                 | Status  | Location                  |
 |--------|-----------------------------|---------|---------------------------|
@@ -62,7 +70,9 @@ land on it.
 | COMPLETE-06 | `--write <dir>` onto the fpath | Covered | `src/install-completions.ts` (`writeToFpath`) |
 | COMPLETE-07 | Completion installed on `npm i -g` | Covered | `scripts/postinstall.mjs`, `package.json` (`postinstall`, `files`) |
 
-## Terminal Output
+## `TERM`
+
+Terminal Output
 
 | ID     | Description                  | Status  | Location              |
 |--------|------------------------------|---------|-----------------------|
@@ -77,7 +87,9 @@ land on it.
 | TERM-09 | Off-TTY: outcome line only   | Covered | `src/merge.ts` (`ACTION_OUTCOME`, `mergeProcess`: `finalizeDone`) |
 | TERM-10 | Status worded without glyphs | Covered | `src/gitlab.ts` (`statusLabel`, `STATUS_WORD`), `src/commands.ts` (`cmdList`) |
 
-## Branch Name Resolution
+## `BRANCH`
+
+Branch Name Resolution
 
 | ID    | Description              | Status  | Location               |
 |-------|--------------------------|---------|------------------------|
@@ -87,7 +99,9 @@ land on it.
 | BRANCH-04 | No check on remove       | Covered | `src/git.ts` (`resolveBranches`) |
 | BRANCH-05 | Default branch detection | Covered | `src/git.ts` (`defaultBranch`, `resolveDefaultBranch`) |
 
-## List Command
+## `LIST`
+
+List Command
 
 | ID    | Description          | Status  | Location                  |
 |-------|----------------------|---------|---------------------------|
@@ -99,7 +113,9 @@ land on it.
 | LIST-06 | Insertion order      | Covered | `src/git.ts` (`parseBranchList`) |
 | LIST-07 | Empty list shows `(no branches)` | Covered | `src/style.ts` (`printTable`, `makeStyle`), `src/commands.ts` (`cmdList`) |
 
-## Interactive Selection
+## `SELECT`
+
+Interactive Selection
 
 | ID     | Description                 | Status  | Location                  |
 |--------|-----------------------------|---------|---------------------------|
@@ -110,7 +126,9 @@ land on it.
 | SELECT-05 | Empty selection exits       | Covered | `src/commands.ts` (`cmdAdd`) |
 | SELECT-06 | Standalone unified picker   | Covered | `src/commands.ts` (`cmdSelect`), `src/ui.ts` (`pickBranches`) |
 
-## Commands
+## `ADD`, `COMMAND`
+
+Commands
 
 | ID     | Description              | Status  | Location                   |
 |--------|--------------------------|---------|----------------------------|
@@ -126,7 +144,9 @@ land on it.
 | COMMAND-06 | Abort re-pulls fi, then lists | Covered | `src/commands.ts` (`cmdAbort`) |
 | COMMAND-07 | Abort no origin/fi       | Covered | `src/commands.ts` (`cmdAbort`) |
 
-## Merge Process
+## `MERGE`
+
+Merge Process
 
 | ID    | Description              | Status  | Location                  |
 |-------|--------------------------|---------|---------------------------|
@@ -146,7 +166,9 @@ land on it.
 | MERGE-14 | Bootstrap link           | Covered | `src/ui.ts` (`confirm`) |
 | MERGE-15 | Bootstrap confirmation / `--yes` | Covered | `src/merge.ts` (`mergeProcess`) |
 
-## Branch List Storage
+## `STORAGE`
+
+Branch List Storage
 
 | ID    | Description           | Status  | Location                |
 |-------|-----------------------|---------|-------------------------|
@@ -155,14 +177,18 @@ land on it.
 | STORAGE-03 | Legacy format + read detection | Covered | `src/git.ts` (`detectCommitFormat`, `parseBranchList`), `src/merge.ts` (`buildLegacyMessage`) |
 | STORAGE-04 | Write format pinned to legacy for rollout | Covered | `src/merge.ts` (`DEFAULT_WRITE_FORMAT`, `mergeProcess`) |
 
-## Formatting
+## `FORMAT`
+
+Formatting
 
 | ID     | Description      | Status  | Location               |
 |--------|------------------|---------|------------------------|
 | FORMAT-01 | Bullet list      | Covered | `src/style.ts` (`bulletList`) |
 | FORMAT-02 | Annotation line  | Covered | `src/merge.ts` (`mergeProcess`) |
 
-## Authentication
+## `AUTH`
+
+Authentication
 
 | ID    | Description         | Status  | Location                  |
 |-------|---------------------|---------|---------------------------|
@@ -178,8 +204,11 @@ land on it.
 | AUTH-10 | Prefilled token form link | Covered | `src/auth.ts` (`tokenFormUrl`, `authLogin`) |
 | AUTH-11 | Status fields, redaction, shadowing | Covered | `src/auth.ts` (`authStatus`, `tokenTail`) |
 | AUTH-12 | Completion offers the three verbs | Covered | `src/help.ts` (`OPTIONS`: `values`), `scripts/gen-docs.ts` (`valuedFlagArms`, `zshSpec`) |
+| AUTH-13 | 401 names the source and links a replacement | Covered | `src/gitlab.ts` (`rejectedTokenMessage`, `fetchGitlabCI`) |
 
-## GitLab CI
+## `GITLAB`
+
+GitLab CI
 
 | ID    | Description         | Status  | Location                  |
 |-------|---------------------|---------|---------------------------|
@@ -193,21 +222,27 @@ land on it.
 | GITLAB-08 | Built-in HTTP client, 10 s timeout | Covered | `src/gitlab.ts` (`API_TIMEOUT_MS`, `apiGet`) |
 | GITLAB-09 | Markdown link off a TTY | Covered | `src/style.ts` (`makeStyle`: `linkOrMarkdown`), `src/gitlab.ts` (`printCITable`), `src/commands.ts` (`cmdList`) |
 
-## JSON Output
+## `JSON`
+
+JSON Output
 
 | ID    | Description           | Status  | Location                  |
 |-------|-----------------------|---------|---------------------------|
 | JSON-01 | JSON to stdout, human output to stderr | Covered | `src/commands.ts` (`cmdList`), `src/merge.ts` (`mergeProcess`), `src/ui.ts` (`confirm`) |
 | JSON-02 | CI array conditional  | Covered | `src/commands.ts` (`cmdList`) |
 
-## Exit Codes
+## `EXIT`
+
+Exit Codes
 
 | ID    | Description | Status  | Location    |
 |-------|-------------|---------|-------------|
 | EXIT-01 | 0 = success | Covered | (implicit)  |
 | EXIT-02 | Non-zero    | Covered | `src/style.ts` (`abort`) |
 
-## Performance
+## `PERF`
+
+Performance
 
 | ID     | Description                    | Status  | Location                       |
 |--------|--------------------------------|---------|--------------------------------|
@@ -215,20 +250,34 @@ land on it.
 | PERF-02 | Default branch and project memoized | Covered | `src/git.ts` (`defaultBranch`), `src/gitlab.ts` (`detectGitlabProject`) |
 | PERF-03 | Concurrent GitLab API calls    | Covered | `src/gitlab.ts` (`mapLimit`, `fetchGitlabCI`) |
 
-## Platform
+## `PLATFORM`
+
+Platform
 
 | ID     | Description        | Status  | Location              |
 |--------|--------------------|---------|-----------------------|
 | PLATFORM-01 | Stderr suppression | Covered | `src/git.ts` (`git`)  |
 
-## Build Provenance
+## `BUILD`
+
+Build Provenance
 
 | ID     | Description              | Status  | Location                       |
 |--------|--------------------------|---------|--------------------------------|
 | BUILD-01 | Dev build detection      | Covered | `src/build-info.ts` (`isDevBuild`) |
 | BUILD-02 | `--version` names the commit | Covered | `src/build-info.ts` (`describeVersion`), `src/index.ts` (`parseArgs`) |
 
-## Update Notification
+## `INSTALL`
+
+Install Integrity
+
+| ID     | Description                      | Status  | Location                       |
+|--------|----------------------------------|---------|--------------------------------|
+| INSTALL-01 | `--version` reports a launcher ahead of this copy | Covered | `src/which.ts` (`gitFiOnPath`, `shadowingLauncher`, `shadowNotice`, `warnIfShadowed`), `src/index.ts` (`parseArgs`) |
+
+## `UPDATE`
+
+Update Notification
 
 | ID     | Description              | Status  | Location                       |
 |--------|--------------------------|---------|--------------------------------|

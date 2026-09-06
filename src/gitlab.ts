@@ -1,7 +1,7 @@
 import type { Options, CIResult } from "./types.js";
 import { makeStyle, colorEnabled, createSpinner, printTable, abort } from "./style.js";
 import { git } from "./git.js";
-import { resolveToken, type TokenResolution } from "./auth.js";
+import { resolveToken, tokenFormUrl, REQUIRED_SCOPE, type TokenResolution } from "./auth.js";
 
 export const STATUS_EMOJI: Record<string, string> = {
   success: "\u2705",
@@ -84,6 +84,42 @@ function basicModeHint(resolved: TokenResolution): string {
   return resolved.source === "config"
     ? "To use git-fi without CI status, run 'git fi --auth=logout'."
     : "To use git-fi without CI status, unset GITLAB_ACCESS_TOKEN and try again.";
+}
+
+/**
+ * What a rejected token should say (AUTH-13). A 401 is about the credential,
+ * not the branch the request happened to name, and the reader's next move is to
+ * replace it — so lead with the source that supplied it and link the form that
+ * issues a new one, rather than printing GitLab's JSON and offering only to
+ * turn CI status off.
+ *
+ * Carries no SGR styling of its own: `abort` wraps the whole message in red,
+ * and an inner reset would end that colour for every line after it. The OSC 8
+ * link is safe, being no colour at all.
+ */
+export function rejectedTokenMessage(
+  resolved: TokenResolution,
+  s: ReturnType<typeof makeStyle>
+): string {
+  const host = resolved.host;
+  const from = resolved.source === "config" ? "the stored token" : "GITLAB_ACCESS_TOKEN";
+  const replace =
+    "Run git fi --auth=login to store the new one" +
+    (resolved.source === "config"
+      ? "."
+      : ", which takes\nprecedence over GITLAB_ACCESS_TOKEN (AUTH-01), or update the export.");
+
+  const url = host ? tokenFormUrl(host) : null;
+  const form = url
+    ? `\nCreate a replacement, prefilled for git-fi with ${REQUIRED_SCOPE} only:\n` +
+      `  ${s.link(url, url)}\n\n`
+    : "\n";
+
+  return (
+    `${host ?? "GitLab"} rejected ${from} (HTTP 401).\n` +
+    form +
+    `${replace}\n\n${basicModeHint(resolved)}`
+  );
 }
 
 interface ApiResponse {
@@ -217,7 +253,9 @@ export async function fetchGitlabCI(
   for (const outcome of outcomes) {
     if (!outcome.ok) {
       abort(
-        `GitLab API returned HTTP ${outcome.status} for branch '${outcome.ref}': ${outcome.body}\n\n${basicModeHint(resolved)}`,
+        outcome.status === 401
+          ? rejectedTokenMessage(resolved, makeStyle(opts))
+          : `GitLab API returned HTTP ${outcome.status} for branch '${outcome.ref}': ${outcome.body}\n\n${basicModeHint(resolved)}`,
         opts
       );
     }

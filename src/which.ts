@@ -106,7 +106,7 @@ export function isSameInstall(launcher: string, entry: string): boolean {
  * entry point cannot be resolved — none of which is worth a word to the user.
  */
 export function shadowingLauncher(entry: string | undefined, path?: string): string | null {
-  if (!entry) return null;
+  if (!entry || !resolved(entry)) return null;
   for (const winner of gitFiOnPath(path)) {
     return isSameInstall(winner, entry) ? null : winner;
   }

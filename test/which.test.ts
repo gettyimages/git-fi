@@ -172,6 +172,14 @@ describe("shadowingLauncher (INSTALL-01)", () => {
     assert.equal(shadowingLauncher(undefined, onPath(dirWith(["git-fi"]))), null);
   });
 
+  test("stays silent when the running entry point does not resolve", () => {
+    // Reporting a shadow means naming the copy being shadowed, and there is no
+    // such path to name — so INSTALL-01 asks for silence rather than a notice
+    // pointing at nothing.
+    const gone = join(pkg, "does-not-exist.js");
+    assert.equal(shadowingLauncher(gone, onPath(dirWith(["git-fi"]))), null);
+  });
+
   test("only the first directory decides, not every match", () => {
     const stale = dirWith(["git-fi"], "#!/usr/bin/env ruby\n");
     const bin = mkdtempSync(join(tmpdir(), "git-fi-bin-"));

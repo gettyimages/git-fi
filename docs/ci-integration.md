@@ -139,5 +139,5 @@ This gives teams a continuously updated integration environment that reflects al
 |----------|---------|
 | `GITLAB_ACCESS_TOKEN` | A GitLab token for pipeline status. Checked after a stored token, and the only source git-fi reads under `CI`; prefer `git fi --auth=login` at a terminal |
 | `XDG_CONFIG_HOME` | Where the stored token lives (`<XDG_CONFIG_HOME>/git-fi/config.json`); defaults to `~/.config` |
-| `GIT_FI_NO_HINTS` | Suppress hint messages at an interactive terminal. A CI job needs nothing set — git-fi suppresses hints on its own when `CI` is set or stdout isn't a terminal, since there's nobody there to act on the advice. |
+| `GIT_FI_NO_HINTS` | Suppress hint messages at an interactive terminal. A CI job needs nothing set for most of them — git-fi suppresses hints on its own when `CI` is set or stdout isn't a terminal, since there's nobody there to act on the advice. The exception is `--version`, which reports another `git-fi` ahead of it on `PATH` wherever it runs: a job that logs which binary it ran is the case that notice exists for, so this variable is what quiets it. |
 | `NO_COLOR` | Disable color output (respects [no-color.org](https://no-color.org) convention) |

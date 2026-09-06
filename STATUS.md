@@ -12,8 +12,8 @@ land on it.
 
 | Status  | Count |
 |---------|-------|
-| Covered | 123   |
-| Total   | 123   |
+| Covered | 125   |
+| Total   | 125   |
 
 ## `PRE`
 

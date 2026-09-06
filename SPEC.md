@@ -596,7 +596,7 @@ These are standard [GitLab predefined variables](https://docs.gitlab.com/ci/vari
 |----------|---------|
 | `GITLAB_ACCESS_TOKEN` | A GitLab token, enabling CI status display in `list`. Checked after a stored token for the host, and under `$CI` it is the only source git-fi reads (`AUTH-01`); an empty value is treated as absent. |
 | `XDG_CONFIG_HOME` | Base directory for the stored token (`AUTH-03`); defaults to `~/.config` |
-| `GIT_FI_NO_HINTS` | When set, suppresses the CI-status hint (`LIST-04`) and the update notice (`UPDATE-03`). Both are already suppressed off a TTY and under `$CI`, so this is for opting out at an interactive terminal. |
+| `GIT_FI_NO_HINTS` | When set, suppresses the CI-status hint (`LIST-04`), the update notice (`UPDATE-03`), and the shadowed-install notice (`INSTALL-01`). The first two are already suppressed off a TTY and under `$CI`, so for those this is for opting out at an interactive terminal; `INSTALL-01` answers a question the user just asked, so this switch is the only thing that quiets it. |
 | `GIT_FI_NO_FETCH` | When set, skips the fetch on read-only operations (`list`) and operates on already-fetched remote-tracking refs (`PRE-05`); set by shell completion to stay offline. Mutating operations always fetch. |
 | `NO_UPDATE_NOTIFIER` | When set, suppresses the update notice (`UPDATE-03`) |
 | `NO_COLOR` | When set, disables all color output ([no-color.org](https://no-color.org)) |

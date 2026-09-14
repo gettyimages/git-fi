@@ -200,6 +200,29 @@ describe("conflict attribution (READY-03, READY-04, READY-05)", () => {
     assert.match(r.stdout, /conflicts with feature-a \(test@example\.com\)/);
   });
 
+  test("a separator byte in the tip author's email still names the author (READY-04)", () => {
+    sb.pushBranch("feature-a", "shared.txt", "from-a\n");
+    // git takes a control character in an author email and the format atom
+    // emits it verbatim, so feature-a's listing line carries a sixth field.
+    sb.git(["checkout", "--quiet", "feature-a"]);
+    sb.git([
+      "commit",
+      "--quiet",
+      "--amend",
+      "--no-edit",
+      "--author=Evil <ev\x1fil@example.com>",
+    ]);
+    sb.git(["push", "--quiet", "--force", "origin", "feature-a"]);
+    sb.git(["checkout", "--quiet", "main"]);
+    sb.pushBranch("feature-b", "shared.txt", "from-b\n");
+    sb.bootstrapFi();
+    assert.equal(runFi(["--add", "feature-a"], sb.work).status, 0);
+
+    const r = runFi(["--add", "feature-b"], sb.work);
+    assert.equal(r.status, 1, r.stdout);
+    assert.match(r.stdout, /conflicts with feature-a \(evil@example\.com\)/);
+  });
+
   test("main is named bare — it is nobody's to rebase (READY-04)", () => {
     sb.pushBranch("feature-a", "shared.txt", "from-a\n");
     sb.bootstrapFi();

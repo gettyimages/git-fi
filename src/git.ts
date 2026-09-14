@@ -289,9 +289,10 @@ export function resolveBranches(
 // separator alone does not fix the field count — see FIELD_COUNT below.
 const FIELD_SEP = "\x1f";
 
-// Every field the format asks for. A line that splits into anything else came
-// from a field carrying the separator, and there is no way to tell which value
-// landed where, so the line is dropped rather than guessed at.
+// Every field the format asks for. `%(authoremail:trim)` is the only one that
+// can carry the separator and it is last, so a longer split rejoins into it. A
+// shorter one lost a field the format asked for, and there is no way to tell
+// which value landed where, so the line is dropped rather than guessed at.
 const FIELD_COUNT = 5;
 
 interface RemoteBranch {
@@ -372,8 +373,9 @@ function listRemoteBranches(
   const branches: RemoteBranch[] = [];
   for (const line of lines) {
     const fields = line.split(FIELD_SEP);
-    if (fields.length !== FIELD_COUNT) continue;
-    const [name, symref, date, aheadBehind, authorEmail] = fields;
+    if (fields.length < FIELD_COUNT) continue;
+    const [name, symref, date, aheadBehind] = fields;
+    const authorEmail = fields.slice(FIELD_COUNT - 1).join(FIELD_SEP);
     // origin/HEAD renders as a bare `origin` under refname:short, so it slips
     // past a name comparison. Match the symref field, which only HEAD sets.
     if (symref) continue;

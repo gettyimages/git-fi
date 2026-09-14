@@ -126,9 +126,15 @@ export function attributeConflicts(
       continue;
     }
 
-    const peers = merged.filter(
-      (peer) => mergeTree(peer, branch).outcome === "conflict"
-    );
+    const peers: string[] = [];
+    for (const peer of merged) {
+      const vsPeer = mergeTree(peer, branch);
+      // An unrun probe read as "this peer is fine" empties the sweep, and the
+      // fallback below then reports a combination-only failure: the confident
+      // wrong answer, where the two probes above say nothing instead.
+      if (vsPeer.outcome === "error") return { conflicts: [], attributable: false };
+      if (vsPeer.outcome === "conflict") peers.push(peer);
+    }
     conflicts.push({
       branch: localBranchName(branch),
       // A peer sweep can come up empty when the conflict only appears in the
@@ -145,11 +151,11 @@ export function attributeConflicts(
 /**
  * Quote a branch name for the command lines the report prints, which a person
  * is invited to paste into a shell. A ref name may contain backticks, `;`,
- * `&&`, `|`, `>`, quotes and a leading `-` — `git branch` and `git update-ref`
- * both take them — so a branch named ``feat`id`x`` would otherwise render as a
- * bold instruction to run it. Single quotes are the only form that stops
- * command substitution: inside double quotes a backtick still expands. `'\''`
- * closes, escapes, and reopens for a literal quote.
+ * `&&`, `|`, `>` and quotes — `git branch` takes them — so a branch named
+ * ``feat`id`x`` would otherwise render as a bold instruction to run it. Single
+ * quotes are the only form that stops command substitution: inside double
+ * quotes a backtick still expands. `'\''` closes, escapes, and reopens for a
+ * literal quote.
  *
  * Left bare when the name has nothing a shell reads, which is nearly always,
  * so the common case still reads as something you would have typed.

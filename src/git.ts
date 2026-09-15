@@ -453,6 +453,22 @@ export function branchReadiness(defBranch: string): Map<string, BranchReadiness>
   return cachedListing(defBranch).readiness;
 }
 
+let quotePath: boolean | null = null;
+
+/**
+ * Whether this reader wants a path outside ASCII escaped, which is what git
+ * asks `core.quotePath` (READY-04). Unset is on, the same default git takes.
+ */
+export function quotePathEnabled(): boolean {
+  if (quotePath === null) {
+    quotePath =
+      git(["config", "--get", "--type=bool", "core.quotePath"], {
+        allowFailure: true,
+      }) !== "false";
+  }
+  return quotePath;
+}
+
 export function remoteBranchesNoMergedSince(
   defBranch: string,
   sinceMonths: number = 3

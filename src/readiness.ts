@@ -1,6 +1,12 @@
 import type { Options } from "./types.js";
-import { makeStyle } from "./style.js";
-import { git, gitOutcome, branchAuthors, localBranchName } from "./git.js";
+import { makeStyle, shq, quoteCStyle } from "./style.js";
+import {
+  git,
+  gitOutcome,
+  branchAuthors,
+  localBranchName,
+  quotePathEnabled,
+} from "./git.js";
 
 /** A branch that could not be merged, and what stopped it (READY-03). */
 export interface BranchConflict {
@@ -148,23 +154,6 @@ export function attributeConflicts(
   return { conflicts, attributable: true };
 }
 
-/**
- * Quote a branch name for the command lines the report prints, which a person
- * is invited to paste into a shell. A ref name may contain backticks, `;`,
- * `&&`, `|`, `>` and quotes — `git branch` takes them — so a branch named
- * ``feat`id`x`` would otherwise render as a bold instruction to run it. Single
- * quotes are the only form that stops command substitution: inside double
- * quotes a backtick still expands. `'\''` closes, escapes, and reopens for a
- * literal quote.
- *
- * Left bare when the name has nothing a shell reads, which is nearly always,
- * so the common case still reads as something you would have typed.
- */
-function shq(name: string): string {
-  if (/^[A-Za-z0-9._/][A-Za-z0-9._/-]*$/.test(name)) return name;
-  return `'${name.replace(/'/g, "'\\''")}'`;
-}
-
 // Enough paths to recognize what the branches are fighting over, without a wall
 // of them when the conflict is a rename or a generated file. The remainder is
 // counted rather than dropped silently.
@@ -175,7 +164,8 @@ function pathItems(paths: string[], opts: Options): string[] {
   const s = makeStyle(opts);
   const shown = paths.slice(0, PATHS_SHOWN);
   const rest = paths.length - shown.length;
-  const items = shown.map((p) => `     ${s.dim("*")} ${p}`);
+  const quote = quotePathEnabled();
+  const items = shown.map((p) => `     ${s.dim("*")} ${quoteCStyle(p, quote)}`);
   if (rest > 0) items.push(`     ${s.dim(`* +${rest} more`)}`);
   return items;
 }

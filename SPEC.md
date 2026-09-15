@@ -467,8 +467,10 @@ Some extra untracked files have been left as a result of the failed merge(s):
  * conflict-file.txt
 
 You can delete these by running:
-  rm "conflict-file.txt"
+  rm conflict-file.txt
 ```
+
+A filename takes anything but `/` and NUL, so git-fi shall single-quote a name in that `rm` line by the same rule the conflict remedies use (`READY-04`): bare where nothing in it reads as shell, quoted otherwise.
 
 ## Merge Readiness
 
@@ -500,6 +502,8 @@ The email is chosen by whoever wrote the commit and git accepts ANSI escapes in 
 The command lines the report prints are executed by a person pasting them, so a branch name in one shall be single-quoted. A ref name may contain backticks, `;`, `&&`, `|`, `>` and quotes, and single quotes are the only form that stops command substitution — inside double quotes a backtick still expands. A name with nothing a shell reads shall be left bare, so the common case still reads as something a person would have typed. Quoting reaches the shell and not git's own option parsing: a ref named `-dashy`, which `git update-ref` creates and `git branch` rejects, makes the printed remedy exit 129 with `unknown switch`. git-fi shall leave that case as it stands.
 
 Either way git-fi shall list the conflicted paths beneath the branch as list items — a single path is still rendered as a list, so the shape does not change with the count — capping the list and counting the remainder rather than dropping it silently.
+
+A filename takes any byte but `/` and NUL, and `-z` hands those bytes over intact (`READY-03`), so git-fi shall render each listed path the way git prints one: bare where it carries nothing to escape, otherwise double-quoted with git's C escapes and three-digit octal for the rest, escaping bytes outside ASCII as `core.quotePath` asks. A path holding a newline would otherwise split the item across lines, and one holding `\e[2K` would repaint text git-fi had already written — the same hazard as an author's email, a byte further from the reader. This is how git shows a path rather than a form it reads back: a quoted pathspec matches nothing, and the raw bytes are what `--json` carries (`JSON-03`) and what git takes via `--pathspec-file-nul`.
 
 git-fi shall close the report with the `--remove` command line that takes the failing branches out of fi, marked as temporary and placed below the fixes. Unlike `--force` it drops only the named branches, so the rest of fi survives; it defers the conflict rather than resolving it, which is why it follows the rebases instead of leading. The line shall name only the failing branches fi actually holds: a branch that failed on the way *in* was never added, so there is nothing to remove, and where none of the failing branches is in fi the line is omitted. git-fi shall not offer `--force` as a remedy at all: replacing fi with one branch discards the other branches' integration instead of resolving anything, and naming the pair is what makes the smaller fix visible.
 
@@ -731,7 +735,3 @@ git-fi notifies the user when a newer version has been published to npm, without
 - `UPDATE-03` git-fi shall suppress both the notice and the background check when stdout is not a TTY, when `$CI` is set, when `--json` or `--bare` is used, when `$GIT_FI_NO_HINTS` or `$NO_UPDATE_NOTIFIER` is set, or when the running build is a dev build (`BUILD-01`). The notice names `git fi --update`, which installs the published global over the linked checkout and takes the trial down with it.
 - `UPDATE-04` The cache shall live at `$XDG_CACHE_HOME/git-fi/update-check.json`, falling back to `~/.cache/git-fi/update-check.json`.
 - `UPDATE-05` `--update` (`-u`) shall update the installed git-fi by running `npm install -g <package>@latest` with npm's stdio inherited, exiting with npm's exit code and adding no output of its own. Where the platform resolves npm through a `.cmd` shim (Windows), git-fi shall spawn it through the shell, which is the only path left: node finds nothing under the bare name and refuses a direct `.cmd` with `EINVAL`. A consequence is that a missing npm is then the shell's error to report rather than git-fi's, so the `Could not run npm` message is a POSIX-only guarantee. It shall run before the update notice and the pre-flight checks, so it works from any directory. It shall consult neither the cache nor the registry first: the throttle in `UPDATE-02` serves the passive notice, whereas `--update` is an explicit request to install now, and a redundant reinstall is a better answer than refusing one. It shall collide with the actions in `COMMAND-*` the way they collide with each other, and shall reject branch-name arguments.
-
-## Future Requirements
-
-`FUT-01` (→ `READY`) `--check [<branch>...]` shall report merge readiness for the branches currently in fi plus any named branches as candidate additions, running attribution (`READY-03`) and printing the result (`READY-04`) without merging, committing, pushing, or otherwise changing fi. This is the dry run for "will my add land, and if not, whose rebase clears it?" — the question the `--force` reflex currently answers destructively. Because attribution touches no working tree (`READY-06`), `--check` shall run against a dirty index. It needs a global option (`OPTION-*`) with a collision rule against the mutating actions, branch-argument completion matching `--add`'s (`COMPLETE-03`), and entries in the help, man page, and docs.

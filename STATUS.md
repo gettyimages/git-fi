@@ -2,7 +2,7 @@
 
 Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 
-**Last updated:** 2026-09-03
+**Last updated:** 2026-09-14
 
 Locations name the file and the enclosing symbol rather than a line range, so an
 edit elsewhere in the same file leaves the row correct. `git grep` the symbol to
@@ -12,9 +12,8 @@ land on it.
 
 | Status  | Count |
 |---------|-------|
-| Covered | 129   |
-| Planned | 1     |
-| Total   | 130   |
+| Covered | 131   |
+| Total   | 131   |
 
 ## Pre-flight Checks
 
@@ -154,7 +153,7 @@ land on it.
 | READY-01 | Behind count           | Covered | `src/git.ts` (`listRemoteBranches`, `cachedListing`, `branchReadiness`) |
 | READY-02 | Behind marker         | Covered | `src/style.ts` (`readinessMarker`, `withReadiness`), `src/commands.ts` (`cmdList`), `src/gitlab.ts` (`printCITable`) |
 | READY-03 | Merge-tree attribution | Covered | `src/readiness.ts` (`attributeConflicts`, `mergeTree`, `commitTree`) |
-| READY-04 | Per-branch remedy     | Covered | `src/readiness.ts` (`renderConflicts`, `shq`) |
+| READY-04 | Per-branch remedy     | Covered | `src/readiness.ts` (`renderConflicts`, `pathItems`), `src/style.ts` (`shq`, `quoteCStyle`), `src/git.ts` (`quotePathEnabled`) |
 | READY-05 | Attribution on failure | Covered | `src/merge.ts` (`mergeProcess`) |
 | READY-06 | Bounded probes        | Covered | `src/readiness.ts` (`attributeConflicts`) |
 | READY-07 | Merged branch marker  | Covered | `src/git.ts` (`branchReadiness`, `mergedRemoteBranches`), `src/style.ts` (`strikeIfMerged`) |
@@ -251,9 +250,3 @@ land on it.
 | UPDATE-03 | Suppression conditions   | Covered | `src/style.ts` (`hintsEnabled`), `src/update-check.ts` (`suppressed`), `src/build-info.ts` (`isDevBuild`) |
 | UPDATE-04 | Cache location           | Covered | `src/update-check.ts` (`cachePath`) |
 | UPDATE-05 | `--update` installs the latest version | Covered | `src/update-check.ts` (`updateSelf`), `src/index.ts` (`parseArgs`, `main`) |
-
-## Future Requirements
-
-| ID     | Description              | Status  | Location                       |
-|--------|--------------------------|---------|--------------------------------|
-| FUT-01 | `--check` dry run     | Planned | —                     |

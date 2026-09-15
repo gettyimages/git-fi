@@ -120,6 +120,78 @@ export function createProgressLine(opts: Options) {
   };
 }
 
+/**
+ * Quote a branch name or path for the command lines git-fi prints (READY-04),
+ * which a person is invited to paste into a shell. Both may contain backticks,
+ * `;`, `&&`, `|`, `>` and quotes — `git branch` takes them in a ref name, and a
+ * filename takes anything but `/` and NUL — so ``feat`id`x`` would otherwise
+ * render as a bold instruction to run it. Single quotes are the only form that
+ * stops command substitution: inside double quotes a backtick still expands.
+ * `'\''` closes, escapes, and reopens for a literal quote.
+ *
+ * Left bare when the name has nothing a shell reads, which is nearly always,
+ * so the common case still reads as something you would have typed.
+ */
+export function shq(name: string): string {
+  if (/^[A-Za-z0-9._/][A-Za-z0-9._/-]*$/.test(name)) return name;
+  return `'${name.replace(/'/g, "'\\''")}'`;
+}
+
+// git's own table, `cq_lookup` in the `quote.c` behind `quote_c_style`:
+// https://github.com/git/git/blob/v2.55.0/quote.c#L205
+// Every other byte it escapes goes out as three-digit octal. Duplicating the
+// table is what a test covers rather than a comment: it diffs this function
+// against what `git ls-files` prints for the same names, so a change on git's
+// side surfaces here instead of drifting.
+const C_ESCAPES = new Map<number, string>([
+  [0x07, "\\a"],
+  [0x08, "\\b"],
+  [0x09, "\\t"],
+  [0x0a, "\\n"],
+  [0x0b, "\\v"],
+  [0x0c, "\\f"],
+  [0x0d, "\\r"],
+  [0x22, '\\"'],
+  [0x5c, "\\\\"],
+]);
+
+/**
+ * Render a path the way git prints one (READY-04): bare where it holds nothing
+ * that needs escaping, otherwise double-quoted with C escapes. A filename takes
+ * any byte but `/` and NUL, and `--name-only -z` hands those over intact
+ * (READY-03) — so a path carrying a newline splits the report across lines, and
+ * one carrying `\e[2K` repaints text git-fi has already written.
+ *
+ * The escaping is per byte rather than per character, which is what makes
+ * `quoteNonAscii` reproduce `core.quotePath`: a path outside ASCII goes out as
+ * one octal escape per UTF-8 byte, or unescaped where the reader has turned
+ * that off. Bytes that were not valid UTF-8 are already lost by then — git-fi
+ * reads git's output as text — so those paths render with the replacement
+ * character rather than their original bytes.
+ *
+ * git will not read this form back: a quoted pathspec matches nothing. It is
+ * how git shows a path, and the raw bytes `--json` carries are what goes back
+ * into git (`--pathspec-file-nul`).
+ */
+export function quoteCStyle(path: string, quoteNonAscii = true): string {
+  const out: number[] = [];
+  let needsQuotes = false;
+  const push = (esc: string): void => {
+    for (let i = 0; i < esc.length; i++) out.push(esc.charCodeAt(i));
+    needsQuotes = true;
+  };
+
+  for (const byte of Buffer.from(path, "utf8")) {
+    const escape = C_ESCAPES.get(byte);
+    if (escape !== undefined) push(escape);
+    else if (byte < 0x20 || byte === 0x7f || (quoteNonAscii && byte >= 0x80)) {
+      push(`\\${byte.toString(8).padStart(3, "0")}`);
+    } else out.push(byte);
+  }
+
+  return needsQuotes ? `"${Buffer.from(out).toString("utf8")}"` : path;
+}
+
 export function bulletList(
   items: string[],
   opts: Options,

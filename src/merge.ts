@@ -3,6 +3,7 @@ import {
   makeStyle,
   bulletList,
   createSpinner,
+  shq,
   abort,
 } from "./style.js";
 import {
@@ -488,7 +489,7 @@ export async function mergeProcess(
       diagnose(bulletList(newUntracked, opts));
       diagnose("\nYou can delete these by running:\n");
       for (const f of newUntracked) {
-        diagnose(`  rm "${f}"\n`);
+        diagnose(`  rm ${shq(f)}\n`);
       }
     }
 

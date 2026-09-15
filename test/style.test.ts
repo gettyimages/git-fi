@@ -1,10 +1,15 @@
-import { test, describe } from "node:test";
+import { test, describe, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { makeSandbox, type Sandbox } from "./helpers.ts";
 import {
   colorEnabled,
   hintsEnabled,
   hyperlinksEnabled,
   makeStyle,
+  quoteCStyle,
+  shq,
   strikeIfMerged,
   withReadiness,
 } from "../src/style.ts";
@@ -156,5 +161,78 @@ describe("readiness rendering (READY-02, READY-07)", () => {
     // hyperlink span without closing it.
     assert.equal(strikeIfMerged("bugfix-nav", landed, OPTS, false), "bugfix-nav");
     assert.equal(strikeIfMerged("feature-a", behind(12), OPTS, true), "feature-a");
+  });
+});
+
+describe("shq (READY-04)", () => {
+  test("an ordinary name is left as something you would have typed", () => {
+    assert.equal(shq("feature-a"), "feature-a");
+    assert.equal(shq("release/1.2.x"), "release/1.2.x");
+    assert.equal(shq("conflict-file.txt"), "conflict-file.txt");
+  });
+
+  test("a backtick is quoted, so pasting the line runs nothing", () => {
+    assert.equal(shq("feat`id`x"), "'feat`id`x'");
+    assert.equal(shq("x$(id).txt"), "'x$(id).txt'");
+    assert.equal(shq("a;b && c"), "'a;b && c'");
+  });
+
+  test("a literal quote closes, escapes, and reopens", () => {
+    assert.equal(shq("it's"), "'it'\\''s'");
+  });
+
+  test("a leading dash is quoted, though git's own option parsing still reads it", () => {
+    assert.equal(shq("-dashy"), "'-dashy'");
+  });
+});
+
+// Windows rejects most of these names outright, so git never has to render one.
+describe("quoteCStyle (READY-04)", { skip: process.platform === "win32" }, () => {
+  // Names git prints bare, and names it escapes — checked against what git
+  // itself prints for the same file, so the two cannot drift apart.
+  const NAMES = [
+    "src/plain.txt",
+    "src/with space.txt",
+    "src/single'quote.txt",
+    "src/dollar$var.txt",
+    "src/tilde~.txt",
+    "src/two\nlines.txt",
+    "src/tab\there.txt",
+    "src/vt\v.txt",
+    "src/bell\x07.txt",
+    "src/esc\x1b[2Kbad.txt",
+    "src/del\x7f.txt",
+    'src/quote"inside.txt',
+    "src/back\\slash.txt",
+    "src/naïve.txt",
+    "src/emoji🎉.txt",
+  ];
+
+  let sb: Sandbox;
+  let listed: string[];
+
+  before(() => {
+    sb = makeSandbox();
+    mkdirSync(join(sb.work, "src"), { recursive: true });
+    for (const name of NAMES) writeFileSync(join(sb.work, name), "x\n");
+    sb.git(["add", "-A"]);
+    listed = sb.git(["ls-files", "--", "src"]).split("\n").filter(Boolean);
+  });
+
+  after(() => sb.cleanup());
+
+  test("renders every path exactly as git prints it", () => {
+    assert.equal(listed.length, NAMES.length, "git listed a different set");
+    const ours = NAMES.map((n) => quoteCStyle(n)).sort();
+    assert.deepEqual(ours, listed.sort());
+  });
+
+  test("core.quotePath=false leaves a non-ASCII path alone, as it does for git", () => {
+    const theirs = sb
+      .git(["-c", "core.quotePath=false", "ls-files", "--", "src"])
+      .split("\n")
+      .filter(Boolean);
+    const ours = NAMES.map((n) => quoteCStyle(n, false)).sort();
+    assert.deepEqual(ours, theirs.sort());
   });
 });

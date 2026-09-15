@@ -1,6 +1,15 @@
 #!/usr/bin/env node
-// Install the zsh completion files as part of `npm install -g` (COMPLETE-07), so tab
-// completion works out of the box instead of being a step the user has to find.
+// Two jobs with opposite failure policies.
+//
+// First, the git floor (PRE-06): a hard failure, because npm reads a non-zero
+// postinstall as a failed install, so the package never lands. Refusing here is
+// what turns "you updated and every command now aborts" into "the update
+// declined to land, and told you why".
+//
+// Second, the zsh completion files (COMPLETE-07), so tab completion works out of
+// the box instead of being a step the user has to find. That half stays soft: a
+// prefix we cannot write to (a root-owned /usr/local, a distro package) prints
+// the one command that finishes the job and exits 0.
 //
 // The destination is npm's own global prefix — <prefix>/share/zsh/site-functions
 // — which is the directory Homebrew and /usr/local zsh setups already have on
@@ -11,13 +20,50 @@
 // Plain .mjs rather than part of the TypeScript build: npm runs postinstall
 // before prepare, so on a fresh clone dist/ does not exist yet and a compiled
 // entry point would fail the install.
-//
-// This never fails an install. A prefix we cannot write to (a root-owned
-// /usr/local, a distro package) prints the one command that finishes the job and
-// exits 0.
+import { spawnSync } from "node:child_process";
 import { copyFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
+// Duplicated from preflightChecks in src/git.ts rather than imported: this file
+// runs before the build, so there is no dist/ to import from. A test pins the
+// two against each other.
+const MIN_GIT = "2.41.0";
+const MIN_GIT_ORD = 24100;
+
+// `npm install --ignore-scripts` skips this file entirely, and git can be
+// downgraded after the fact, so preflightChecks re-checks at run time (PRE-02).
+// This one exists to stop the bad install, not to replace that check.
+function refuse(reason, advice) {
+  process.stderr.write(`git-fi requires git ${MIN_GIT} or newer, and ${reason}.\n\n${advice}`);
+  process.exit(1);
+}
+
+// Pinning is the escape hatch for someone whose git is fixed by their platform:
+// a long-support distribution, Apple's command line tools. 1.2.2 is the last
+// release built against the older floor, so the version is a fact about history
+// rather than a number that drifts.
+const TOO_OLD =
+  `  Upgrade git, then install git-fi again.\n` +
+  `  To stay on the git you have, install the last release that supports it:\n` +
+  `    npm install -g @gettyimages/git-fi@1.2.2\n`;
+const NO_GIT = `  Install git ${MIN_GIT} or newer, then install git-fi again.\n`;
+
+const probe = spawnSync("git", ["--version"], { encoding: "utf-8" });
+if (probe.error || probe.status !== 0) refuse("no working git was found on PATH", NO_GIT);
+
+const found = (probe.stdout || "").match(/(\d+)\.(\d+)\.(\d+)/);
+if (!found) {
+  refuse(
+    `could not read a version from \`git --version\` (${(probe.stdout || "").trim()})`,
+    NO_GIT
+  );
+}
+
+const [, major, minor, patch] = found.map(Number);
+if (major * 10000 + minor * 100 + patch < MIN_GIT_ORD) {
+  refuse(`this system has git ${found[0]}`, TOO_OLD);
+}
 
 // The zsh pair from completions/: one file per provider that dispatches
 // `git fi` (COMPLETE-02). Kept in step with install-completions' own targets by a

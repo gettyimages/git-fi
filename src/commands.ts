@@ -1,5 +1,5 @@
 import type { Options, CIResult } from "./types.js";
-import { makeStyle, printTable, abort, hintsEnabled } from "./style.js";
+import { makeStyle, printTable, abort, hintsEnabled, withReadiness, strikeIfMerged } from "./style.js";
 import {
   git,
   gitExitCode,
@@ -7,12 +7,15 @@ import {
   currentFiBranches,
   resolveBranches,
   allRemoteBranches,
+  branchReadiness,
+  localBranchName,
   remoteBranchesNoMergedSince,
   ensureFetched,
   isInteractive,
 } from "./git.js";
 import { fetchGitlabCI, printCITable, detectGitlabProject, fetchFiPipeline, statusLabel, branchCompareUrl, gitlabToken } from "./gitlab.js";
 import { mergeProcess } from "./merge.js";
+import { branchJson } from "./json.js";
 import { pickBranches } from "./ui.js";
 import { DOCS_URL } from "./help.js";
 
@@ -76,21 +79,20 @@ export async function cmdList(
   }
 
   if (opts.json) {
-    const obj: Record<string, unknown> = {
-      command,
-      branches: shortNames,
-    };
+    const readiness = branchReadiness(defBranch);
+    const ciByBranch = new Map<string, CIResult>();
     if (gitlabToken(opts)) {
-      const ci = await fetchGitlabCI(branches, opts);
-      obj.ci = ci.map((r) => ({
-        branch: r.branch.replace(/^origin\//, ""),
-        status: r.status,
-        author: r.author,
-        date: r.date,
-        branchMissing: r.branchMissing,
-      }));
+      for (const r of await fetchGitlabCI(branches, opts)) {
+        ciByBranch.set(r.branch, r);
+      }
     }
-    process.stdout.write(JSON.stringify(obj, null, 2) + "\n");
+    process.stdout.write(
+      JSON.stringify(
+        { command, branches: branches.map((b) => branchJson(b, readiness, ciByBranch)) },
+        null,
+        2
+      ) + "\n"
+    );
     return;
   }
 
@@ -115,11 +117,15 @@ export async function cmdList(
       }
     }
   } else {
-    const rows = shortNames.map((name) => {
+    const readiness = branchReadiness(defBranch);
+    const rows = branches.map((branch) => {
+      const name = localBranchName(branch);
+      const r = readiness.get(branch);
+      const text = strikeIfMerged(name, r, opts);
       const label = gitlab
-        ? s.linkOrMarkdown(s.cyan(name), branchCompareUrl(gitlab, name, defBranch))
-        : s.cyan(name);
-      return [label];
+        ? s.linkOrMarkdown(s.cyan(text), branchCompareUrl(gitlab, name, defBranch))
+        : s.cyan(text);
+      return [withReadiness(label, r, opts)];
     });
     printTable(["Branch"], rows, opts);
   }

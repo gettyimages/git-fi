@@ -3,6 +3,7 @@ import {
   makeStyle,
   bulletList,
   createSpinner,
+  shq,
   abort,
 } from "./style.js";
 import {
@@ -13,11 +14,16 @@ import {
   currentBranchName,
   existingRemoteRefs,
   mergedRemoteBranches,
+  branchReadiness,
+  currentFiBranches,
+  localBranchName,
   isInteractive,
   type CommitFormat,
 } from "./git.js";
 import { confirm } from "./ui.js";
 import { detectGitlabProject } from "./gitlab.js";
+import { attributeConflicts, renderConflicts } from "./readiness.js";
+import { branchJson } from "./json.js";
 
 // Commit-message format written when bootstrapping a brand-new fi branch (no
 // The format git-fi writes for *every* fi commit during the migration rollout
@@ -70,6 +76,19 @@ function buildCommitMessage(
   return buildTerseSignature(branches, defBranch);
 }
 
+/**
+ * Write to stdout and wait for the bytes to reach the OS, which `abort`'s
+ * `process.exit` does not (JSON-03). stdout is asynchronous on a pipe, so an
+ * exit on the same tick drops whatever is still buffered — a `--json` failure
+ * object wider than the 64K pipe buffer arrives truncated mid-string to the
+ * `| jq` the flag exists for, while the same run redirected to a file is whole.
+ */
+function writeStdout(text: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    process.stdout.write(text, (err) => (err ? reject(err) : resolve()));
+  });
+}
+
 const ACTION_INITIAL: Record<string, string> = {
   add: "new",
   remove: "removing",
@@ -107,7 +126,7 @@ export async function mergeProcess(
   const doneVerb = ACTION_DONE[action] || action;
   const actionSet = new Set(actionBranches);
 
-  // Under --bare / --json, stdout carries machine output only (JSON-02), so
+  // Under --bare / --json, stdout carries machine output only (JSON-01), so
   // failure diagnostics move to stderr. In human mode they stay on stdout.
   const machineOutput = opts.bare || opts.json;
   const diagnose = (text: string) => {
@@ -115,7 +134,7 @@ export async function mergeProcess(
   };
   // The branch display exists to be rewritten in place as the operation
   // progresses, so it is drawn only where that can happen: an interactive
-  // stdout, and not under a machine format (TERM-07, JSON-02).
+  // stdout, and not under a machine format (TERM-07, JSON-01).
   const tty = process.stdout.isTTY === true && !machineOutput;
 
   const fiRefs = gitLines([
@@ -430,11 +449,6 @@ export async function mergeProcess(
     finalizeDone();
     return pushedSha;
   } else {
-    const conflictFiles =
-      gitLines(["diff", "--name-only", "--diff-filter=U"], {
-        allowFailure: true,
-      }) || [];
-
     git(["reset", "--hard", "HEAD"], { debug: opts.debug });
 
     const untrackedAfter = gitLines([
@@ -457,8 +471,29 @@ export async function mergeProcess(
 
     finalizeError();
 
+    // Naming the whole failing set invites `--force` — replace fi with one
+    // branch and start over — when the fix is usually one or two rebases
+    // (READY-05). Attribution runs after the working tree is restored: it reads
+    // the object database only, so it neither needs nor disturbs a checkout.
+    const attribution = attributeConflicts(mergeable, defBranch);
+    // Nothing was pushed, so fi still holds what it held before the attempt —
+    // which is what says whether `-r` is a remedy for a given branch.
+    const inFi = new Set(currentFiBranches(defBranch).map(localBranchName));
+
     diagnose("\nFailed trying to merge branch(es):\n\n");
-    diagnose(bulletList(mergeable, opts));
+    if (attribution.conflicts.length > 0) {
+      diagnose(renderConflicts(attribution.conflicts, defBranch, inFi, opts));
+    } else {
+      diagnose(bulletList(mergeable, opts));
+      // Saying which branch failed is the promise this path makes, so when it
+      // cannot be kept the report says that rather than leaving a bare list
+      // that reads as the old behavior.
+      diagnose(
+        attribution.attributable
+          ? "\nEach branch merges cleanly on its own, so the conflict is in the combination.\nThe combined merge uses git's octopus strategy, which does not detect renames,\nso a rename against a concurrent edit fails there and not in the replay.\n"
+          : "\nAttribution could not run, so nothing above names the branch at fault.\nRe-run with --debug to see what git reported.\n"
+      );
+    }
 
     if (newUntracked.length > 0) {
       diagnose(
@@ -467,11 +502,37 @@ export async function mergeProcess(
       diagnose(bulletList(newUntracked, opts));
       diagnose("\nYou can delete these by running:\n");
       for (const f of newUntracked) {
-        diagnose(`  rm "${f}"\n`);
+        diagnose(`  rm ${shq(f)}\n`);
       }
     }
 
     diagnose("\n");
+
+    // The abort below exits non-zero, so this is the only object `--json` will
+    // ever write for a failed merge (JSON-03). A pipeline that stops on the exit
+    // code should not have to scrape stderr to learn which branch needs rebasing.
+    //
+    // `branches` is fi as it stands, which the failed merge left untouched —
+    // the same thing it means after every action that succeeded. What was tried
+    // is a different list, so it gets a different name.
+    if (opts.json) {
+      const readiness = branchReadiness(defBranch);
+      await writeStdout(
+        JSON.stringify(
+          {
+            command: action,
+            branches: currentFiBranches(defBranch).map((b) =>
+              branchJson(b, readiness)
+            ),
+            attempted: mergeable.map(localBranchName),
+            conflicts: attribution.conflicts,
+          },
+          null,
+          2
+        ) + "\n"
+      );
+    }
+
     abort("Aborted due to merge failures", opts);
   }
 }

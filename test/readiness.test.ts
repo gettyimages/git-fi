@@ -1,6 +1,6 @@
 import { test, beforeEach, afterEach, describe } from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { runFi, makeSandbox, type Sandbox } from "./helpers.ts";
 
@@ -307,6 +307,70 @@ describe("conflict attribution (READY-03, READY-04, READY-05)", () => {
       [["feature-a", null]]
     );
     assert.deepEqual(obj.attempted, ["feature-a", "feature-b"]);
+  });
+
+  // The object is carried past the buffer by deep paths, which Windows refuses
+  // past MAX_PATH; reaching the threshold with short ones takes enough files to
+  // cost more than the coverage is worth. Nothing in the buffering is
+  // platform-specific, so the other two jobs cover it.
+  test(
+    "--json survives a failure object wider than the pipe buffer (JSON-03)",
+    { skip: process.platform === "win32" },
+    () => {
+      // `runFi` reads stdout through a pipe, which is where the object is read
+      // in anger. `paths` is uncapped, so a conflict across enough files carries
+      // the object past the 64K buffer, and any tail still in node's own buffer
+      // is dropped by the exit unless the write is waited on. The paths are deep
+      // rather than numerous so the threshold is reached with a repo git can
+      // build quickly.
+      const segment = "a_directory_segment_of_some_length";
+      const deep = Array.from(
+        { length: 175 },
+        (_, i) => `${Array(12).fill(segment).join("/")}/file_${i}.ts`
+      );
+      const write = (branch: string, content: string) => {
+        sb.git(["checkout", "--quiet", "-b", branch, "main"]);
+        for (const p of deep) {
+          mkdirSync(join(sb.work, p, ".."), { recursive: true });
+          writeFileSync(join(sb.work, p), content);
+        }
+        sb.git(["add", "-A"]);
+        sb.git(["commit", "--quiet", "-m", branch]);
+        sb.git(["push", "--quiet", "origin", branch]);
+        sb.git(["checkout", "--quiet", "main"]);
+      };
+      write("wide-a", "from-a\n");
+      write("wide-b", "from-b\n");
+      sb.bootstrapFi();
+      assert.equal(runFi(["--add", "wide-a"], sb.work).status, 0);
+
+      const r = runFi(["--add", "wide-b", "--json"], sb.work);
+      assert.equal(r.status, 1, r.stderr);
+      assert.ok(
+        r.stdout.length > 65536,
+        `object must exceed the pipe buffer to exercise this; got ${r.stdout.length}`
+      );
+      const obj = JSON.parse(r.stdout);
+      assert.equal(obj.conflicts[0].paths.length, deep.length);
+    }
+  );
+
+  test("--debug lets git's own stderr through (OPTION-11)", () => {
+    // An orphan branch shares no history, so `merge-tree` exits 128 with a
+    // reason on stderr. The failure report points at --debug for that reason,
+    // so it has to arrive rather than landing in a buffer nothing reads.
+    sb.pushBranch("edit-br", "shared.txt", "from-edit\n");
+    sb.git(["checkout", "--quiet", "--orphan", "orphan-br"]);
+    sb.git(["rm", "--quiet", "-rf", "."]);
+    writeFileSync(join(sb.work, "unrelated.txt"), "unrelated\n");
+    sb.git(["add", "-A"]);
+    sb.git(["commit", "--quiet", "-m", "orphan"]);
+    sb.git(["push", "--quiet", "origin", "orphan-br"]);
+    sb.git(["checkout", "--quiet", "main"]);
+    sb.bootstrapFi();
+
+    const r = runFi(["--add", "orphan-br", "edit-br", "--debug"], sb.work);
+    assert.match(r.stderr, /refusing to merge unrelated histories/);
   });
 
   test("a branch name a shell would read is quoted in the remedy (READY-04)", () => {

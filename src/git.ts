@@ -35,7 +35,10 @@ export function git(
   }: GitOpts = {}
 ): string | null {
   const debug = debugOpt || debugEnabled;
-  const stderrDest = debug || showErrors ? "pipe" : "ignore";
+  // Inherited rather than piped: git's own message is the thing `--debug`
+  // promises (OPTION-11), and the failure report points at the flag for it, so
+  // it goes straight to stderr instead of into a buffer nothing reads.
+  const stderrDest = debug || showErrors ? "inherit" : "ignore";
   // The command is announced before it runs and timed after, so a hang shows
   // you which git call is hanging rather than only being attributable once it
   // returns. The elapsed line is what makes `--debug` usable for "why is this

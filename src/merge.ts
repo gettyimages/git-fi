@@ -76,6 +76,19 @@ function buildCommitMessage(
   return buildTerseSignature(branches, defBranch);
 }
 
+/**
+ * Write to stdout and wait for the bytes to reach the OS, which `abort`'s
+ * `process.exit` does not (JSON-03). stdout is asynchronous on a pipe, so an
+ * exit on the same tick drops whatever is still buffered — a `--json` failure
+ * object wider than the 64K pipe buffer arrives truncated mid-string to the
+ * `| jq` the flag exists for, while the same run redirected to a file is whole.
+ */
+function writeStdout(text: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    process.stdout.write(text, (err) => (err ? reject(err) : resolve()));
+  });
+}
+
 const ACTION_INITIAL: Record<string, string> = {
   add: "new",
   remove: "removing",
@@ -504,7 +517,7 @@ export async function mergeProcess(
     // is a different list, so it gets a different name.
     if (opts.json) {
       const readiness = branchReadiness(defBranch);
-      process.stdout.write(
+      await writeStdout(
         JSON.stringify(
           {
             command: action,

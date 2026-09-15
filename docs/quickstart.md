@@ -14,6 +14,8 @@ This puts `git-fi` on your `PATH`, which is what makes the `git fi` subcommand w
 npx @gettyimages/git-fi --help
 ```
 
+The install checks git first and stops if it is older than 2.41.0, naming the version it found. Where the git you have is the one your platform gives you (a long-support distribution, Apple's command line tools), `npm install -g @gettyimages/git-fi@1.2.2` is the last release that runs on git 2.13 and newer.
+
 > [!TIP|label:Migrating from older versions]
 > 💎 git-fi shipped as a Ruby gem through 0.9.3400163. `git fi` runs whichever `git-fi` comes first on your `PATH`, so remove the gem before you install the npm package:
 >

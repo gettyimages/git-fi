@@ -314,6 +314,68 @@ describe("postinstall completion install (COMPLETE-07)", () => {
   });
 });
 
+describe("postinstall git floor (PRE-06)", () => {
+  const script = fileURLToPath(new URL("../scripts/postinstall.mjs", import.meta.url));
+  const gitTs = fileURLToPath(new URL("../src/git.ts", import.meta.url));
+  let dir: string;
+  let bin: string;
+  before(() => {
+    dir = mkdtempSync(join(tmpdir(), "git-fi-floor-"));
+    bin = join(dir, "bin");
+    mkdirSync(bin, { recursive: true });
+    // A shell shim only: the postinstall spawns git without a shell, and node
+    // refuses to spawn a .cmd that way (the CVE-2024-27980 hardening, see
+    // updateSelf), so Windows has no shape of this fake that git would resolve.
+    writeFileSync(join(bin, "git"), `#!/bin/sh\necho "git version 2.39.5"\n`, { mode: 0o755 });
+  });
+  after(() => rmSync(dir, { recursive: true, force: true }));
+
+  const prefix = () => join(dir, "prefix");
+  const run = (path: string) =>
+    spawnSync(process.execPath, [script], {
+      encoding: "utf-8",
+      env: { ...process.env, PATH: path, npm_config_global: "true", npm_config_prefix: prefix() },
+    });
+
+  const notWindows = { skip: process.platform === "win32" };
+
+  test("a git below the floor fails the install", notWindows, () => {
+    const r = run(bin + delimiter + process.env.PATH);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /requires git 2\.41\.0 or newer, and this system has git 2\.39\.5/);
+    // The escape hatch for a git the user does not control (PRE-06): without it
+    // the reader is told to upgrade and given nowhere to go if they cannot.
+    assert.match(r.stderr, /npm install -g @gettyimages\/git-fi@1\.2\.2/);
+    // Refusing means refusing everything, not installing half of it.
+    assert.throws(() => readdirSync(join(prefix(), "share", "zsh", "site-functions")));
+  });
+
+  test("a missing git fails the install", notWindows, () => {
+    const empty = join(dir, "empty");
+    mkdirSync(empty, { recursive: true });
+    const r = run(empty);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /no working git was found on PATH/);
+  });
+
+  test("the floor matches the one preflightChecks enforces (PRE-02)", () => {
+    // The postinstall cannot import the compiled floor — npm runs it before the
+    // build — so the number lives in two files and this pins them together.
+    const pick = (src: string, re: RegExp): string => {
+      const m = src.match(re);
+      assert.ok(m, `${re} found nothing: the floor moved somewhere this test cannot see`);
+      return m[1];
+    };
+    const post = readFileSync(script, "utf8");
+    const runtime = readFileSync(gitTs, "utf8");
+    assert.equal(
+      pick(post, /MIN_GIT = "(\d+\.\d+\.\d+)"/),
+      pick(runtime, /please upgrade to at least (\d+\.\d+\.\d+)\./)
+    );
+    assert.equal(pick(post, /MIN_GIT_ORD = (\d+)/), pick(runtime, /ver < (\d+)/));
+  });
+});
+
 describe("generated completions (COMPLETE-02)", () => {
   const read = (name: string) =>
     readFileSync(fileURLToPath(new URL(`../completions/${name}`, import.meta.url)), "utf8");

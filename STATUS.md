@@ -2,7 +2,7 @@
 
 Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 
-**Last updated:** 2026-09-14
+**Last updated:** 2026-09-15
 
 Locations name the file and the enclosing symbol rather than a line range, so an
 edit elsewhere in the same file leaves the row correct. `git grep` the symbol to
@@ -12,8 +12,8 @@ land on it.
 
 | Status  | Count |
 |---------|-------|
-| Covered | 131   |
-| Total   | 131   |
+| Covered | 132   |
+| Total   | 132   |
 
 ## Pre-flight Checks
 
@@ -24,6 +24,7 @@ land on it.
 | PRE-03 | Push config                | Covered | `src/git.ts` (`preflightChecks`)|
 | PRE-04 | Fetch                      | Covered | `src/git.ts` (`ensureFetched`)  |
 | PRE-05 | `GIT_FI_NO_FETCH` skips fetch | Covered | `src/git.ts` (`ensureFetched`) |
+| PRE-06 | Install-time git floor | Covered | `scripts/postinstall.mjs` (`refuse`) |
 
 ## Global Options
 

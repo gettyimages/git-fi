@@ -37,7 +37,7 @@ verify:
 trial-on:
     npm run trial:on
 
-# Unlink the checkout and reinstall the published @gettyimages/git-fi
+# Unlink the checkout and restore the @gettyimages/git-fi version it replaced
 trial-off:
     npm run trial:off
 

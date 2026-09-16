@@ -44,10 +44,12 @@ To run the checkout as `git fi` in other repositories for a while:
 
 ```bash
 npm run trial:on            # build, npm link, load this copy's completion
-npm run trial:off           # unlink, restore the published version
+npm run trial:off           # unlink, restore the version it replaced
 ```
 
-`trial:on` symlinks the checkout onto your `PATH`, so later `npm run build`s take effect without reinstalling. It also runs `install-completions --write .trial/completions` and appends a marked block to `~/.zshrc` that puts that directory on your `fpath` — the same command, writing the same two files, that a user installs with (`COMPLETE-06`), so a trial exercises the shipped install path rather than a shortcut around it. Only `~/.zshrc` is touched; under bash you get the linked binary and wire the completion yourself. `trial:off` deletes the block and `.trial/`, then reinstalls `@gettyimages/git-fi` from npm. Open a new terminal after either one.
+`trial:on` symlinks the checkout onto your `PATH`, so later `npm run build`s take effect without reinstalling. It also runs `install-completions --write .trial/completions` and appends a marked block to `~/.zshrc` that puts that directory on your `fpath` — the same command, writing the same two files, that a user installs with (`COMPLETE-06`), so a trial exercises the shipped install path rather than a shortcut around it. Only `~/.zshrc` is touched; under bash you get the linked binary and wire the completion yourself. `trial:off` deletes the block and `.trial/`, then reinstalls the exact version the trial displaced, which `trial:on` recorded before linking over it (`BUILD-03`). Where that reference has been copied outside the marked block, `trial:off` names the lines rather than editing them, since the directory they point at is the one it just removed (`BUILD-04`). Open a new terminal after either one.
+
+`git fi --version` is what says which build is in force: a trial answers `<version>-dev.g<sha>`, an installed copy answers the bare version (`BUILD-02`).
 
 If `git fi` runs something other than what you expect, `which -a git-fi` lists every `git-fi` on your `PATH` in resolution order.
 

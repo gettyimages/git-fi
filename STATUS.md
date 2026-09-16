@@ -2,7 +2,7 @@
 
 Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 
-**Last updated:** 2026-09-15
+**Last updated:** 2026-09-17
 
 Locations name the file and the enclosing symbol rather than a line range, so an
 edit elsewhere in the same file leaves the row correct. `git grep` the symbol to
@@ -12,8 +12,8 @@ land on it.
 
 | Status  | Count |
 |---------|-------|
-| Covered | 134   |
-| Total   | 134   |
+| Covered | 136   |
+| Total   | 136   |
 
 ## `PRE`
 
@@ -277,6 +277,8 @@ Build Provenance
 |--------|--------------------------|---------|--------------------------------|
 | BUILD-01 | Dev build detection      | Covered | `src/build-info.ts` (`isDevBuild`) |
 | BUILD-02 | `--version` names the commit | Covered | `src/build-info.ts` (`describeVersion`), `src/index.ts` (`parseArgs`) |
+| BUILD-03 | Trial restores the version it displaced | Covered | `scripts/trial.sh` (`installed_state`) |
+| BUILD-04 | Trial removes only its own rc block | Covered | `scripts/trial.sh` (`off`) |
 
 ## `INSTALL`
 

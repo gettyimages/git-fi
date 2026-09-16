@@ -1,4 +1,5 @@
 import type { Options, BranchReadiness } from "./types.js";
+import { localBranchName } from "./branches.js";
 
 const isTTY = process.stdout.isTTY === true;
 const isStderrTTY = process.stderr.isTTY === true;
@@ -23,8 +24,28 @@ export function progressEnabled(opts: Options): boolean {
  */
 export function hintsEnabled(opts: Options, tty = isTTY): boolean {
   if (opts.bare || opts.json) return false;
-  if (process.env.CI || process.env.GIT_FI_NO_HINTS) return false;
+  if (process.env.CI || hintsOptedOut()) return false;
   return tty;
+}
+
+/**
+ * The explicit half of the gate above, split out because one advisory wants it
+ * alone: the INSTALL-01 notice answers a question the user just asked, so the
+ * ambient conditions (CI, a pipe) are not reasons to withhold it, while the
+ * switch someone set on purpose still is.
+ */
+export function hintsOptedOut(): boolean {
+  return Boolean(process.env.GIT_FI_NO_HINTS);
+}
+
+/**
+ * Whether a glyph will read where a word would otherwise have to carry the
+ * meaning (TERM-10): a status emoji, the `↓12` behind marker. Gated on colour,
+ * which is already the decoration/plain-text split — a CI job log or a piped
+ * run gets the word instead.
+ */
+export function glyphsEnabled(opts: Options, tty = isTTY): boolean {
+  return colorEnabled(opts, tty);
 }
 
 /**
@@ -202,7 +223,7 @@ export function bulletList(
   return (
     items
       .map((b) => {
-        const name = b.replace(/^origin\//, "");
+        const name = localBranchName(b);
         const label = gitlab
           ? s.link(
               s.cyan(name),
@@ -249,13 +270,13 @@ function readinessMarker(
   if (readiness.merged) return s.dim("merged");
   if (!readiness.behind) return "";
   return s.dim(
-    colorEnabled(opts, tty)
+    glyphsEnabled(opts, tty)
       ? `↓${readiness.behind}`
       : `behind ${readiness.behind}`
   );
 }
 
-/** A rendered branch cell: the decorated label plus its readiness marker. */
+/** A decorated branch name plus its readiness marker. */
 export function withReadiness(
   label: string,
   readiness: BranchReadiness | undefined,

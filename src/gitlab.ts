@@ -1,7 +1,8 @@
-import type { Options, CIResult } from "./types.js";
-import { makeStyle, colorEnabled, createSpinner, printTable, abort, withReadiness, strikeIfMerged } from "./style.js";
+import type { Options, CIResult, BranchReadiness } from "./types.js";
+import { makeStyle, glyphsEnabled, createSpinner, printTable, abort, withReadiness, strikeIfMerged } from "./style.js";
 import { git, branchReadiness } from "./git.js";
-import { resolveToken, type TokenResolution } from "./auth.js";
+import { localBranchName } from "./branches.js";
+import { resolveToken, tokenFormUrl, REQUIRED_SCOPE, type TokenResolution } from "./auth.js";
 
 export const STATUS_EMOJI: Record<string, string> = {
   success: "\u2705",
@@ -26,11 +27,10 @@ export const STATUS_WORD: Record<string, string> = {
 /**
  * Render a pipeline status for the Pipeline column and the `fi:` line (TERM-10).
  * The emoji is the only thing carrying the status in either place, so a reader
- * of plain text (a CI job log, a piped run) gets the word instead. Gated on
- * `colorEnabled`, which is already the decoration/plain-text split.
+ * of plain text (a CI job log, a piped run) gets the word instead.
  */
 export function statusLabel(status: string, opts: Options): string {
-  const table = colorEnabled(opts) ? STATUS_EMOJI : STATUS_WORD;
+  const table = glyphsEnabled(opts) ? STATUS_EMOJI : STATUS_WORD;
   return table[status] || "";
 }
 
@@ -84,6 +84,42 @@ function basicModeHint(resolved: TokenResolution): string {
   return resolved.source === "config"
     ? "To use git-fi without CI status, run 'git fi --auth=logout'."
     : "To use git-fi without CI status, unset GITLAB_ACCESS_TOKEN and try again.";
+}
+
+/**
+ * What a rejected token should say (AUTH-13). A 401 is about the credential,
+ * not the branch the request happened to name, and the reader's next move is to
+ * replace it — so lead with the source that supplied it and link the form that
+ * issues a new one, rather than printing GitLab's JSON and offering only to
+ * turn CI status off.
+ *
+ * Carries no SGR styling of its own: `abort` wraps the whole message in red,
+ * and an inner reset would end that colour for every line after it. The OSC 8
+ * link is safe, being no colour at all.
+ */
+export function rejectedTokenMessage(
+  resolved: TokenResolution,
+  s: ReturnType<typeof makeStyle>
+): string {
+  const host = resolved.host;
+  const from = resolved.source === "config" ? "the stored token" : "GITLAB_ACCESS_TOKEN";
+  const replace =
+    "Run git fi --auth=login to store the new one" +
+    (resolved.source === "config"
+      ? "."
+      : ", which takes\nprecedence over GITLAB_ACCESS_TOKEN (AUTH-01), or update the export.");
+
+  const url = host ? tokenFormUrl(host) : null;
+  const form = url
+    ? `\nCreate a replacement, prefilled for git-fi with ${REQUIRED_SCOPE} only:\n` +
+      `  ${s.link(url, url)}\n\n`
+    : "\n";
+
+  return (
+    `${host ?? "GitLab"} rejected ${from} (HTTP 401).\n` +
+    form +
+    `${replace}\n\n${basicModeHint(resolved)}`
+  );
 }
 
 interface ApiResponse {
@@ -145,7 +181,7 @@ export async function fetchGitlabCI(
   const encodedProject = encodeURIComponent(proj.project);
 
   const fetchBranch = async (branch: string): Promise<BranchOutcome> => {
-    const ref = branch.replace(/^origin\//, "");
+    const ref = localBranchName(branch);
     const encodedRef = encodeURIComponent(ref);
     const pipelines = await apiGet(
       `https://${proj.host}/api/v4/projects/${encodedProject}/pipelines?ref=${encodedRef}&per_page=1`,
@@ -217,7 +253,9 @@ export async function fetchGitlabCI(
   for (const outcome of outcomes) {
     if (!outcome.ok) {
       abort(
-        `GitLab API returned HTTP ${outcome.status} for branch '${outcome.ref}': ${outcome.body}\n\n${basicModeHint(resolved)}`,
+        outcome.status === 401
+          ? rejectedTokenMessage(resolved, makeStyle(opts))
+          : `GitLab API returned HTTP ${outcome.status} for branch '${outcome.ref}': ${outcome.body}\n\n${basicModeHint(resolved)}`,
         opts
       );
     }
@@ -303,6 +341,30 @@ export function branchCompareUrl(
   return `${base}/${encodeURIComponent(defaultBranch)}...${encodeURIComponent(branch)}`;
 }
 
+/**
+ * The Branch column's text (READY-02, READY-07): struck through where the
+ * branch has landed, linked to its compare view where the project is known,
+ * and followed by its readiness marker. The order matters — the strike goes on
+ * the bare name so it sits inside the colour and link spans — which is why both
+ * branch tables compose it here rather than each spelling the steps out.
+ */
+export function branchLabel(
+  branch: string,
+  readiness: Map<string, BranchReadiness>,
+  gitlab: GitlabProject | null | undefined,
+  defaultBranch: string,
+  opts: Options
+): string {
+  const s = makeStyle(opts);
+  const name = localBranchName(branch);
+  const r = readiness.get(branch);
+  const text = strikeIfMerged(name, r, opts);
+  const label = gitlab
+    ? s.linkOrMarkdown(s.cyan(text), branchCompareUrl(gitlab, name, defaultBranch))
+    : s.cyan(text);
+  return withReadiness(label, r, opts);
+}
+
 export function printCITable(
   ciResults: CIResult[],
   opts: Options,
@@ -313,25 +375,17 @@ export function printCITable(
   const readiness = branchReadiness(defaultBranch);
   const headers = ["Branch", "Date", "Author", "Pipeline"];
   const rows = ciResults.map((item) => {
-    const branchName = item.branch.replace(/^origin\//, "");
-    const r = readiness.get(item.branch);
-    const text = strikeIfMerged(branchName, r, opts);
-    const nameText = item.branchMissing
-      ? s.yellow(`${branchName} (deleted)`)
-      : gitlab
-        ? s.linkOrMarkdown(s.cyan(text), branchCompareUrl(gitlab, branchName, defaultBranch))
-        : s.cyan(text);
     // A deleted branch has no readiness worth reporting — the remedy is to drop
     // it from fi, not to rebase it.
-    const branchLabel = item.branchMissing
-      ? nameText
-      : withReadiness(nameText, r, opts);
+    const branch = item.branchMissing
+      ? s.yellow(`${localBranchName(item.branch)} (deleted)`)
+      : branchLabel(item.branch, readiness, gitlab, defaultBranch, opts);
     const status = item.status in STATUS_EMOJI ? item.status : "missing";
     const label = statusLabel(status, opts);
     const pipeline = item.pipelineId
       ? `${gitlab ? s.link(item.pipelineId, `https://${gitlab.host}/${gitlab.project}/-/pipelines/${item.pipelineId}`) : item.pipelineId} ${label}`
       : label;
-    return [branchLabel, item.date, item.author, pipeline];
+    return [branch, item.date, item.author, pipeline];
   });
   printTable(headers, rows, opts);
 }

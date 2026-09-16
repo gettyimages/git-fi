@@ -4,9 +4,9 @@ import {
   git,
   gitOutcome,
   branchAuthors,
-  localBranchName,
   quotePathEnabled,
 } from "./git.js";
+import { localBranchName } from "./branches.js";
 
 /** A branch that could not be merged, and what stopped it (READY-03). */
 export interface BranchConflict {
@@ -31,7 +31,7 @@ export interface Attribution {
 
 type MergeTreeResult =
   | { outcome: "clean"; tree: string }
-  | { outcome: "conflict"; tree: string; paths: string[] }
+  | { outcome: "conflict"; paths: string[] }
   | { outcome: "error" };
 
 // 40 hex for SHA-1, 64 for a SHA-256 repository.
@@ -64,7 +64,7 @@ function mergeTree(base: string, other: string): MergeTreeResult {
     if (field === "") break;
     paths.push(field);
   }
-  return { outcome: "conflict", tree, paths };
+  return { outcome: "conflict", paths };
 }
 
 // The identity is pinned rather than read from config because attribution runs

@@ -1,5 +1,6 @@
 import type { CIResult } from "./types.js";
 import { makeStyle } from "./style.js";
+import { localBranchName } from "./branches.js";
 
 const ESC = "\x1b[";
 
@@ -42,13 +43,13 @@ function renderPicker(
   lines.push("");
 
   const maxBranchLen = ciData
-    ? Math.max(...branches.map((b) => b.replace(/^origin\//, "").length))
+    ? Math.max(...branches.map((b) => localBranchName(b).length))
     : 0;
 
   for (let i = 0; i < branches.length; i++) {
     const arrow = i === cursor ? "❯ " : "  ";
     const toggle = selected.has(branches[i]) ? `\x1b[32m◉ \x1b[0m` : "○ ";
-    const name = branches[i].replace(/^origin\//, "");
+    const name = localBranchName(branches[i]);
     let line = `${arrow}${toggle}\x1b[36m${name}\x1b[0m`;
 
     if (ciData) {

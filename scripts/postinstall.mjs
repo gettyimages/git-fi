@@ -21,15 +21,19 @@
 // before prepare, so on a fresh clone dist/ does not exist yet and a compiled
 // entry point would fail the install.
 import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
 import { copyFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Duplicated from preflightChecks in src/git.ts rather than imported: this file
-// runs before the build, so there is no dist/ to import from. A test pins the
-// two against each other.
-const MIN_GIT = "2.41.0";
-const MIN_GIT_ORD = 24100;
+// The floor is package.json's `engines.git`, which preflightChecks in
+// src/git.ts reads too — npm records the field but enforces only `node`, so
+// both of git-fi's entry points do the enforcing. Read from package.json rather
+// than imported from the compiled source because this file runs before the
+// build. A test pins the range's shape and the comparison below.
+const MIN_GIT = createRequire(import.meta.url)("../package.json")
+  .engines.git.replace(/^>=/, "");
+const ordinal = (v) => v.split(".").reduce((n, part) => n * 100 + Number(part), 0);
 
 // `npm install --ignore-scripts` skips this file entirely, and git can be
 // downgraded after the fact, so preflightChecks re-checks at run time (PRE-02).
@@ -52,7 +56,7 @@ const NO_GIT = `  Install git ${MIN_GIT} or newer, then install git-fi again.\n`
 const probe = spawnSync("git", ["--version"], { encoding: "utf-8" });
 if (probe.error || probe.status !== 0) refuse("no working git was found on PATH", NO_GIT);
 
-const found = (probe.stdout || "").match(/(\d+)\.(\d+)\.(\d+)/);
+const found = (probe.stdout || "").match(/\d+\.\d+\.\d+/);
 if (!found) {
   refuse(
     `could not read a version from \`git --version\` (${(probe.stdout || "").trim()})`,
@@ -60,8 +64,7 @@ if (!found) {
   );
 }
 
-const [, major, minor, patch] = found.map(Number);
-if (major * 10000 + minor * 100 + patch < MIN_GIT_ORD) {
+if (ordinal(found[0]) < ordinal(MIN_GIT)) {
   refuse(`this system has git ${found[0]}`, TOO_OLD);
 }
 

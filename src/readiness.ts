@@ -6,7 +6,7 @@ import {
   branchAuthors,
   quotePathEnabled,
 } from "./git.js";
-import { localBranchName } from "./branches.js";
+import { localBranchName, remoteRef } from "./branches.js";
 
 /** A branch that could not be merged, and what stopped it (READY-03). */
 export interface BranchConflict {
@@ -18,24 +18,24 @@ export interface BranchConflict {
   paths: string[];
 }
 
-/** What attribution (READY-03) made of a branch list. */
-export interface Attribution {
-  conflicts: BranchConflict[];
-  /**
-   * False when a probe could not run at all. An empty `conflicts` then means
-   * "nothing was measured" rather than "nothing conflicts", and the two call
-   * for different things to be said.
-   */
-  attributable: boolean;
-}
+/**
+ * What the merge (MERGE-08) made of a branch list: the tree every branch
+ * integrated into, the branches that stopped it, or nothing at all when a
+ * probe could not run: an unresolvable ref, or a shallow clone whose
+ * histories look unrelated.
+ */
+export type MergeOutcome =
+  | { outcome: "merged"; tree: string }
+  | { outcome: "conflict"; conflicts: BranchConflict[] }
+  | { outcome: "error" };
 
 type MergeTreeResult =
-  | { outcome: "clean"; tree: string }
+  | { outcome: "merged"; tree: string }
   | { outcome: "conflict"; paths: string[] }
   | { outcome: "error" };
 
 // 40 hex for SHA-1, 64 for a SHA-256 repository.
-const OID = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
+export const OID = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 
 // merge-tree writes the tree OID, then (with --name-only) the conflicted paths,
 // then an empty field and the human-readable "CONFLICT ..." block. `-z` makes
@@ -57,7 +57,7 @@ function mergeTree(base: string, other: string): MergeTreeResult {
   // clone's unrelated histories both take it, writing nothing to stdout. The
   // tree OID is what separates them: a conflict always writes one.
   if (!OID.test(tree)) return { outcome: "error" };
-  if (status === 0) return { outcome: "clean", tree };
+  if (status === 0) return { outcome: "merged", tree };
 
   const paths: string[] = [];
   for (const field of fields.slice(1)) {
@@ -67,10 +67,12 @@ function mergeTree(base: string, other: string): MergeTreeResult {
   return { outcome: "conflict", paths };
 }
 
-// The identity is pinned rather than read from config because attribution runs
-// on the failure path, where a repo with no user.email configured would turn a
-// merge conflict into an unrelated commit-tree error. Nothing references these
-// commits, so gc reclaims them.
+// Each clean step of the walk, so the next branch has a commit to merge onto.
+// The identity is pinned rather than read from config: in a repo with no
+// user.email set, reading it would turn a merge conflict into an unrelated
+// commit-tree error before the report naming the branch could be written. The
+// fi commit itself is the caller's, and takes only the tree from here. Nothing
+// references these, so gc reclaims them.
 function commitTree(tree: string, parents: string[]): string {
   const args = [
     "-c",
@@ -81,37 +83,42 @@ function commitTree(tree: string, parents: string[]): string {
     tree,
   ];
   for (const p of parents) args.push("-p", p);
-  args.push("-m", "git-fi conflict probe");
+  args.push("-m", "git-fi merge step");
   return git(args) ?? "";
 }
 
 /**
- * Merge `branches` incrementally against the default branch without touching a
- * ref, the index, or the working tree, and report what each failing branch
- * conflicts with (READY-03, READY-06).
+ * Merge `branches` incrementally onto the default branch in the object database
+ * and report what each failing branch conflicts with (MERGE-02, MERGE-08,
+ * READY-03, READY-06).
  *
- * A failing branch is left out of the accumulated set, so one bad branch does
- * not condemn every branch listed after it.
+ * The merge and the attribution are one traversal: a clean walk yields the tree
+ * to commit, and a failing branch is left out of the accumulated set so one bad
+ * branch does not condemn every branch listed after it.
  */
-export function attributeConflicts(
+export function mergeBranches(
   branches: string[],
   defBranch: string
-): Attribution {
-  const base = `origin/${defBranch}`;
+): MergeOutcome {
+  const base = remoteRef(defBranch);
   const conflicts: BranchConflict[] = [];
   let accumulated = base;
   const merged: string[] = [];
 
+  // A probe that could not run says nothing about the branch it was measuring,
+  // and every branch after it would be measured against a set that branch
+  // should have joined, so the walk stops. Branches already attributed are
+  // still the honest answer for themselves, and reporting them beats the bare
+  // "nothing above names the branch at fault" this used to fall back to.
+  const giveUp = (): MergeOutcome =>
+    conflicts.length > 0 ? { outcome: "conflict", conflicts } : { outcome: "error" };
+
   for (const branch of branches) {
-    const result = mergeTree(accumulated, branch);
-    // A probe that could not run says nothing about this branch, and every
-    // branch after it would be measured against a set this one should have
-    // joined. Reporting the first failure as "conflicts with main" and then
-    // repeating it down the list is the "everything is broken" verdict
-    // attribution exists to replace, so stop and say nothing instead.
-    if (result.outcome === "error") return { conflicts: [], attributable: false };
-    if (result.outcome === "clean") {
-      accumulated = commitTree(result.tree, [accumulated, branch]);
+    const ref = remoteRef(branch);
+    const result = mergeTree(accumulated, ref);
+    if (result.outcome === "error") return giveUp();
+    if (result.outcome === "merged") {
+      accumulated = commitTree(result.tree, [accumulated, ref]);
       merged.push(branch);
       continue;
     }
@@ -119,10 +126,8 @@ export function attributeConflicts(
     // Against the default branch alone the accumulated set is out of the
     // picture, which is what separates "this branch needs a rebase" from "these
     // two branches overlap".
-    const vsDefault = accumulated === base ? result : mergeTree(base, branch);
-    if (vsDefault.outcome === "error") {
-      return { conflicts: [], attributable: false };
-    }
+    const vsDefault = accumulated === base ? result : mergeTree(base, ref);
+    if (vsDefault.outcome === "error") return giveUp();
     if (vsDefault.outcome === "conflict") {
       conflicts.push({
         branch: localBranchName(branch),
@@ -134,11 +139,11 @@ export function attributeConflicts(
 
     const peers: string[] = [];
     for (const peer of merged) {
-      const vsPeer = mergeTree(peer, branch);
+      const vsPeer = mergeTree(remoteRef(peer), ref);
       // An unrun probe read as "this peer is fine" empties the sweep, and the
       // fallback below then reports a combination-only failure: the confident
       // wrong answer, where the two probes above say nothing instead.
-      if (vsPeer.outcome === "error") return { conflicts: [], attributable: false };
+      if (vsPeer.outcome === "error") return giveUp();
       if (vsPeer.outcome === "conflict") peers.push(peer);
     }
     conflicts.push({
@@ -151,7 +156,17 @@ export function attributeConflicts(
     });
   }
 
-  return { conflicts, attributable: true };
+  if (conflicts.length > 0) return { outcome: "conflict", conflicts };
+  // An empty branch list never enters the loop, so the accumulator is still the
+  // default branch, and its tree is what fi is rebuilt to hold. That is also
+  // the one read here that can fail on a ref the walk never resolved, so it
+  // degrades into the same "could not run" the loop reports rather than
+  // throwing a raw command failure out of the top level.
+  const tree = git(["rev-parse", `${accumulated}^{tree}`], {
+    allowFailure: true,
+  });
+  if (tree === null) return { outcome: "error" };
+  return { outcome: "merged", tree };
 }
 
 // Enough paths to recognize what the branches are fighting over, without a wall

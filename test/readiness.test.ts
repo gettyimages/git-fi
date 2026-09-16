@@ -419,10 +419,11 @@ describe("conflict attribution (READY-03, READY-04, READY-05)", () => {
     assert.match(r.stdout, /spaced ünïcode\.txt/);
   });
 
-  test("a combination-only failure says so rather than naming nobody", () => {
-    // The combined merge is git's octopus strategy, which has no rename
-    // detection; the replay is ort, which has. A rename against a concurrent
-    // edit therefore fails the merge and comes back clean from every probe.
+  test("a rename against a concurrent edit merges cleanly", () => {
+    // git's octopus strategy has no rename detection, so this pair used to fail
+    // the merge and then come back clean from every probe, a failure the report
+    // could only describe as living in the combination. merge-tree is ort, which
+    // detects the rename and carries the edit across it.
     const lines = Array.from({ length: 200 }, (_, i) => `${i}\n`).join("");
     writeFileSync(join(sb.work, "big.txt"), lines);
     sb.git(["add", "."]);
@@ -443,9 +444,17 @@ describe("conflict attribution (READY-03, READY-04, READY-05)", () => {
     sb.bootstrapFi();
 
     const r = runFi(["--add", "renamer", "editor"], sb.work);
-    assert.equal(r.status, 1, r.stdout);
-    assert.match(r.stdout, /the conflict is in the combination/);
-    assert.match(r.stdout, /octopus/);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+
+    // The rename wins the path and the edit rides along on it, which is the
+    // resolution the failure used to stand in for.
+    sb.git(["fetch", "--quiet", "origin"]);
+    const merged = sb.git(["show", "origin/fi:renamed.txt"]);
+    assert.equal(merged, lines + "201");
+    assert.equal(
+      sb.git(["ls-tree", "--name-only", "origin/fi", "big.txt"]),
+      ""
+    );
   });
 
   test("the working tree is left clean and on the original branch (READY-06)", () => {
@@ -457,6 +466,138 @@ describe("conflict attribution (READY-03, READY-04, READY-05)", () => {
     assert.equal(runFi(["--add", "feature-a"], sb.work).status, 1);
     assert.equal(sb.git(["status", "--porcelain"]), "");
     assert.equal(sb.git(["symbolic-ref", "--short", "HEAD"]), "scratch");
+  });
+
+  test("a failed merge leaves no file for the report to name (MERGE-11)", () => {
+    // The branch that conflicts also adds a file of its own. A merge that ran in
+    // the checkout wrote that file before hitting the conflict, and `reset
+    // --hard` does not remove an untracked one, which is what the report used
+    // to hand the reader `rm` commands for.
+    sb.git(["checkout", "--quiet", "-b", "feature-a", "main"]);
+    writeFileSync(join(sb.work, "shared.txt"), "from-a\n");
+    writeFileSync(join(sb.work, "brought-along.txt"), "a\n");
+    sb.git(["add", "."]);
+    sb.git(["commit", "--quiet", "-m", "feature-a"]);
+    sb.git(["push", "--quiet", "origin", "feature-a"]);
+    sb.git(["checkout", "--quiet", "main"]);
+    sb.bootstrapFi();
+    advanceMain(sb, "shared.txt", "from-main\n");
+
+    const r = runFi(["--add", "feature-a"], sb.work);
+    assert.equal(r.status, 1, r.stdout);
+    assert.doesNotMatch(r.stdout, /untracked/);
+    assert.equal(sb.git(["status", "--porcelain"]), "");
+  });
+});
+
+describe("local drift from the merged ref (READY-08)", () => {
+  let sb: Sandbox;
+  beforeEach(() => {
+    sb = makeSandbox();
+    sb.pushBranch("feature-a", "a.txt", "a\n");
+    sb.bootstrapFi();
+  });
+  afterEach(() => sb.cleanup());
+
+  /** Commit on `branch` without pushing, so the local branch runs ahead. */
+  function commitLocally(branch: string, file: string, content: string): void {
+    sb.git(["checkout", "--quiet", branch]);
+    writeFileSync(join(sb.work, file), content);
+    sb.git(["add", "."]);
+    sb.git(["commit", "--quiet", "-m", `${branch}: ${file}`]);
+    sb.git(["checkout", "--quiet", "main"]);
+  }
+
+  /**
+   * Push two commits, then rewind the local branch off both, so it runs behind
+   * by a count that cannot be confused with the ahead count below.
+   */
+  function fallBehind(branch: string, file: string, content: string): void {
+    commitLocally(branch, file, content);
+    commitLocally(branch, `${file}.2`, content);
+    sb.git(["push", "--quiet", "origin", branch]);
+    sb.git(["checkout", "--quiet", branch]);
+    sb.git(["reset", "--quiet", "--hard", "HEAD~2"]);
+    sb.git(["checkout", "--quiet", "main"]);
+  }
+
+  test("an unpushed commit is named, since fi cannot carry it", () => {
+    commitLocally("feature-a", "later.txt", "not pushed\n");
+    const r = runFi(["--add", "feature-a"], sb.work);
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stderr, /fi merges origin\/feature-a, and your feature-a is 1 ahead/);
+  });
+
+  test("a stale local branch is named, since fi carries more than it", () => {
+    fallBehind("feature-a", "later.txt", "pushed\n");
+    const r = runFi(["--add", "feature-a"], sb.work);
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stderr, /fi merges origin\/feature-a, and your feature-a is 2 behind/);
+  });
+
+  test("a diverged branch carries both counts", () => {
+    fallBehind("feature-a", "theirs.txt", "pushed\n");
+    commitLocally("feature-a", "mine.txt", "not pushed\n");
+    const r = runFi(["--add", "feature-a"], sb.work);
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(
+      r.stderr,
+      /fi merges origin\/feature-a, and your feature-a is 1 ahead, 2 behind/
+    );
+  });
+
+  test("a branch level with its remote says nothing", () => {
+    const r = runFi(["--add", "feature-a"], sb.work);
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(r.stderr, /fi merges origin/);
+  });
+
+  test("a branch with no local copy says nothing", () => {
+    // The usual case for a teammate's branch: nothing local to have drifted.
+    sb.pushBranch("feature-b", "b.txt", "b\n");
+    sb.git(["branch", "--quiet", "-D", "feature-b"]);
+    const r = runFi(["--add", "feature-b"], sb.work);
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(r.stderr, /fi merges origin/);
+  });
+
+  test("--again stays quiet about branches it did not name", () => {
+    // Re-merging the set is not a statement about any one branch, so a stale
+    // local copy of someone else's is noise rather than a signal.
+    assert.equal(runFi(["--add", "feature-a"], sb.work).status, 0);
+    commitLocally("feature-a", "later.txt", "not pushed\n");
+
+    const r = runFi(["--again"], sb.work);
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(r.stderr, /fi merges origin/);
+  });
+
+  test("a branch sharing no history with its remote says nothing", () => {
+    // `rev-list --left-right --count` answers a disjoint pair with the size of
+    // each side rather than failing, so without the merge-base probe every
+    // commit on both branches reads as drift.
+    sb.git(["checkout", "--quiet", "--orphan", "rebuilt"]);
+    sb.git(["rm", "--quiet", "-rf", "."]);
+    writeFileSync(join(sb.work, "fresh.txt"), "fresh\n");
+    sb.git(["add", "."]);
+    sb.git(["commit", "--quiet", "-m", "rebuilt from nothing"]);
+    sb.git(["branch", "--quiet", "-M", "feature-a"]);
+    sb.git(["checkout", "--quiet", "main"]);
+
+    const r = runFi(["--add", "feature-a"], sb.work);
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(r.stderr, /fi merges origin/);
+  });
+
+  test("a tag sharing the branch's name does not stand in for it", () => {
+    // git resolves refs/tags/ before refs/heads/, so a bare name would measure
+    // the tag and report drift the branch does not have.
+    commitLocally("feature-a", "later.txt", "not pushed\n");
+    sb.git(["tag", "feature-a", "origin/feature-a"]);
+
+    const r = runFi(["--add", "feature-a"], sb.work);
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stderr, /fi merges origin\/feature-a, and your feature-a is 1 ahead/);
   });
 });
 

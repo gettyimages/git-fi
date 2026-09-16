@@ -12,8 +12,8 @@ land on it.
 
 | Status  | Count |
 |---------|-------|
-| Covered | 136   |
-| Total   | 136   |
+| Covered | 134   |
+| Total   | 134   |
 
 ## `PRE`
 
@@ -133,7 +133,6 @@ Commands
 
 | ID     | Description              | Status  | Location                   |
 |--------|--------------------------|---------|----------------------------|
-| ADD-01  | Clean index precondition | Covered | `src/merge.ts` (`mergeProcess`) |
 | ADD-02  | Parse current branch list| Covered | `src/commands.ts` (`cmdAdd`) |
 | ADD-03  | Append and deduplicate   | Covered | `src/commands.ts` (`cmdAdd`) |
 | ADD-04  | Run merge                | Covered | `src/commands.ts` (`cmdAdd`) |
@@ -152,17 +151,15 @@ Merge Process
 | ID    | Description              | Status  | Location                  |
 |-------|--------------------------|---------|---------------------------|
 | MERGE-01 | Ambiguous ref check      | Covered | `src/merge.ts` (`mergeProcess`) |
-| MERGE-02 | Tracked-file dirty check | Covered | `src/merge.ts` (`mergeProcess`) |
-| MERGE-03 | Capture untracked        | Covered | `src/merge.ts` (`mergeProcess`) |
+| MERGE-02 | Checkout left untouched  | Covered | `src/merge.ts` (`mergeProcess`), `src/readiness.ts` (`mergeBranches`) |
 | MERGE-04 | Fetch                    | Covered | `src/merge.ts` (`mergeProcess`), `src/git.ts` (`ensureFetched`) |
 | MERGE-05 | Bootstrap confirmation   | Covered | `src/merge.ts` (`mergeProcess`), `src/ui.ts` (`confirm`) |
 | MERGE-06 | Prune dead branches      | Covered | `src/merge.ts` (`mergeProcess`) |
 | MERGE-07 | Warn about merged        | Covered | `src/merge.ts` (`mergeProcess`) |
-| MERGE-08 | Create temp fi branch    | Covered | `src/merge.ts` (`mergeProcess`) |
-| MERGE-09 | Merge command            | Covered | `src/merge.ts` (`mergeProcess`) |
+| MERGE-08 | Merge in the object database | Covered | `src/readiness.ts` (`mergeBranches`, `mergeTree`, `commitTree`) |
+| MERGE-09 | Failing branch recorded  | Covered | `src/readiness.ts` (`mergeBranches`) |
 | MERGE-10 | On success               | Covered | `src/merge.ts` (`mergeProcess`) |
 | MERGE-11 | On failure               | Covered | `src/merge.ts` (`mergeProcess`) |
-| MERGE-12 | Cleanup                  | Covered | `src/merge.ts` (`mergeProcess`) |
 | MERGE-13 | CI commit message        | Covered | `src/merge.ts` (`buildCommitMessage`) |
 | MERGE-14 | Bootstrap link           | Covered | `src/ui.ts` (`confirm`) |
 | MERGE-15 | Bootstrap confirmation / `--yes` | Covered | `src/merge.ts` (`mergeProcess`) |
@@ -173,11 +170,12 @@ Merge Process
 |-------|--------------------------|---------|---------------------------|
 | READY-01 | Behind count           | Covered | `src/git.ts` (`listRemoteBranches`, `cachedListing`, `branchReadiness`) |
 | READY-02 | Behind marker         | Covered | `src/style.ts` (`readinessMarker`, `withReadiness`), `src/commands.ts` (`cmdList`), `src/gitlab.ts` (`printCITable`) |
-| READY-03 | Merge-tree attribution | Covered | `src/readiness.ts` (`attributeConflicts`, `mergeTree`, `commitTree`) |
+| READY-03 | Merge-tree attribution | Covered | `src/readiness.ts` (`mergeBranches`, `mergeTree`, `commitTree`) |
 | READY-04 | Per-branch remedy     | Covered | `src/readiness.ts` (`renderConflicts`, `pathItems`), `src/style.ts` (`shq`, `quoteCStyle`), `src/git.ts` (`quotePathEnabled`) |
 | READY-05 | Attribution on failure | Covered | `src/merge.ts` (`mergeProcess`) |
-| READY-06 | Bounded probes        | Covered | `src/readiness.ts` (`attributeConflicts`) |
+| READY-06 | Bounded probes        | Covered | `src/readiness.ts` (`mergeBranches`) |
 | READY-07 | Merged branch marker  | Covered | `src/git.ts` (`branchReadiness`, `mergedRemoteBranches`), `src/style.ts` (`strikeIfMerged`) |
+| READY-08 | Local drift warning   | Covered | `src/git.ts` (`localDivergence`, `existingLocalRefs`), `src/merge.ts` (`mergeProcess`) |
 
 
 | ID    | Description           | Status  | Location                |

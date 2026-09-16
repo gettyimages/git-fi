@@ -4,7 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const DIST_INDEX = fileURLToPath(new URL("../dist/index.js", import.meta.url));
+/** The compiled binary, for a test that has to drive the process itself. */
+export const DIST_INDEX = fileURLToPath(
+  new URL("../dist/index.js", import.meta.url)
+);
 
 // A developer who has run `git fi --auth=login` has a real token on disk, and
 // every run below would resolve it (AUTH-01) and start calling GitLab. Point

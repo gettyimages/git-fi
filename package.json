@@ -45,7 +45,8 @@
     "ci"
   ],
   "engines": {
-    "node": ">=22"
+    "node": ">=22",
+    "git": ">=2.41.0"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",

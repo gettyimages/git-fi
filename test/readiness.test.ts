@@ -459,3 +459,60 @@ describe("conflict attribution (READY-03, READY-04, READY-05)", () => {
     assert.equal(sb.git(["symbolic-ref", "--short", "HEAD"]), "scratch");
   });
 });
+
+// `git symbolic-ref` reads the symref file without looking at what it names, so
+// origin/HEAD outlives the branch it points at. Both states below reach
+// listRemoteBranches with a default-branch name that resolves to nothing, where
+// `%(ahead-behind:)` is fatal rather than empty — so the listing has to check
+// the ref rather than trust where the name came from.
+describe("a default branch whose ref does not resolve", () => {
+  let sb: Sandbox;
+  beforeEach(() => {
+    sb = makeSandbox();
+  });
+  afterEach(() => sb.cleanup());
+
+  test("still lists branches when origin/HEAD dangles after a rename", () => {
+    sb.pushBranch("feature-a", "a.txt", "a\n");
+    sb.bootstrapFi();
+    assert.equal(runFi(["--add", "feature-a"], sb.work).status, 0);
+
+    // The default-branch rename: push main under a new name, move origin's own
+    // HEAD across so the old branch can go, then drop and prune it. The local
+    // origin/HEAD is left naming a ref nobody has.
+    sb.git(["push", "--quiet", "origin", "main:trunk"]);
+    sb.git(["-C", sb.origin, "symbolic-ref", "HEAD", "refs/heads/trunk"]);
+    sb.git(["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"]);
+    sb.deleteRemoteBranch("main");
+    sb.git(["fetch", "--quiet", "--prune", "origin"]);
+    assert.equal(sb.git(["symbolic-ref", "refs/remotes/origin/HEAD"]), "refs/remotes/origin/main");
+
+    const r = runFi([], sb.work, { GIT_FI_NO_HINTS: "1" });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /feature-a/);
+  });
+
+  test("still lists branches when the default branch name carries a slash", () => {
+    // `basename` truncates refs/remotes/origin/release/main to `main`, so the
+    // name reached here is one nobody has — the same unresolvable ref by a
+    // different route, and it needs origin/main gone to be the real thing.
+    sb.pushBranch("feature-a", "a.txt", "a\n");
+    sb.bootstrapFi();
+    assert.equal(runFi(["--add", "feature-a"], sb.work).status, 0);
+
+    sb.git(["push", "--quiet", "origin", "main:release/main"]);
+    sb.git(["-C", sb.origin, "symbolic-ref", "HEAD", "refs/heads/release/main"]);
+    sb.deleteRemoteBranch("main");
+    sb.git(["fetch", "--quiet", "--prune", "origin"]);
+    sb.git([
+      "symbolic-ref",
+      "refs/remotes/origin/HEAD",
+      "refs/remotes/origin/release/main",
+    ]);
+    assert.doesNotMatch(sb.git(["branch", "-r"]), /origin\/main$/m);
+
+    const r = runFi([], sb.work, { GIT_FI_NO_HINTS: "1" });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /feature-a/);
+  });
+});

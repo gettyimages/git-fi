@@ -358,21 +358,33 @@ describe("postinstall git floor (PRE-06)", () => {
     assert.match(r.stderr, /no working git was found on PATH/);
   });
 
-  test("the floor matches the one preflightChecks enforces (PRE-02)", () => {
-    // The postinstall cannot import the compiled floor — npm runs it before the
-    // build — so the number lives in two files and this pins them together.
-    const pick = (src: string, re: RegExp): string => {
-      const m = src.match(re);
-      assert.ok(m, `${re} found nothing: the floor moved somewhere this test cannot see`);
-      return m[1];
-    };
-    const post = readFileSync(script, "utf8");
-    const runtime = readFileSync(gitTs, "utf8");
-    assert.equal(
-      pick(post, /MIN_GIT = "(\d+\.\d+\.\d+)"/),
-      pick(runtime, /please upgrade to at least (\d+\.\d+\.\d+)\./)
+  const pick = (src: string, re: RegExp, what: string): string => {
+    const m = src.match(re);
+    assert.ok(m, `${re} found nothing: ${what} moved somewhere this test cannot see`);
+    return m[1];
+  };
+
+  test("engines.git states the floor as a >= range (PRE-02, PRE-06)", () => {
+    // Both readers strip a leading `>=` and compare what is left as a dotted
+    // triple. Any other range shape — `^2.41.0`, `2.41.x` — survives that strip
+    // and makes `ordinal` return NaN, so every comparison is false and the floor
+    // stops being enforced without anything failing.
+    const { engines } = JSON.parse(
+      readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8")
     );
-    assert.equal(pick(post, /MIN_GIT_ORD = (\d+)/), pick(runtime, /ver < (\d+)/));
+    assert.match(engines.git, /^>=\d+\.\d+\.\d+$/);
+  });
+
+  test("both enforcers compare the floor the same way (PRE-02)", () => {
+    // The postinstall cannot import the compiled comparison — npm runs it before
+    // the build — so `ordinal` is written out in both files. Agreeing on the
+    // floor while disagreeing on the radix refuses an install at one version and
+    // aborts a command at another.
+    const body = /ordinal = \(v(?:: string)?\)(?:: number)? =>\s*(v\.split[^;]+);/;
+    assert.equal(
+      pick(readFileSync(script, "utf8"), body, "the comparison"),
+      pick(readFileSync(gitTs, "utf8"), body, "the comparison")
+    );
   });
 });
 

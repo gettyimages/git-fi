@@ -13,7 +13,11 @@ import {
   excessScopes,
   tokenTail,
   tokenFormUrl,
+  REQUIRED_SCOPE,
+  type TokenResolution,
 } from "../src/auth.js";
+import { rejectedTokenMessage } from "../src/gitlab.js";
+import { makeStyle } from "../src/style.js";
 
 const OPTS = { debug: false, bare: false, json: false, select: false, yes: false };
 const POSIX_MODES = process.platform !== "win32";
@@ -240,5 +244,67 @@ describe("token form link (AUTH-10)", () => {
       tokenFormUrl(HOST),
       `https://${HOST}/-/user_settings/personal_access_tokens?name=git-fi&scopes=read_api`
     );
+  });
+});
+
+describe("rejected token message (AUTH-13)", () => {
+  const s = makeStyle(OPTS);
+
+  const resolution = (source: "config" | "env"): TokenResolution => ({
+    token: "glpat-xxxxxxxxxxxx",
+    source,
+    host: HOST,
+    shadowsEnv: false,
+    stored: null,
+  });
+
+  test("links the form that issues a replacement", () => {
+    const msg = rejectedTokenMessage(resolution("env"), s);
+    assert.ok(msg.includes(tokenFormUrl(HOST)), msg);
+  });
+
+  test("names the scope the linked form asks for, not a second spelling of it", () => {
+    // The URL's `scopes=` and the sentence above it come from one constant, so
+    // widening the scope cannot leave the prose claiming the old one.
+    const msg = rejectedTokenMessage(resolution("env"), s);
+    assert.ok(msg.includes(REQUIRED_SCOPE), msg);
+    assert.ok(tokenFormUrl(HOST).includes(REQUIRED_SCOPE));
+  });
+
+  test("carries no colour of its own, since abort wraps it in red", () => {
+    // An inner SGR reset would end abort's red for every line after it.
+    assert.ok(!rejectedTokenMessage(resolution("env"), s).includes("\x1b["));
+  });
+
+  test("names the source that supplied the rejected token", () => {
+    assert.ok(rejectedTokenMessage(resolution("env"), s).includes("GITLAB_ACCESS_TOKEN"));
+    assert.ok(rejectedTokenMessage(resolution("config"), s).includes("stored token"));
+  });
+
+  test("says a stored token outranks the export it replaces", () => {
+    // Peter's case: the expired credential was an exported one, so `--auth=login`
+    // only helps if it is clear the stored token wins over what is still exported.
+    const msg = rejectedTokenMessage(resolution("env"), s);
+    assert.ok(msg.includes("--auth=login"), msg);
+    assert.ok(msg.includes("precedence"), msg);
+  });
+
+  test("still offers the way back to basic mode", () => {
+    assert.ok(rejectedTokenMessage(resolution("env"), s).includes("unset GITLAB_ACCESS_TOKEN"));
+    assert.ok(rejectedTokenMessage(resolution("config"), s).includes("--auth=logout"));
+  });
+
+  test("leaves out the branch and GitLab's response body", () => {
+    // A 401 is about the credential; naming a branch sends the reader to look at
+    // the wrong thing, and the body only restates the status.
+    const msg = rejectedTokenMessage(resolution("env"), s);
+    assert.ok(!msg.includes("branch"), msg);
+    assert.ok(!msg.includes("invalid_token"), msg);
+  });
+
+  test("degrades to a usable message when no host was detected", () => {
+    const msg = rejectedTokenMessage({ ...resolution("env"), host: null }, s);
+    assert.ok(msg.includes("401"), msg);
+    assert.ok(!msg.includes("undefined"), msg);
   });
 });

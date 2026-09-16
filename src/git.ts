@@ -1,8 +1,10 @@
 import { execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import type { Options, BranchReadiness } from "./types.js";
 import { abort, makeStyle, bulletList, createSpinner } from "./style.js";
+import { resolveBranchName } from "./branches.js";
 import { DOCS_URL } from "./help.js";
 
 let fetchDone = false;
@@ -97,6 +99,17 @@ export function gitExitCode(args: string[], gitOpts: GitOpts = {}): number {
   return gitOutcome(args, gitOpts).status;
 }
 
+// The git floor lives in package.json's `engines.git` (PRE-02, PRE-06), which
+// npm records but does not enforce — so this and scripts/postinstall.mjs both
+// read it and do the enforcing. package.json rather than a shared module
+// because npm runs the postinstall before the build, so there is no dist/ to
+// import from; a test pins the range's shape and the comparison below.
+const MIN_GIT = createRequire(import.meta.url)("../package.json")
+  .engines.git.replace(/^>=/, "");
+
+const ordinal = (v: string): number =>
+  v.split(".").reduce((n, part) => n * 100 + Number(part), 0);
+
 export function preflightChecks(opts: Options): void {
   if (!existsSync(".git")) {
     const s = makeStyle(opts);
@@ -109,16 +122,12 @@ export function preflightChecks(opts: Options): void {
   }
 
   const verStr = git(["--version"]) ?? "";
-  const match = verStr.match(/(\d+\.\d+\.\d+)/);
-  if (match) {
-    const parts = match[1].split(".").map(Number);
-    const ver = parts[0] * 10000 + parts[1] * 100 + parts[2];
-    if (ver < 24100) {
-      abort(
-        `git version ${match[1]} is too old, please upgrade to at least 2.41.0.`,
-        opts
-      );
-    }
+  const match = verStr.match(/\d+\.\d+\.\d+/);
+  if (match && ordinal(match[0]) < ordinal(MIN_GIT)) {
+    abort(
+      `git version ${match[0]} is too old, please upgrade to at least ${MIN_GIT}.`,
+      opts
+    );
   }
 
   const pushDefault = git(["config", "push.default"], { allowFailure: true });
@@ -159,29 +168,51 @@ export async function ensureFetched(
   }
 }
 
-let defaultBranchCache: string | undefined;
+let defaultBranchCache: { name: string; resolved: boolean } | undefined;
 
 export function defaultBranch(): string {
-  if (defaultBranchCache !== undefined) return defaultBranchCache;
-  defaultBranchCache = resolveDefaultBranch();
+  return resolvedDefaultBranch().name;
+}
+
+/**
+ * The default branch, and whether `origin/<name>` is a ref that exists. Every
+ * path but the last reaches its answer by resolving one, so a caller that needs
+ * a real ref — `%(ahead-behind:)` is fatal without one — reads it here instead
+ * of verifying the same name again.
+ */
+function resolvedDefaultBranch(): { name: string; resolved: boolean } {
+  if (defaultBranchCache === undefined) {
+    defaultBranchCache = resolveDefaultBranch();
+  }
   return defaultBranchCache;
 }
 
-function resolveDefaultBranch(): string {
+function resolveDefaultBranch(): { name: string; resolved: boolean } {
   const ref = git(["symbolic-ref", "refs/remotes/origin/HEAD"], {
     allowFailure: true,
   });
-  if (ref !== null) return basename(ref);
+  if (ref !== null) {
+    // `symbolic-ref` reads the symref file and never looks at what it names, so
+    // it succeeds on a target that is gone — the state a default-branch rename
+    // plus `fetch --prune` leaves behind. `basename` also truncates a branch
+    // with a `/` in it, naming a ref nobody has. Either way the name has to be
+    // resolved before anything treats it as one.
+    const name = basename(ref);
+    return { name, resolved: refExists(`origin/${name}`) };
+  }
   for (const candidate of ["main", "master"]) {
-    if (
-      git(["rev-parse", "--verify", `origin/${candidate}`], {
-        allowFailure: true,
-      }) !== null
-    ) {
-      return candidate;
+    if (refExists(`origin/${candidate}`)) {
+      return { name: candidate, resolved: true };
     }
   }
-  return "main";
+  return { name: "main", resolved: false };
+}
+
+function refExists(ref: string): boolean {
+  return (
+    git(["rev-parse", "--verify", "--quiet", ref], { allowFailure: true }) !==
+    null
+  );
 }
 
 export type CommitFormat = "terse" | "legacy";
@@ -239,16 +270,6 @@ export function currentFiBranches(defBranch: string): string[] {
   });
   if (msg === null) return [];
   return parseBranchList(msg, defBranch);
-}
-
-export function resolveBranchName(name: string): string {
-  if (!name.startsWith("origin/")) return `origin/${name}`;
-  return name;
-}
-
-/** The counterpart of `resolveBranchName`: the name as a user says it. */
-export function localBranchName(name: string): string {
-  return name.replace(/^origin\//, "");
 }
 
 export function currentBranchName(): string | null {
@@ -327,6 +348,19 @@ function count(field: string | undefined): number | null {
   return field !== undefined && field !== "" && Number.isInteger(n) ? n : null;
 }
 
+let shallow: boolean | null = null;
+
+/** Whether the walk stops at a graft, so a revision count describes the
+ * fetched window rather than the branch. Cannot change mid-invocation. */
+function shallowRepository(): boolean {
+  if (shallow === null) {
+    shallow =
+      git(["rev-parse", "--is-shallow-repository"], { allowFailure: true }) ===
+      "true";
+  }
+  return shallow;
+}
+
 // One `git branch -r` invocation carries the name, symref, commit date, ahead
 // and behind counts, and tip author for every remote branch, so callers never
 // spawn a `git log` or a `git rev-list --count` per candidate (PERF-01).
@@ -341,12 +375,13 @@ function listRemoteBranches(
   // The atom is fatal when its argument does not resolve — `fatal: failed to
   // find 'origin/x'`, exit 128 — and `defaultBranch()` falls back to a name
   // rather than a ref that exists. Asking for it only once the ref is there
-  // keeps a repo with no `origin/HEAD` listing its branches.
+  // keeps a repo with no `origin/HEAD` listing its branches. Resolving the
+  // default branch already settled this for the name it returned; any other
+  // name is a caller's own and still has to be checked.
+  const known = resolvedDefaultBranch();
   const comparable =
     readiness &&
-    git(["rev-parse", "--verify", "--quiet", `origin/${defBranch}`], {
-      allowFailure: true,
-    }) !== null;
+    (defBranch === known.name ? known.resolved : refExists(`origin/${defBranch}`));
   const aheadBehindAtom = comparable
     ? `%(ahead-behind:origin/${defBranch})`
     : "";
@@ -369,9 +404,9 @@ function listRemoteBranches(
   // unnoticed but a live one is never declared merged and pruned. Dropping it
   // would instead stop MERGE-07 pruning anything in CI, where shallow clones
   // are the default.
-  const truncated =
-    git(["rev-parse", "--is-shallow-repository"], { allowFailure: true }) ===
-    "true";
+  // Only the behind count is dropped, and without the atom there is no count to
+  // drop — so the listing that asked for neither does not pay for the probe.
+  const truncated = comparable && shallowRepository();
 
   const branches: RemoteBranch[] = [];
   for (const line of lines) {

@@ -32,6 +32,224 @@ jobs:
       - run: npm ci
       - run: npm test
 
+  # The matrix above drives the compiled binary straight out of the checkout, so
+  # nothing there installs globally or reaches git-fi by the name a shell
+  # resolves. That left the whole of INSTALL-01 untested: a user migrating off
+  # the Ruby gem had a launcher left in Ruby's bin directory, ahead of npm's
+  # prefix on PATH, and `git fi` ran that one instead. Windows PowerShell rather
+  # than pwsh because that is the shell the report came from.
+  windows-install:
+    runs-on: windows-latest
+    defaults:
+      run:
+        # INSTALL-01 writes its report to stderr, and this shell defaults
+        # ErrorActionPreference to stop — which turns a native command writing
+        # anything to stderr into a step failure. Every step below opts out.
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm pack
+
+      - name: git fi reaches the global install, and says nothing extra
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $tgz = (Get-ChildItem gettyimages-git-fi-*.tgz).FullName
+          npm install -g $tgz
+          $v = (git fi --version) -join ''
+          if ($v -notmatch '^git-fi \d+\.\d+\.\d+$') { throw "git fi --version said: $v" }
+
+          # Nothing is shadowing it, so the notice must stay quiet. Without this
+          # the same-install check could regress to reporting every install as
+          # shadowed by its own launcher and no assertion here would notice.
+          $all = (& git fi --version 2>&1 | Out-String)
+          if ($all -match 'ahead of this one') { throw "unexpected shadow report: $all" }
+
+      - name: a launcher ahead of it on PATH is reported (INSTALL-01)
+        run: |
+          $ErrorActionPreference = 'Continue'
+
+          # Shaped like what RubyGems leaves behind: no extension, and no gem
+          # under it any more.
+          $stale = Join-Path $PWD 'stale'
+          New-Item -ItemType Directory -Force $stale | Out-Null
+          Set-Content (Join-Path $stale 'git-fi') "#!/usr/bin/env ruby`nrequire 'git_fi'"
+          $env:PATH = "$stale;$env:PATH"
+
+          # The premise the report rests on: this launcher really is what
+          # `git fi` now runs. Asserting only that git-fi names it would pass
+          # just as well against a resolver that models the wrong search — which
+          # is what `launcherNames` did while it followed PATHEXT, a set `git fi`
+          # ignores entirely.
+          $reached = (& git fi --version 2>&1 | Out-String)
+          if ($reached -match '^git-fi \d+\.\d+\.\d+') {
+            throw "the stale launcher is not in git's way, so there is no shadow to report: $reached"
+          }
+
+          # Reached by path rather than by name, which is the only way the copy
+          # being shadowed gets to say anything at all (`npx` for the user who
+          # hit this).
+          $prefix = (npm config get prefix).Trim()
+          $entry = Join-Path $prefix 'node_modules\@gettyimages\git-fi\dist\index.js'
+
+          $stdout = & node $entry --version 2>$null
+          if (($stdout -join '') -notmatch '^git-fi \d+\.\d+\.\d+$') {
+            throw "stdout should carry only the version, got: $($stdout -join '')"
+          }
+
+          $all = (& node $entry --version 2>&1 | Out-String)
+          if ($all -notmatch 'stale') { throw "expected the shadow report, got: $all" }
+
+      - name: a shim git cannot run is not reported (INSTALL-01)
+        run: |
+          $ErrorActionPreference = 'Continue'
+
+          # PowerShell runs the .ps1 and where.exe lists the .cmd, but `git fi`
+          # reaches neither, so neither is a shadow. Reporting one sends the
+          # reader to delete a file that leaves `git fi` exactly as it was.
+          $decoys = Join-Path $PWD 'decoys'
+          New-Item -ItemType Directory -Force $decoys | Out-Null
+          Set-Content (Join-Path $decoys 'git-fi.cmd') "@echo decoy"
+          Set-Content (Join-Path $decoys 'git-fi.bat') "@echo decoy"
+          Set-Content (Join-Path $decoys 'git-fi.ps1') "Write-Output 'decoy'"
+          $env:PATH = "$decoys;$env:PATH"
+
+          $v = (git fi --version) -join ''
+          if ($v -notmatch '^git-fi \d+\.\d+\.\d+$') { throw "git fi --version said: $v" }
+
+          $all = (& git fi --version 2>&1 | Out-String)
+          if ($all -match 'ahead of this one') { throw "reported a shim git cannot run: $all" }
+
+  # INSTALL-01 against a real leftover rather than an imitation of one. The
+  # launcher `windows-install` plants is a file this repo wrote, so it can only
+  # ever test the shape someone guessed at; the gem git-fi replaced told users
+  # to `gem install git-fi --no-wrappers`, which links its three executables
+  # into Ruby's bin directory rather than copying them. Deleting the gem's own
+  # files then leaves those links dangling, and Windows git stops at one and
+  # dies on it — `Maybe git-fi is broken?` — rather than trying the next entry
+  # on PATH. That is the state the report came from, and it went unreported: the
+  # PATH walk tested each candidate with `existsSync`, which follows a link and
+  # so cannot see one whose target is gone.
+  #
+  # So the gem is built and installed here the way its README said to, and the
+  # notice is required to name the leftover both while the gem is intact and
+  # after it is removed by hand.
+  windows-leftover-gem:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm pack
+
+      - name: install a git-munge-shaped gem the way its README said to
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $tgz = (Get-ChildItem gettyimages-git-fi-*.tgz).FullName
+          npm install -g $tgz
+
+          "=== ruby on this runner ==="
+          & ruby --version 2>&1
+          & gem --version 2>&1
+
+          # Single-quoted throughout: the executable body is Ruby, and `$:` and
+          # `$LOAD_PATH` would otherwise be read as PowerShell variables.
+          $src = Join-Path $PWD 'gemsrc'
+          New-Item -ItemType Directory -Force (Join-Path $src 'exe') | Out-Null
+          New-Item -ItemType Directory -Force (Join-Path $src 'lib\git\fi') | Out-Null
+          Set-Content (Join-Path $src 'lib\git\fi\version.rb') 'module Git; module FI; VERSION = "0.9.9"; end; end'
+
+          foreach ($name in 'git-fi','git-munge-gemfile','git-munge-package-json') {
+            Set-Content (Join-Path $src "exe\$name") @(
+              '#!/usr/bin/env ruby',
+              '$:.unshift(File.dirname(__FILE__) + ''/../lib'') unless $:.include?(File.dirname(__FILE__) + ''/../lib'')',
+              'require ''git/fi/version''',
+              'puts "REACHED-GEM-LAUNCHER #{Git::FI::VERSION}"'
+            )
+          }
+
+          Set-Content (Join-Path $src 'git-fi.gemspec') @(
+            'Gem::Specification.new do |s|',
+            '  s.name        = "git-fi"',
+            '  s.version     = "0.9.9"',
+            '  s.summary     = "shaped like the gem git-fi replaced"',
+            '  s.authors     = ["probe"]',
+            '  s.files       = ["lib/git/fi/version.rb"]',
+            '  s.bindir      = "exe"',
+            '  s.executables = ["git-fi", "git-munge-gemfile", "git-munge-package-json"]',
+            '  s.require_paths = ["lib"]',
+            'end'
+          )
+
+          Push-Location $src
+          & gem build git-fi.gemspec 2>&1
+          & gem install --no-wrappers --local git-fi-0.9.9.gem 2>&1
+          Pop-Location
+
+          $gembin = (& ruby -e "puts Gem.bindir").Trim()
+          $gemdir = (& ruby -e "puts Gem.dir").Trim()
+          "=== Gem.bindir is $gembin ==="
+          Get-ChildItem $gembin -Filter 'git-*' | ForEach-Object {
+            $link = if ($_.LinkType) { " -> $($_.LinkTarget)" } else { '' }
+            "  $($_.Name)  [$($_.Length) bytes]$link"
+          }
+          "=== first lines of the git-fi entry ==="
+          Get-Content (Join-Path $gembin 'git-fi') -TotalCount 5 -ErrorAction SilentlyContinue
+
+          "GEMBIN=$gembin"  | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          "GEMDIR=$gemdir"  | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+
+      - name: the gem launcher shadows `git fi` while the gem is intact
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $env:PATH = "$env:GEMBIN;$env:PATH"
+
+          $reached = (& git fi --version 2>&1 | Out-String)
+          if ($reached -notmatch 'REACHED-GEM-LAUNCHER') {
+            throw "the gem launcher should be what git fi reaches, got: $reached"
+          }
+
+          $prefix = (npm config get prefix).Trim()
+          $entry = Join-Path $prefix 'node_modules\@gettyimages\git-fi\dist\index.js'
+          $all = (& node $entry --version 2>&1 | Out-String)
+          if ($all -notmatch 'ahead of this one') { throw "expected the shadow report, got: $all" }
+
+      - name: and still shadows it once the gem files are deleted by hand
+        run: |
+          $ErrorActionPreference = 'Continue'
+
+          # What the reporter did. `gem install --no-wrappers` links the
+          # launchers into Ruby's bin rather than copying them, so removing the
+          # gem's own files leaves the links dangling — and Windows git stops at
+          # one and dies rather than trying the next entry on PATH. `existsSync`
+          # follows a link, so this state was invisible to the PATH walk and the
+          # notice said nothing at all.
+          Remove-Item -Recurse -Force (Join-Path $env:GEMDIR 'gems\git-fi-0.9.9') -ErrorAction SilentlyContinue
+          Remove-Item -Force (Join-Path $env:GEMDIR 'specifications\git-fi-0.9.9.gemspec') -ErrorAction SilentlyContinue
+          $env:PATH = "$env:GEMBIN;$env:PATH"
+
+          $broken = (& git fi --version 2>&1 | Out-String)
+          if ($broken -match 'git-fi \d+\.\d+\.\d+') {
+            throw "the leftover links are not in git's way, so there is nothing to report: $broken"
+          }
+
+          $prefix = (npm config get prefix).Trim()
+          $entry = Join-Path $prefix 'node_modules\@gettyimages\git-fi\dist\index.js'
+          $all = (& node $entry --version 2>&1 | Out-String)
+          if ($all -notmatch 'ahead of this one') { throw "expected the shadow report, got: $all" }
+
   # Fail if the committed man page, completions, or docs tables are stale — i.e.
   # someone changed src/help.ts without re-running the generator. Keeps the
   # generated artifacts honest, since they ship in the npm package and the docs

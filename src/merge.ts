@@ -16,14 +16,14 @@ import {
   mergedRemoteBranches,
   branchReadiness,
   currentFiBranches,
-  localBranchName,
   isInteractive,
   type CommitFormat,
 } from "./git.js";
+import { localBranchName } from "./branches.js";
 import { confirm } from "./ui.js";
 import { detectGitlabProject } from "./gitlab.js";
 import { attributeConflicts, renderConflicts } from "./readiness.js";
-import { branchJson } from "./json.js";
+import { branchJson, writeJson } from "./json.js";
 
 // Commit-message format written when bootstrapping a brand-new fi branch (no
 // The format git-fi writes for *every* fi commit during the migration rollout
@@ -35,7 +35,7 @@ import { branchJson } from "./json.js";
 const DEFAULT_WRITE_FORMAT: CommitFormat = "legacy";
 
 function buildLegacyMessage(branches: string[]): string {
-  const shortNames = branches.map((b) => b.replace(/^origin\//, ""));
+  const shortNames = branches.map(localBranchName);
   if (shortNames.length === 0) {
     return "Merge remote-tracking branch into fi";
   }
@@ -49,7 +49,7 @@ function buildLegacyMessage(branches: string[]): string {
 
 function buildTerseSignature(branches: string[], defBranch: string): string {
   const baseHash = git(["rev-parse", "--short", `origin/${defBranch}`])!;
-  const shortNames = branches.map((b) => b.replace(/^origin\//, ""));
+  const shortNames = branches.map(localBranchName);
   if (shortNames.length === 0) return `@[${baseHash}]`;
   return `(${shortNames.join(", ")})@[${baseHash}]`;
 }
@@ -74,19 +74,6 @@ function buildCommitMessage(
 
   if (format === "legacy") return buildLegacyMessage(branches);
   return buildTerseSignature(branches, defBranch);
-}
-
-/**
- * Write to stdout and wait for the bytes to reach the OS, which `abort`'s
- * `process.exit` does not (JSON-03). stdout is asynchronous on a pipe, so an
- * exit on the same tick drops whatever is still buffered — a `--json` failure
- * object wider than the 64K pipe buffer arrives truncated mid-string to the
- * `| jq` the flag exists for, while the same run redirected to a file is whole.
- */
-function writeStdout(text: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    process.stdout.write(text, (err) => (err ? reject(err) : resolve()));
-  });
 }
 
 const ACTION_INITIAL: Record<string, string> = {
@@ -197,7 +184,7 @@ export async function mergeProcess(
     );
     for (const b of deadBranches) {
       process.stderr.write(
-        `  ${s.yellow(b.replace(/^origin\//, ""))}\n`
+        `  ${s.yellow(localBranchName(b))}\n`
       );
     }
   }
@@ -207,7 +194,7 @@ export async function mergeProcess(
   for (const b of liveBranches) {
     if (alreadyMerged.has(b)) {
       process.stderr.write(
-        `${s.yellow(`${b.replace(/^origin\//, "")} already in ${defBranch}`)}\n`
+        `${s.yellow(`${localBranchName(b)} already in ${defBranch}`)}\n`
       );
     } else {
       mergeable.push(b);
@@ -224,7 +211,7 @@ export async function mergeProcess(
   const annotations: AnnotationInfo[] = [];
 
   for (const b of mergeable) {
-    const name = b.replace(/^origin\//, "");
+    const name = localBranchName(b);
     const label = gitlab
       ? s.link(
           s.cyan(name),
@@ -243,7 +230,7 @@ export async function mergeProcess(
 
   if (action === "remove") {
     for (const b of actionBranches) {
-      const name = b.replace(/^origin\//, "");
+      const name = localBranchName(b);
       const baseLine = `   ${s.dim(name)}`;
       displayLines.push(`${baseLine}  ${s.dim("<- " + initialVerb)}`);
       annotations.push({ lineIndex: displayLines.length - 1, branch: b, baseLine });
@@ -301,7 +288,7 @@ export async function mergeProcess(
     for (const ann of annotations) {
       let highlighted: string;
       if (ann.branch) {
-        const name = ann.branch.replace(/^origin\//, "");
+        const name = localBranchName(ann.branch);
         if (action === "remove") {
           highlighted = `   ${s.dim(name)}  ${s.dim("<-")} ${s.greenBold(doneVerb)}`;
         } else {
@@ -325,7 +312,7 @@ export async function mergeProcess(
     for (const ann of annotations) {
       let highlighted: string;
       if (ann.branch) {
-        const name = ann.branch.replace(/^origin\//, "");
+        const name = localBranchName(ann.branch);
         if (action === "remove") {
           highlighted = `   ${s.dim(name)}  ${s.dim("<-")} ${s.redBold("failed")}`;
         } else {
@@ -477,8 +464,10 @@ export async function mergeProcess(
     // the object database only, so it neither needs nor disturbs a checkout.
     const attribution = attributeConflicts(mergeable, defBranch);
     // Nothing was pushed, so fi still holds what it held before the attempt —
-    // which is what says whether `-r` is a remedy for a given branch.
-    const inFi = new Set(currentFiBranches(defBranch).map(localBranchName));
+    // which is what says whether `-r` is a remedy for a given branch, and what
+    // `--json` reports below as fi's branch list.
+    const fiNow = currentFiBranches(defBranch);
+    const inFi = new Set(fiNow.map(localBranchName));
 
     diagnose("\nFailed trying to merge branch(es):\n\n");
     if (attribution.conflicts.length > 0) {
@@ -517,20 +506,12 @@ export async function mergeProcess(
     // is a different list, so it gets a different name.
     if (opts.json) {
       const readiness = branchReadiness(defBranch);
-      await writeStdout(
-        JSON.stringify(
-          {
-            command: action,
-            branches: currentFiBranches(defBranch).map((b) =>
-              branchJson(b, readiness)
-            ),
-            attempted: mergeable.map(localBranchName),
-            conflicts: attribution.conflicts,
-          },
-          null,
-          2
-        ) + "\n"
-      );
+      await writeJson({
+        command: action,
+        branches: fiNow.map((b) => branchJson(b, readiness)),
+        attempted: mergeable.map(localBranchName),
+        conflicts: attribution.conflicts,
+      });
     }
 
     abort("Aborted due to merge failures", opts);

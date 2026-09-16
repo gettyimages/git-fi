@@ -24,7 +24,32 @@ The install checks git first and stops if it is older than 2.41.0, naming the ve
 > npm install -g @gettyimages/git-fi
 > ```
 >
-> Then open a new shell. If `git fi --version` still reports a `0.x` version, an older install is ahead of npm's on your `PATH`; `which -a git-fi` lists every one in resolution order.
+> Use `gem uninstall` rather than deleting the gem's files.
+>
+> Then open a new shell and run `git fi --version`. If it reports a `0.x` version, or fails with `cannot load such file` or `Maybe git-fi is broken?`, an older `git-fi` is ahead of npm's on your `PATH`. List them in resolution order and delete any outside npm's own prefix (`npm config get prefix`):
+>
+> ```bash
+> which -a git-fi
+> ```
+>
+> If `git fi` doesn't reach git-fi at all, ask through npx instead:
+>
+> ```bash
+> npx @gettyimages/git-fi --version
+> ```
+>
+> That names the `git-fi` your `PATH` resolves, so you can see which file to remove.
+
+> [!TIP|label:Migrating on Windows]
+> Where Ruby is installed system-wide (under `C:\tools`, say), run `gem uninstall` from an administrator shell, then confirm it with `gem list git`.
+>
+> To list every `git-fi` in resolution order:
+>
+> ```powershell
+> Get-Command git-fi -All
+> ```
+>
+> `Get-Command` cannot run a launcher with no file extension, so it leaves that one out — if `git fi` fails with `Program 'git-fi' failed to run` or `Maybe git-fi is broken?`, check Ruby's `bin` directory directly.
 
 ### Updating
 

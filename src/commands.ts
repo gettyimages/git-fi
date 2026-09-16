@@ -1,5 +1,5 @@
 import type { Options, CIResult } from "./types.js";
-import { makeStyle, printTable, abort, hintsEnabled, withReadiness, strikeIfMerged } from "./style.js";
+import { makeStyle, printTable, abort, hintsEnabled } from "./style.js";
 import {
   git,
   gitExitCode,
@@ -8,14 +8,14 @@ import {
   resolveBranches,
   allRemoteBranches,
   branchReadiness,
-  localBranchName,
   remoteBranchesNoMergedSince,
   ensureFetched,
   isInteractive,
 } from "./git.js";
-import { fetchGitlabCI, printCITable, detectGitlabProject, fetchFiPipeline, statusLabel, branchCompareUrl, gitlabToken } from "./gitlab.js";
+import { localBranchName } from "./branches.js";
+import { fetchGitlabCI, printCITable, detectGitlabProject, fetchFiPipeline, statusLabel, branchLabel, gitlabToken } from "./gitlab.js";
 import { mergeProcess } from "./merge.js";
-import { branchJson } from "./json.js";
+import { branchJson, writeJson } from "./json.js";
 import { pickBranches } from "./ui.js";
 import { DOCS_URL } from "./help.js";
 
@@ -62,16 +62,14 @@ export async function cmdList(
 
   if (filterPattern !== undefined) {
     const re = new RegExp(filterPattern);
-    branches = branches.filter((b) =>
-      re.test(b.replace(/^origin\//, ""))
-    );
+    branches = branches.filter((b) => re.test(localBranchName(b)));
     if (branches.length === 0) {
       process.stderr.write(`no branches in fi match '${filterPattern}'\n`);
       process.exit(1);
     }
   }
 
-  const shortNames = branches.map((b) => b.replace(/^origin\//, ""));
+  const shortNames = branches.map(localBranchName);
 
   if (opts.bare) {
     process.stdout.write(shortNames.join(" ") + "\n");
@@ -86,13 +84,10 @@ export async function cmdList(
         ciByBranch.set(r.branch, r);
       }
     }
-    process.stdout.write(
-      JSON.stringify(
-        { command, branches: branches.map((b) => branchJson(b, readiness, ciByBranch)) },
-        null,
-        2
-      ) + "\n"
-    );
+    await writeJson({
+      command,
+      branches: branches.map((b) => branchJson(b, readiness, ciByBranch)),
+    });
     return;
   }
 
@@ -118,15 +113,9 @@ export async function cmdList(
     }
   } else {
     const readiness = branchReadiness(defBranch);
-    const rows = branches.map((branch) => {
-      const name = localBranchName(branch);
-      const r = readiness.get(branch);
-      const text = strikeIfMerged(name, r, opts);
-      const label = gitlab
-        ? s.linkOrMarkdown(s.cyan(text), branchCompareUrl(gitlab, name, defBranch))
-        : s.cyan(text);
-      return [withReadiness(label, r, opts)];
-    });
+    const rows = branches.map((branch) => [
+      branchLabel(branch, readiness, gitlab, defBranch, opts),
+    ]);
     printTable(["Branch"], rows, opts);
   }
 

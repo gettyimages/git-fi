@@ -101,7 +101,7 @@ A merge that fails writes a JSON object too, rather than only the diagnostics on
 
 Nothing is pushed when a merge fails, so `branches` is `fi` as it still stands — the same thing it means after an action that succeeded. `attempted` is the set the merge tried. `with` names what the branch conflicts with: peer branches, or `main` by name when the branch simply needs rebasing.
 
-`conflicts` can come back empty on a failed merge. That means no single branch could be blamed: each one merges cleanly on its own, and the combined merge is what failed. The combined merge uses git's octopus strategy, which does not detect renames, so a rename against a concurrent edit fails there while every individual replay comes back clean.
+`conflicts` can come back empty on a failed merge. That means `git merge-tree` couldn't run at all (an unresolvable ref, or a shallow clone whose histories look unrelated), so nothing was measured and nothing is blamed. Re-run with `--debug` for what git reported.
 
 Both flags work with any action, not just `list` — they pick an output *format*, so a mutation reports its resulting branch list the same way:
 

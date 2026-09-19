@@ -4,7 +4,12 @@ import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import type { Options, BranchReadiness } from "./types.js";
 import { abort, makeStyle, bulletList, createSpinner } from "./style.js";
-import { resolveBranchName } from "./branches.js";
+import {
+  resolveBranchName,
+  localBranchName,
+  localRef,
+  remoteRef,
+} from "./branches.js";
 import { DOCS_URL } from "./help.js";
 
 let fetchDone = false;
@@ -361,6 +366,22 @@ function shallowRepository(): boolean {
   return shallow;
 }
 
+let gpgsign: boolean | null = null;
+
+/**
+ * Whether the caller signs commits. `git commit-tree` reads none of the signing
+ * config that `git commit` honors, so the fi commit has to ask and pass `-S`
+ * itself. Cannot change mid-invocation.
+ */
+export function signCommits(): boolean {
+  if (gpgsign === null) {
+    gpgsign =
+      git(["config", "--bool", "commit.gpgsign"], { allowFailure: true }) ===
+      "true";
+  }
+  return gpgsign;
+}
+
 // One `git branch -r` invocation carries the name, symref, commit date, ahead
 // and behind counts, and tip author for every remote branch, so callers never
 // spawn a `git log` or a `git rev-list --count` per candidate (PERF-01).
@@ -523,11 +544,72 @@ export function remoteBranchesNoMergedSince(
     .map((b) => b.name);
 }
 
+// `%(refname:short)` shortens only as far as the name stays unambiguous, so a
+// local branch called `origin/feature` turns the remote-tracking ref's short
+// form into `remotes/origin/feature` and a tag called `feature` turns the local
+// branch's into `heads/feature`. Both sets below are membership tests keyed on
+// the plain name, and a name that shortened differently is a branch that reads
+// as gone. Taking the full ref and dropping a known prefix is the spelling that
+// does not move.
+function refsUnder(prefix: string): Set<string> {
+  return new Set(
+    gitLines(["for-each-ref", "--format=%(refname)", prefix]).map((r) =>
+      r.slice(prefix.length + 1)
+    )
+  );
+}
+
 /** Every remote-tracking ref that exists, as `origin/<name>`. */
 export function existingRemoteRefs(): Set<string> {
-  return new Set(
-    gitLines(["for-each-ref", "--format=%(refname:short)", "refs/remotes"])
-  );
+  return refsUnder("refs/remotes");
+}
+
+/**
+ * Every local branch name, so a lookup costs one listing rather than a
+ * rev-parse per branch.
+ */
+function existingLocalRefs(): Set<string> {
+  return refsUnder("refs/heads");
+}
+
+/**
+ * How far the caller's own branch has drifted from the remote-tracking ref the
+ * merge takes (READY-08): commits it carries that `origin/<name>` does not, and
+ * the reverse.
+ *
+ * Null where there is nothing to say: no local branch of that name (usually a
+ * teammate's branch), no shared history to count across, or a shallow
+ * repository, whose walk stops at the graft and would report the fetched window
+ * as the branch (READY-01).
+ *
+ * The comparison is against `origin/<name>` rather than the branch's configured
+ * upstream, because `origin/<name>` is the ref that reaches fi whatever the
+ * local branch is set to track.
+ */
+export function localDivergence(
+  branch: string
+): { ahead: number; behind: number } | null {
+  const name = localBranchName(branch);
+  if (!existingLocalRefs().has(name) || shallowRepository()) return null;
+
+  const local = localRef(name);
+  const remote = remoteRef(branch);
+
+  // rev-list counts disjoint histories rather than refusing them, so without
+  // this every commit on each side reads as drift. merge-base is what actually
+  // answers whether there is anything to count across.
+  if (git(["merge-base", local, remote], { allowFailure: true }) === null) {
+    return null;
+  }
+
+  const out = git(["rev-list", "--left-right", "--count", `${local}...${remote}`], {
+    allowFailure: true,
+  });
+  if (out === null) return null;
+
+  const [ahead, behind] = out.split(/\s+/).map(Number);
+  if (!Number.isInteger(ahead) || !Number.isInteger(behind)) return null;
+  return { ahead, behind };
 }
 
 /**

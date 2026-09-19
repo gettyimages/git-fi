@@ -7,37 +7,25 @@ Every mutation command (`-a`, `-r`, `-f`, `-g`) triggers the same merge process.
 ```mermaid
 %%{ init: { 'look': 'handDrawn' } }%%
 flowchart TD
-  A[Start merge] --> B[Assert tracked files clean]
-  B --> C[Capture untracked files]
-  C --> D{fi exists?}
-  D -- no --> E[Bootstrap confirmation]
-  E --> F[Compute final branch list]
-  D -- yes --> F
-  F --> G[Prune dead branches]
-  G --> H[Warn about merged branches]
-  H --> I[Create fi from default branch]
-  I --> J[Merge all branches in one merge]
-  J --> K{Merge clean?}
-  K -- yes --> L[Commit and force-push fi]
-  K -- no --> M[Reset hard and abort]
-  L --> N[Restore original branch, delete local fi]
-  M --> N
-  N --> O{Merge succeeded?}
-  O -- yes --> P[Print branch list table]
-  O -- no --> Q[Print failed branches and abort message]
+  A[Start merge] --> B{fi exists?}
+  B -- no --> C[Bootstrap confirmation]
+  C --> D[Compute final branch list]
+  B -- yes --> D
+  D --> E[Prune dead branches]
+  E --> F[Warn about merged and drifted branches]
+  F --> G[Merge each branch in the object database]
+  G --> H{Every branch clean?}
+  H -- yes --> I[Commit the tree and push it to fi]
+  H -- no --> J[Abort without pushing]
+  I --> K[Print branch list table]
+  J --> L[Print failing branches and abort message]
 ```
 
 ## Step by Step
 
-### 1. Clean state
+Nothing below reads or writes your working tree, your index, or `HEAD`. A half-finished edit, a staged file, scratch output: all of it stays exactly as it is, and none of it stands in the way of a merge. The whole operation happens in the object database, so there is nothing to undo if it fails and nothing to unwind if you interrupt it.
 
-git-fi asserts that no tracked file carries uncommitted changes, staged or unstaged. This protects your work from being lost during branch switching. Untracked files are left alone, so scratch files and build output do not stand in the way of a merge.
-
-### 2. Untracked files
-
-Untracked files are captured before the merge starts. If the merge fails, git-fi prints `rm` commands to clean up any untracked files that were created during the process.
-
-### 3. Bootstrap confirmation
+### 1. Bootstrap confirmation
 
 The first time `fi` is created in a repository, git-fi asks for confirmation:
 
@@ -47,7 +35,7 @@ No fi branch detected. Create one? [y/n]
 
 In CI mode (`CI=true`), this prompt is skipped and `fi` is created automatically.
 
-### 4. Branch list computation
+### 2. Branch list computation
 
 The final branch list depends on the command:
 
@@ -58,9 +46,9 @@ The final branch list depends on the command:
 | `-f` | Only the specified branches |
 | `-g` | Current branches (unchanged) |
 
-Steps 5 and 6 then filter that list, so the set that actually gets merged can be smaller than the table suggests.
+Steps 3 and 4 then filter that list, so the set that actually gets merged can be smaller than the table suggests.
 
-### 5. Dead branch pruning
+### 3. Dead branch pruning
 
 Branches that no longer exist on the remote are removed from the list, with a warning:
 
@@ -69,7 +57,7 @@ Ignoring branches that no longer exist:
   deleted-branch
 ```
 
-### 6. Merged branch pruning
+### 4. Merged branch pruning
 
 Branches already merged into the default branch are dropped from the list too, with a warning:
 
@@ -79,26 +67,38 @@ landed-branch already in main
 
 Both filters apply to every command, so any mutation tidies `fi` on the way through. `-g` with no other change is therefore the way to prune: it re-merges what's left after both filters. Since the surviving list is what gets written to the new `fi` commit message, a dropped branch is gone from `fi` afterwards, not merely flagged.
 
-### 7. Merge execution
+### 5. Local drift
 
-git-fi creates a fresh `fi` branch from `origin/main` (or `origin/master`), then merges **all** the branches together in a single `git merge --no-commit --no-ff`. It's all-or-nothing:
+`fi` is built from `origin/<branch>`, never from your checkout. When you name a branch whose local copy has drifted from its remote, git-fi says so:
 
-- If every branch integrates cleanly, git-fi commits and force-pushes `fi`.
-- If **any** branch conflicts, git-fi resets the working tree (`git reset --hard`) and aborts. No `fi` is pushed — the remote is left untouched.
+```text
+fi merges origin/feature-auth, and your feature-auth is 2 ahead, 3 behind
+```
 
-The combined merge can't say which branch caused a conflict, so a failure is followed by a second pass that can — see [Conflict Handling](#conflict-handling).
+*Ahead* is the one that costs you something: those commits are only in your checkout, so nothing integrates them and `fi` says nothing about how they land. Push them and re-run. *Behind* means the opposite: `fi` has integrated a newer `feature-auth` than the one you're looking at.
 
-### 8. Commit and push
+Only branches you name are checked. `-g` re-merges the whole list without being a statement about any one branch, so it stays quiet rather than reporting every stale local copy of a teammate's branch. A branch you have no local copy of has nothing to drift, a local branch sharing no history with the remote one has no drift to count (a recreated branch, say), and a shallow clone counts against a truncated history, so none of the three says anything.
 
-The resulting merge is committed with a message that records the branches included in `fi`, so the list round-trips on the next run. git-fi currently writes the **legacy** standard git merge message:
+### 6. Merge execution
+
+Starting from `origin/main` (or `origin/master`), git-fi merges the branches one at a time with `git merge-tree --write-tree`, committing each clean step so the next branch has something to merge onto. It's all-or-nothing:
+
+- If every branch integrates cleanly, git-fi commits the resulting tree and force-pushes it to `fi`.
+- If **any** branch conflicts, git-fi aborts. No `fi` is pushed, and the remote is left untouched.
+
+Because each step names the branch it was merging, a failure already knows who is responsible (see [Conflict Handling](#conflict-handling)).
+
+### 7. Commit and push
+
+The resulting tree is committed with `git commit-tree`, taking `origin/main` and each merged branch as its parents (the same shape a merge commit has), and a message that records the branches included in `fi`, so the list round-trips on the next run. git-fi currently writes the **legacy** standard git merge message:
 
 ```text
 Merge remote-tracking branches 'origin/feature-auth', 'origin/feature-search' and 'origin/bugfix-nav' into fi
 ```
 
-git-fi also *reads* a compact **terse** format (`(feature-auth, feature-search, bugfix-nav)@[a1b2c3d]`), so `fi` branches written by other versions are still understood; it will switch to *writing* terse after the migration rollout. The `fi` branch is then force-pushed to origin.
+git-fi also *reads* a compact **terse** format (`(feature-auth, feature-search, bugfix-nav)@[a1b2c3d]`), so `fi` branches written by other versions are still understood; it will switch to *writing* terse after the migration rollout. That commit is reachable from nothing local, so it is force-pushed to origin by its sha.
 
-### 9. Output
+### 8. Output
 
 On success, git-fi prints the branch list table (identical to `list` output, including the `fi` pipeline line when a GitLab token is configured), so you see the final state without running a separate command:
 
@@ -133,20 +133,17 @@ The `git fi -r <branch>...` line at the end names only the branches `fi` actuall
 
 ## Conflict Handling
 
-All selected branches are merged together in one `git merge`, which git treats atomically — either every branch integrates or none does. That merge can tell you the set failed but not who is responsible, so git-fi follows it with a second pass that re-merges the list one branch at a time using `git merge-tree`, which reads the object database without touching your working tree.
-
-That pass answers the question the bare list of failed branches doesn't:
+Merging one branch at a time means the failing step names the branch, and git-fi then asks what that branch is actually fighting with: against the default branch alone, then against each branch already in the set. The result answers the question a bare list of failed branches doesn't:
 
 - **A branch conflicts with `main`.** `main` has moved somewhere the branch also changed. Its owner rebases and re-pushes; nobody else is involved.
 - **A branch conflicts with a peer.** Two in-flight branches overlap. This is what `fi` exists to surface — the conflict is real and would have surfaced at release time instead. The two owners settle it now, while both branches are still small.
+- **A branch conflicts only with the combination.** It merges cleanly against `main` and against every peer on its own, and fails only against the whole set. The report names the set.
 
-Sometimes the pass names nobody, and says so. The combined merge uses git's octopus strategy, which does not detect renames, while the replay uses the newer engine, which does — so a branch that renames a file and a branch that edits it will fail the combined merge and come back clean from every individual probe. The report says the conflict is in the combination rather than leaving you with an unexplained list.
+A failing branch is left out of the accumulated set and the walk carries on, so one bad branch doesn't condemn every branch listed after it, and the report names all of them in one run.
 
 So when any branch conflicts:
 
-1. The merge is aborted and the working tree is reset (`git reset --hard`).
-2. git-fi attributes each failing branch and prints the remedy it calls for, with the conflicted paths.
-3. Any untracked files created by the failed merge are listed with `rm` commands to remove them.
-4. git-fi restores your original branch, deletes the local `fi`, and exits with `Aborted due to merge failures`. **No `fi` is pushed** — the remote stays as it was.
+1. git-fi prints the remedy each failing branch calls for, with the conflicted paths.
+2. It exits with `Aborted due to merge failures`. **No `fi` is pushed**: the remote stays as it was, and so does your checkout.
 
 Reach for the named remedy before either escape hatch, and never for `git fi -f <your-branch>`. Forcing `fi` to hold only your branch clears the error by throwing away everyone else's integration, and the conflict it was reporting is still there the next time someone adds their branch back. The `git fi -r` line the report prints is the survivable version — it drops only the branches that failed and leaves everyone else's work in `fi` — but it still just defers the conflict to whenever those branches go back in.

@@ -13,3 +13,20 @@ export function resolveBranchName(name: string): string {
 export function localBranchName(name: string): string {
   return name.replace(/^origin\//, "");
 }
+
+/**
+ * The spelling to hand git. Its revision lookup tries `refs/tags/<name>` and
+ * `refs/heads/<name>` before `refs/remotes/<name>`, so a local branch named
+ * `origin/feature` wins the short `origin/feature` and the merge would take
+ * work that was never pushed — the one thing MERGE-02 promises cannot happen.
+ * git warns that the name is ambiguous, on a stderr git-fi discards off
+ * `--debug`, so the short form fails silently.
+ */
+export function remoteRef(name: string): string {
+  return `refs/remotes/${resolveBranchName(name)}`;
+}
+
+/** The same disambiguation for the caller's own branch, against a same-named tag. */
+export function localRef(name: string): string {
+  return `refs/heads/${localBranchName(name)}`;
+}

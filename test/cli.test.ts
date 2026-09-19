@@ -1,12 +1,13 @@
 import { test, before, after, beforeEach, afterEach, describe } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync, readFileSync, readdirSync, writeFileSync, chmodSync } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, rmSync, readFileSync, readdirSync, writeFileSync, chmodSync, existsSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { setTimeout as sleep } from "node:timers/promises";
 import { tmpdir } from "node:os";
 import { join, delimiter } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
-import { runFi, makeSandbox, type Sandbox } from "./helpers.ts";
+import { runFi, makeSandbox, DIST_INDEX, type Sandbox } from "./helpers.ts";
 
 const { name, version } = createRequire(import.meta.url)("../package.json");
 
@@ -612,23 +613,190 @@ describe("working tree state (MERGE-02)", () => {
     writeFileSync(join(sb.work, "scratch.txt"), "notes\n");
     const r = runFi(["--add", "feature-a"], sb.work);
     assert.equal(r.status, 0, r.stderr);
-    assert.doesNotMatch(r.stderr, /index is dirty/);
     assert.deepEqual(listedBranches(sb), ["feature-a"]);
   });
 
-  test("an unstaged edit to a tracked file blocks the merge", () => {
+  test("an unstaged edit to a tracked file is left exactly as it was", () => {
     writeFileSync(join(sb.work, "README.md"), "edited\n");
     const r = runFi(["--add", "feature-a"], sb.work);
-    assert.notEqual(r.status, 0);
-    assert.match(r.stdout + r.stderr, /Your index is dirty/);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.deepEqual(listedBranches(sb), ["feature-a"]);
+    assert.equal(readFileSync(join(sb.work, "README.md"), "utf-8"), "edited\n");
+    assert.equal(sb.git(["status", "--porcelain"]), " M README.md");
   });
 
-  test("a staged change blocks the merge", () => {
+  test("a staged change survives the merge, still staged", () => {
     writeFileSync(join(sb.work, "staged.txt"), "staged\n");
     sb.git(["add", "staged.txt"]);
     const r = runFi(["--add", "feature-a"], sb.work);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.equal(sb.git(["status", "--porcelain"]), "A  staged.txt");
+    assert.equal(readFileSync(join(sb.work, "staged.txt"), "utf-8"), "staged\n");
+  });
+
+  test("the merge writes nothing into the working tree", () => {
+    const before = sb.git(["status", "--porcelain"]);
+    const r = runFi(["--add", "feature-a"], sb.work);
+    assert.equal(r.status, 0, r.stderr);
+    // feature-a adds a.txt, so a checkout-based merge would leave it behind.
+    assert.deepEqual(readdirSync(sb.work).sort(), [".git", "README.md"]);
+    assert.equal(sb.git(["status", "--porcelain"]), before);
+  });
+
+  test("HEAD stays put and no local fi branch is created", () => {
+    sb.git(["checkout", "--quiet", "-b", "scratch", "main"]);
+    const r = runFi(["--add", "feature-a"], sb.work);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(sb.git(["symbolic-ref", "--short", "HEAD"]), "scratch");
+    assert.equal(sb.git(["branch", "--list", "fi"]), "");
+  });
+
+  test("a rejected push strands nothing behind", () => {
+    // A pre-receive hook that refuses is the remote saying no: the failure the
+    // commit-and-push half has to survive without the caller having moved.
+    const hook = join(sb.origin, "hooks", "pre-receive");
+    writeFileSync(hook, "#!/bin/sh\nexit 1\n");
+    chmodSync(hook, 0o755);
+    sb.git(["checkout", "--quiet", "-b", "scratch", "main"]);
+
+    const r = runFi(["--add", "feature-a"], sb.work);
     assert.notEqual(r.status, 0);
-    assert.match(r.stdout + r.stderr, /Your index is dirty/);
+    assert.match(r.stderr, /git push/);
+    assert.equal(sb.git(["symbolic-ref", "--short", "HEAD"]), "scratch");
+    assert.equal(sb.git(["branch", "--list", "fi"]), "");
+    assert.equal(sb.git(["status", "--porcelain"]), "");
+  });
+
+  // Windows has no signal to deliver: `kill` there terminates the process
+  // without one, so the assertion that the run was interrupted rather than
+  // finished has nothing to read. The invariant it checks is not
+  // platform-specific, so the other two jobs cover it.
+  test(
+    "an interrupted run leaves the tree and HEAD untouched",
+    { skip: process.platform === "win32" },
+    async () => {
+      sb.git(["checkout", "--quiet", "-b", "scratch", "main"]);
+      writeFileSync(join(sb.work, "README.md"), "edited\n");
+
+      // Ctrl-C during a slow merge. A `git` shim ahead of the real one on PATH
+      // stalls the first merge-tree and says so, which is what makes the kill
+      // land mid-merge rather than after a delay a fast machine finishes inside.
+      const shimDir = mkdtempSync(join(tmpdir(), "git-fi-shim-"));
+      const marker = join(shimDir, "merging");
+      const realGit = spawnSync("which", ["git"], {
+        encoding: "utf-8",
+      }).stdout.trim();
+      const shim = join(shimDir, "git");
+      writeFileSync(
+        shim,
+        `#!/bin/sh\nfor a in "$@"; do\n  if [ "$a" = "merge-tree" ]; then\n    : > '${marker}'\n    sleep 10\n  fi\ndone\nexec '${realGit}' "$@"\n`
+      );
+      chmodSync(shim, 0o755);
+
+      // Its own process group, so one kill reaches the stalled shim as well,
+      // which is what a terminal does with Ctrl-C.
+      const child = spawn(process.execPath, [DIST_INDEX, "--add", "feature-a"], {
+        cwd: sb.work,
+        env: {
+          ...process.env,
+          NO_COLOR: "1",
+          PATH: `${shimDir}${delimiter}${process.env.PATH}`,
+        },
+        stdio: "ignore",
+        detached: true,
+      });
+      const exited = new Promise<string | null>((resolve) => {
+        child.on("exit", (_code, sig) => resolve(sig));
+      });
+
+      try {
+        const deadline = Date.now() + 10_000;
+        while (!existsSync(marker)) {
+          assert.ok(Date.now() < deadline, "the run never reached merge-tree");
+          await sleep(20);
+        }
+        process.kill(-child.pid!, "SIGTERM");
+
+        // A run that finished before the signal landed would satisfy everything
+        // below without ever having been interrupted.
+        assert.equal(await exited, "SIGTERM");
+        assert.equal(sb.git(["symbolic-ref", "--short", "HEAD"]), "scratch");
+        assert.equal(sb.git(["status", "--porcelain"]), " M README.md");
+        assert.equal(sb.git(["branch", "--list", "fi"]), "");
+        assert.equal(readFileSync(join(sb.work, "README.md"), "utf-8"), "edited\n");
+      } finally {
+        rmSync(shimDir, { recursive: true, force: true });
+      }
+    }
+  );
+});
+
+describe("the pushed fi commit (MERGE-08, MERGE-10)", () => {
+  let sb: Sandbox;
+  beforeEach(() => {
+    sb = makeSandbox();
+    sb.pushBranch("feature-a", "a.txt", "a\n");
+    sb.pushBranch("feature-b", "b.txt", "b\n");
+    sb.bootstrapFi();
+  });
+  afterEach(() => sb.cleanup());
+
+  test("carries the octopus tree and one parent per merged branch", () => {
+    assert.equal(runFi(["--add", "feature-a", "feature-b"], sb.work).status, 0);
+    sb.git(["fetch", "--quiet", "origin"]);
+
+    // What `git merge --no-commit --no-ff` writes for the same inputs. The
+    // index holds the merged result, so `write-tree` names it without a commit.
+    sb.git(["checkout", "--quiet", "-B", "octopus-probe", "origin/main"]);
+    sb.git([
+      "merge",
+      "--quiet",
+      "--no-commit",
+      "--no-ff",
+      "--no-edit",
+      "origin/feature-a",
+      "origin/feature-b",
+    ]);
+    const octopusTree = sb.git(["write-tree"]);
+
+    assert.equal(sb.git(["rev-parse", "origin/fi^{tree}"]), octopusTree);
+    assert.deepEqual(
+      sb.git(["log", "-1", "--format=%P", "origin/fi"]).split(" "),
+      ["origin/main", "origin/feature-a", "origin/feature-b"].map((r) =>
+        sb.git(["rev-parse", r])
+      )
+    );
+  });
+
+  test("an empty branch list rebuilds fi at the default branch", () => {
+    assert.equal(runFi(["--force"], sb.work).status, 0);
+    sb.git(["fetch", "--quiet", "origin"]);
+
+    assert.equal(
+      sb.git(["rev-parse", "origin/fi^{tree}"]),
+      sb.git(["rev-parse", "origin/main^{tree}"])
+    );
+    assert.equal(
+      sb.git(["log", "-1", "--format=%P", "origin/fi"]),
+      sb.git(["rev-parse", "origin/main"])
+    );
+  });
+
+  test("a local branch named origin/<name> does not stand in for the remote", () => {
+    // git resolves refs/heads/ before refs/remotes/, so the short name would
+    // pick this decoy and put work that was never pushed into the shared fi —
+    // the one thing MERGE-02 promises cannot happen. git warns that the name is
+    // ambiguous on a stderr git-fi discards, so nothing would say so.
+    sb.git(["checkout", "--quiet", "-b", "origin/feature-a", "main"]);
+    writeFileSync(join(sb.work, "a.txt"), "never pushed\n");
+    sb.git(["add", "."]);
+    sb.git(["commit", "--quiet", "-m", "decoy"]);
+    sb.git(["checkout", "--quiet", "main"]);
+
+    assert.equal(runFi(["--add", "feature-a"], sb.work).status, 0);
+    sb.git(["fetch", "--quiet", "origin"]);
+
+    assert.equal(sb.git(["show", "origin/fi:a.txt"]), "a");
   });
 });
 

@@ -3,7 +3,6 @@ import {
   makeStyle,
   bulletList,
   createSpinner,
-  shq,
   abort,
 } from "./style.js";
 import {
@@ -11,18 +10,24 @@ import {
   gitLines,
   ensureFetched,
   defaultBranch,
-  currentBranchName,
   existingRemoteRefs,
+  localDivergence,
   mergedRemoteBranches,
   branchReadiness,
   currentFiBranches,
   isInteractive,
+  signCommits,
   type CommitFormat,
 } from "./git.js";
-import { localBranchName } from "./branches.js";
+import { localBranchName, remoteRef } from "./branches.js";
 import { confirm } from "./ui.js";
 import { detectGitlabProject } from "./gitlab.js";
-import { attributeConflicts, renderConflicts } from "./readiness.js";
+import {
+  mergeBranches,
+  renderConflicts,
+  OID,
+  type MergeOutcome,
+} from "./readiness.js";
 import { branchJson, writeJson } from "./json.js";
 
 // Commit-message format written when bootstrapping a brand-new fi branch (no
@@ -133,15 +138,6 @@ export async function mergeProcess(
     abort("There is more than one origin/fi!", opts);
   }
 
-  const statusOut = git(["status", "--porcelain", "--untracked-files=no"]);
-  if (statusOut && statusOut.length > 0) {
-    abort("Your index is dirty", opts);
-  }
-
-  const untrackedBefore = new Set(
-    gitLines(["ls-files", "--other", "--exclude-standard"])
-  );
-
   await ensureFetched(opts);
 
   const fiExistsAfterFetch = git(["rev-parse", "--verify", "origin/fi"], {
@@ -199,6 +195,26 @@ export async function mergeProcess(
     } else {
       mergeable.push(b);
     }
+  }
+
+  // The merge takes origin/<branch> and never the caller's checkout, so a local
+  // branch that has drifted from it means fi holds something other than what
+  // the caller is looking at (READY-08). Only the branches this action names
+  // are checked: over the whole list, `--again` would warn about every stale
+  // local copy of a teammate's branch, which says nothing about the command
+  // that was run.
+  for (const b of mergeable) {
+    if (!actionSet.has(b)) continue;
+    const drift = localDivergence(b);
+    if (drift === null || (drift.ahead === 0 && drift.behind === 0)) continue;
+    const name = localBranchName(b);
+    const counts = [
+      drift.ahead > 0 ? `${drift.ahead} ahead` : "",
+      drift.behind > 0 ? `${drift.behind} behind` : "",
+    ].filter(Boolean);
+    process.stderr.write(
+      `${s.yellow(`${s.fi()} merges origin/${name}, and your ${name} is ${counts.join(", ")}`)}\n`
+    );
   }
 
   // Build compact display
@@ -325,195 +341,103 @@ export async function mergeProcess(
     }
   }
 
-  const originalBranch = currentBranchName() || git(["rev-parse", "HEAD"])!;
-
-  if (mergeable.length === 0) {
-    let pushedSha: string | null = null;
-    try {
-      git(["checkout", "--quiet", "-B", "fi", `origin/${defBranch}`], {
-        debug: opts.debug,
-      });
-      const commitMsg = buildCommitMessage([], defBranch, commitFormat);
-
-      updateLastAnnotation("committing");
-      git(
-        [
-          "commit",
-          "--no-verify",
-          "--allow-empty-message",
-          "--allow-empty",
-          "--quiet",
-          "--no-edit",
-          "-m",
-          commitMsg,
-        ],
-        { debug: opts.debug }
-      );
-
-      updateLastAnnotation("pushing");
-      pushedSha = git(["rev-parse", "HEAD"]);
-      git(["push", "--no-verify", "-f", "origin", "fi"], {
-        debug: opts.debug,
-      });
-    } finally {
-      git(["checkout", "--quiet", originalBranch], {
-        allowFailure: true,
-        debug: opts.debug,
-      });
-      git(["branch", "--quiet", "-D", "fi"], {
-        allowFailure: true,
-        debug: opts.debug,
-      });
-    }
-
-    finalizeDone();
-    return pushedSha;
+  // An empty list still produces a commit, fi rebuilt at the default branch, so
+  // it walks nothing rather than taking a path of its own. The spinner is what
+  // does not carry over: there is no merge for it to describe.
+  let mergeSpin = null;
+  if (mergeable.length > 0) {
+    updateLastAnnotation("merging");
+    mergeSpin = createSpinner(`Merging ${mergeable.length} branches...`, opts);
   }
-
+  let outcome: MergeOutcome;
   try {
-    git(["checkout", "--quiet", "-B", "fi", `origin/${defBranch}`], {
-      debug: opts.debug,
-    });
-  } catch {
-    abort(`Failed to checkout fi from origin/${defBranch}`, opts);
-  }
-
-  let mergeSuccess = false;
-  updateLastAnnotation("merging");
-  const mergeSpin = createSpinner(
-    `Merging ${mergeable.length} branches...`,
-    opts
-  );
-  try {
-    const mergeArgs = [
-      "merge",
-      "--no-commit",
-      "--no-ff",
-      "--no-edit",
-      ...mergeable,
-    ];
-    if (!opts.debug) mergeArgs.splice(1, 0, "--quiet");
-    git(mergeArgs, { debug: opts.debug });
-    mergeSuccess = true;
-  } catch {
-    mergeSuccess = false;
+    outcome = mergeBranches(mergeable, defBranch);
   } finally {
-    mergeSpin.stop();
+    mergeSpin?.stop();
   }
 
-  if (mergeSuccess) {
+  if (outcome.outcome === "merged") {
     updateLastAnnotation("committing");
     const commitMsg = buildCommitMessage(mergeable, defBranch, commitFormat);
-    git(
-      [
-        "commit",
-        "--no-verify",
-        "--allow-empty-message",
-        "--allow-empty",
-        "--quiet",
-        "--no-edit",
-        "-m",
-        commitMsg,
-      ],
+    // The parents a merge commit carries: the default branch fi is rebuilt
+    // from, then each branch in the order it was merged.
+    const parents = [defBranch, ...mergeable].flatMap((p) => [
+      "-p",
+      remoteRef(p),
+    ]);
+    // commit-tree ignores commit.gpgsign where `git commit` honors it, so
+    // without this a repo that signs its commits would have fi silently stop
+    // being signed — and a forge that rejects unsigned commits would refuse the
+    // push with nothing saying why (MERGE-10).
+    const sign = signCommits() ? ["-S"] : [];
+    const pushedSha = git(
+      ["commit-tree", outcome.tree, ...parents, ...sign, "-m", commitMsg],
       { debug: opts.debug }
     );
 
-    updateLastAnnotation("pushing");
-    const pushedSha = git(["rev-parse", "HEAD"]);
-    git(["push", "--no-verify", "-f", "origin", "fi"], {
-      debug: opts.debug,
-    });
+    // An empty left side makes `:refs/heads/fi` a delete refspec, and it would
+    // run with `-f` against the branch everyone shares. commit-tree throws
+    // rather than returning empty today, so this is what keeps that true.
+    if (pushedSha === null || !OID.test(pushedSha)) {
+      abort(
+        `Refusing to push: commit-tree did not name a commit (${pushedSha ?? "null"})`,
+        opts
+      );
+    }
 
-    git(["checkout", "--quiet", originalBranch], {
-      allowFailure: true,
-      debug: opts.debug,
-    });
-    git(["branch", "--quiet", "-D", "fi"], {
-      allowFailure: true,
+    updateLastAnnotation("pushing");
+    // The commit is reachable from nothing local, so it is named by sha. A push
+    // still moves refs/remotes/origin/fi, which is what the branch list printed
+    // after this reads.
+    git(["push", "--no-verify", "-f", "origin", `${pushedSha}:refs/heads/fi`], {
       debug: opts.debug,
     });
 
     finalizeDone();
     return pushedSha;
-  } else {
-    git(["reset", "--hard", "HEAD"], { debug: opts.debug });
-
-    const untrackedAfter = gitLines([
-      "ls-files",
-      "--other",
-      "--exclude-standard",
-    ]);
-    const newUntracked = untrackedAfter.filter(
-      (f) => !untrackedBefore.has(f)
-    );
-
-    git(["checkout", "--quiet", originalBranch], {
-      allowFailure: true,
-      debug: opts.debug,
-    });
-    git(["branch", "--quiet", "-D", "fi"], {
-      allowFailure: true,
-      debug: opts.debug,
-    });
-
-    finalizeError();
-
-    // Naming the whole failing set invites `--force` — replace fi with one
-    // branch and start over — when the fix is usually one or two rebases
-    // (READY-05). Attribution runs after the working tree is restored: it reads
-    // the object database only, so it neither needs nor disturbs a checkout.
-    const attribution = attributeConflicts(mergeable, defBranch);
-    // Nothing was pushed, so fi still holds what it held before the attempt —
-    // which is what says whether `-r` is a remedy for a given branch, and what
-    // `--json` reports below as fi's branch list.
-    const fiNow = currentFiBranches(defBranch);
-    const inFi = new Set(fiNow.map(localBranchName));
-
-    diagnose("\nFailed trying to merge branch(es):\n\n");
-    if (attribution.conflicts.length > 0) {
-      diagnose(renderConflicts(attribution.conflicts, defBranch, inFi, opts));
-    } else {
-      diagnose(bulletList(mergeable, opts));
-      // Saying which branch failed is the promise this path makes, so when it
-      // cannot be kept the report says that rather than leaving a bare list
-      // that reads as the old behavior.
-      diagnose(
-        attribution.attributable
-          ? "\nEach branch merges cleanly on its own, so the conflict is in the combination.\nThe combined merge uses git's octopus strategy, which does not detect renames,\nso a rename against a concurrent edit fails there and not in the replay.\n"
-          : "\nAttribution could not run, so nothing above names the branch at fault.\nRe-run with --debug to see what git reported.\n"
-      );
-    }
-
-    if (newUntracked.length > 0) {
-      diagnose(
-        "\nSome extra untracked files have been left as a result of the failed merge(s):\n\n"
-      );
-      diagnose(bulletList(newUntracked, opts));
-      diagnose("\nYou can delete these by running:\n");
-      for (const f of newUntracked) {
-        diagnose(`  rm ${shq(f)}\n`);
-      }
-    }
-
-    diagnose("\n");
-
-    // The abort below exits non-zero, so this is the only object `--json` will
-    // ever write for a failed merge (JSON-03). A pipeline that stops on the exit
-    // code should not have to scrape stderr to learn which branch needs rebasing.
-    //
-    // `branches` is fi as it stands, which the failed merge left untouched —
-    // the same thing it means after every action that succeeded. What was tried
-    // is a different list, so it gets a different name.
-    if (opts.json) {
-      const readiness = branchReadiness(defBranch);
-      await writeJson({
-        command: action,
-        branches: fiNow.map((b) => branchJson(b, readiness)),
-        attempted: mergeable.map(localBranchName),
-        conflicts: attribution.conflicts,
-      });
-    }
-
-    abort("Aborted due to merge failures", opts);
   }
+
+  finalizeError();
+
+  // Nothing was pushed, so fi still holds what it held before the attempt, which
+  // is what says whether `-r` is a remedy for a given branch, and what `--json`
+  // reports below as fi's branch list.
+  const fiNow = currentFiBranches(defBranch);
+  const inFi = new Set(fiNow.map(localBranchName));
+
+  diagnose("\nFailed trying to merge branch(es):\n\n");
+  // Naming the whole failing set invites `--force` (replace fi with one branch
+  // and start over) when the fix is usually one or two rebases (READY-05).
+  if (outcome.outcome === "conflict") {
+    diagnose(renderConflicts(outcome.conflicts, defBranch, inFi, opts));
+  } else {
+    diagnose(bulletList(mergeable, opts));
+    // Saying which branch failed is the promise this path makes, so when it
+    // cannot be kept the report says that rather than leaving a bare list that
+    // reads as the old behavior.
+    diagnose(
+      "\nThe merge could not run, so nothing above names the branch at fault.\nRe-run with --debug to see what git reported.\n"
+    );
+  }
+
+  diagnose("\n");
+
+  // The abort below exits non-zero, so this is the only object `--json` will
+  // ever write for a failed merge (JSON-03). A pipeline that stops on the exit
+  // code should not have to scrape stderr to learn which branch needs rebasing.
+  //
+  // `branches` is fi as it stands, which the failed merge left untouched: the
+  // same thing it means after every action that succeeded. What was tried is a
+  // different list, so it gets a different name.
+  if (opts.json) {
+    const readiness = branchReadiness(defBranch);
+    await writeJson({
+      command: action,
+      branches: fiNow.map((b) => branchJson(b, readiness)),
+      attempted: mergeable.map(localBranchName),
+      conflicts: outcome.outcome === "conflict" ? outcome.conflicts : [],
+    });
+  }
+
+  abort("Aborted due to merge failures", opts);
 }

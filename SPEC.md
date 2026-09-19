@@ -289,8 +289,6 @@ Add a branch with git fi --add <branch>.
 
 ### add / `--add` / `-a`
 
-`ADD-01` If the working index is not clean, then git-fi shall abort.
-
 **Process:**
 
 1. `ADD-02` git-fi shall get the current branch list from fi (via commit message parsing — see [Branch List Storage](#storage)).
@@ -346,38 +344,27 @@ The core merge operation that `--add`, `--remove`, `--force`, and `--again` all 
 %%{ init: { 'look': 'handDrawn' } }%%
 flowchart TD
     A[Start merge] --> B{Ambiguous origin/fi?}
-    B -- yes --> B1[ABORT: more than one origin/fi]
-    B -- no --> C{Tracked files clean?}
-    C -- no --> C1[ABORT: index is dirty]
-    C -- yes --> D[Capture untracked files]
-    D --> E[Fetch if needed]
-    E --> F{origin/fi exists?}
-    F -- no --> G{User confirms bootstrap?}
-    G -- no --> G1[ABORT]
-    G -- yes --> H[Prune dead branches]
-    F -- yes --> H
+    B -- yes --> C[ABORT: more than one origin/fi]
+    B -- no --> D[Fetch if needed]
+    D --> E{origin/fi exists?}
+    E -- no --> F{User confirms bootstrap?}
+    F -- no --> G[ABORT]
+    F -- yes --> H[Prune dead branches]
+    E -- yes --> H
     H --> I[Warn about already-merged branches]
-    I --> J[Checkout -B fi from default branch]
-    J --> K[git merge --no-commit --no-ff]
-    K --> L{Merge succeeded?}
-    L -- yes --> M[Commit]
-    M --> N[Push -f origin fi]
-    N --> O[Print summary]
-    L -- no --> P[Print failed branches]
-    P --> Q[git reset --hard HEAD]
-    Q --> R[List new untracked files]
-    R --> S[ABORT: merge failures]
-    O --> T[Cleanup]
-    S --> T
-    T --> U[Checkout original branch]
-    U --> V[Delete local fi branch]
+    I --> J[Merge each branch onto the default branch]
+    J --> K{Every branch merged?}
+    K -- yes --> L[Commit the accumulated tree]
+    L --> M[Push the sha to refs/heads/fi]
+    M --> N[Print summary]
+    K -- no --> O[Print the failing branches and their remedies]
+    O --> P[ABORT: merge failures]
 ```
 
 ### Flow
 
 1. `MERGE-01` If more than one `origin/fi` ref exists, then git-fi shall abort with: `There is more than one origin/fi!`
-2. `MERGE-02` If uncommitted changes to tracked files exist, staged or unstaged, then git-fi shall abort with `Your index is dirty`. Untracked files shall not block the merge.
-3. `MERGE-03` git-fi shall capture a snapshot of untracked files via `git ls-files --other --exclude-standard`.
+2. `MERGE-02` The merge process shall read and write nothing but the object database: no ref, no index, no working tree, and no `HEAD`. Uncommitted changes, staged or unstaged, and untracked files shall be left exactly as they were, and shall not block the merge.
 4. `MERGE-04` git-fi shall run `git fetch --quiet --prune origin` (if not already done).
 5. `MERGE-05` If no `origin/fi` ref exists after fetch, then git-fi shall require confirmation before bootstrapping. Unless `--yes` is given (`OPTION-07`, `MERGE-15`), git-fi shall display a bootstrap confirmation prompt; if the user does not enter `y`, then git-fi shall abort. Example:
 
@@ -397,21 +384,18 @@ flowchart TD
 
 6. `MERGE-06` When branches in the list no longer exist on origin, git-fi shall remove them and warn on stderr: `Ignoring branches that no longer exist:`
 7. `MERGE-07` When a branch is already an ancestor of the default branch (`READY-07`), git-fi shall exclude it from the merge and warn on stderr: `X already in main`. Because the branch list is stored in the resulting commit message (see [Branch List Storage](#storage)), excluding the branch also drops it from fi.
-8. `MERGE-08` git-fi shall create a temporary fi branch via `git checkout --quiet -B fi origin/<default_branch>`.
-9. `MERGE-09` git-fi shall merge via `git merge --no-commit --quiet --no-ff --no-edit <branch1> <branch2> ...`
-10. `MERGE-10` When the merge succeeds, git-fi shall:
-    - Commit (see [Commit Message](#commit-message)) — update annotation to `<- committing`.
-    - Push: `git push --no-verify -f origin fi` — update annotation to `<- pushing`.
+8. `MERGE-08` git-fi shall merge the branch list onto `origin/<default_branch>` one branch at a time: `git merge-tree --write-tree <accumulated> <branch>` for each, and `git commit-tree` on each clean result so the next branch has a commit to merge onto. An empty branch list leaves the accumulator at `origin/<default_branch>`, which is how fi is rebuilt with nothing in it. Every branch shall be named to git by its full ref, `refs/remotes/origin/<branch>`: git resolves `refs/heads/` ahead of `refs/remotes/`, so a local branch named `origin/<branch>` would otherwise win the short form and put work that was never pushed into fi (`MERGE-02`).
+9. `MERGE-09` A branch that conflicts shall be left out of the accumulated set and recorded against attribution (`READY-03`), so the walk names every failing branch rather than stopping at the first. Where `merge-tree` cannot run at all (an unresolvable ref, or a shallow clone whose histories look unrelated), the merge shall fail with nothing attributed.
+10. `MERGE-10` When every branch merged, git-fi shall:
+    - Commit the accumulated tree with `git commit-tree`, with `origin/<default_branch>` and each merged branch as its parents, carrying the message from [Commit Message](#commit-message), and update the annotation to `<- committing`. Where `commit.gpgsign` is set, git-fi shall pass `-S`: `git commit-tree` reads none of the signing configuration `git commit` honors, so a repository that signs its commits would otherwise have fi silently stop being signed, and a forge enforcing signatures would refuse the push.
+    - Push: `git push --no-verify -f origin <sha>:refs/heads/fi`, and update the annotation to `<- pushing`. git-fi shall confirm `<sha>` is an object id before pushing: an empty left side makes the refspec a delete, which this `-f` would apply to the branch everyone shares.
     - Finalize annotation line(s) with the action's terminal success state (see TERM-08), or state the outcome once off a TTY (see TERM-09).
     - Print the branch list table (identical to `list` output, including the fi pipeline per GITLAB-05) so the user sees the final state without running a separate command.
 11. `MERGE-11` When the merge fails, git-fi shall:
-    - Abort the failed merge (leave the working tree clean).
-    - Attribute each failing branch (`READY-05`) and print the failed branch names with the remedy each one calls for (`READY-04`).
-    - List any new untracked files created during the failed merge, with suggested `rm` commands.
+    - Print the failing branches with the remedy each one calls for (`READY-04`, `READY-05`). Where nothing could be attributed (`MERGE-09`), git-fi shall print the attempted list and say that nothing in it names the branch at fault.
     - Abort with: `Aborted due to merge failures`
-12. `MERGE-12` After the merge process completes (success or failure), git-fi shall:
-    - Restore the user to their original branch.
-    - Delete the local temporary `fi` branch.
+
+    Nothing is pushed, so `origin/fi` still holds what it held before the attempt.
 
 ### Commit Message
 
@@ -470,19 +454,6 @@ Aborted due to merge failures
 
 Both branches are in fi here, so both are offered to `-r`. On a failed `--add` the branch never entered fi and the line leaves it out (`READY-04`).
 
-If new untracked files were created during the failed merge:
-
-```
-Some extra untracked files have been left as a result of the failed merge(s):
-
- * conflict-file.txt
-
-You can delete these by running:
-  rm conflict-file.txt
-```
-
-A filename takes anything but `/` and NUL, so git-fi shall single-quote a name in that `rm` line by the same rule the conflict remedies use (`READY-04`): bare where nothing in it reads as shell, quoted otherwise.
-
 ## Merge Readiness
 
 A branch list that merged cleanly yesterday can fail today: the default branch moves, and branches gain commits. When it does fail, the message `Failed trying to merge branch(es)` names the whole failing set without saying whose problem it is, and the reflex it invites is `--force` — replace fi with one branch and start over, discarding everyone else's integration. The usual fix is smaller than that: one or two branches need a rebase. These requirements make that difference visible.
@@ -518,18 +489,23 @@ A filename takes any byte but `/` and NUL, and `-z` hands those bytes over intac
 
 git-fi shall close the report with the `--remove` command line that takes the failing branches out of fi, marked as temporary and placed below the fixes. Unlike `--force` it drops only the named branches, so the rest of fi survives; it defers the conflict rather than resolving it, which is why it follows the rebases instead of leading. The line shall name only the failing branches fi actually holds: a branch that failed on the way *in* was never added, so there is nothing to remove, and where none of the failing branches is in fi the line is omitted. git-fi shall not offer `--force` as a remedy at all: replacing fi with one branch discards the other branches' integration instead of resolving anything, and naming the pair is what makes the smaller fix visible.
 
-`READY-05` When the merge fails (`MERGE-11`), git-fi shall run attribution (`READY-03`) over the branch list it tried to merge and print the result (`READY-04`) in place of the bare list of failed branch names.
+`READY-05` The merge (`MERGE-08`) and attribution (`READY-03`) are one traversal: the branch that fails a step of the merge is the branch attribution then places. git-fi shall print the result (`READY-04`) in place of the bare list of failed branch names.
 
-Attribution can name nobody, in two ways that call for different things to be said, and git-fi shall say which rather than falling back to the bare list alone:
+Attribution can name nobody in one way, and git-fi shall say so rather than falling back to the bare list alone: **`merge-tree` could not run** (`MERGE-09`, `READY-03`). git-fi shall report that nothing names the branch at fault, and point at `--debug` for what git reported.
 
-- **Every branch merged cleanly on its own.** The combined merge (`MERGE-09`) is git's octopus strategy, which has no rename detection, while `merge-tree` uses the newer engine, which has — so a branch renaming a file and a branch editing it fail the combined merge and come back clean from every probe. git-fi shall report that the conflict is in the combination.
-- **A probe could not run** (`READY-03`). git-fi shall report that nothing names the branch at fault, and point at `--debug` for what git reported.
+Where the failing branch merges cleanly against both the default branch and every peer taken singly, the conflict lives in the combination, and `READY-04` names the accumulated set.
 
-`READY-06` A branch list that merges cleanly shall cost attribution (`READY-03`) one `git merge-tree` and one `git commit-tree` per branch. Each branch that fails costs one further probe against the default branch, and where the default branch is not the cause, one pairwise probe per branch already in the set — so a list on which every branch fails that way is quadratic in the branch count. That growth is left uncapped where the path list is capped (`READY-04`), because it is bounded by the branch count rather than by a repository's contents and is only reached after a merge has already failed. Attribution shall read and write nothing outside the object database — no ref, no index, no working tree, and the intermediate commits it writes are unreferenced, so `git gc` reclaims them. It therefore imposes no clean-index precondition of its own (`ADD-01`, `MERGE-02`) and leaves the cleanup in `MERGE-11` and `MERGE-12` to run exactly as it would have.
+`READY-06` A branch list that merges cleanly shall cost one `git merge-tree` and one `git commit-tree` per branch. Each branch that fails costs one further probe against the default branch, and where the default branch is not the cause, one pairwise probe per branch already in the set, so a list on which every branch fails that way is quadratic in the branch count. That growth is left uncapped where the path list is capped (`READY-04`), because it is bounded by the branch count rather than by a repository's contents and is only reached once the merge has already failed. The walk shall read and write nothing outside the object database (`MERGE-02`), and the intermediate commits it writes are unreferenced, so `git gc` reclaims them.
 
 `READY-07` A branch with nothing ahead of the default branch — the *ahead* half of the same `%(ahead-behind:...)` field (`READY-01`) — has landed: every commit it carries is already on the default branch, and the next mutation drops it from fi (`MERGE-07`). git-fi shall determine already-merged status from that field rather than from a separate `git branch -r --merged` invocation, so one listing answers both questions (`PERF-01`), and shall derive it in one place, so the display and the pruning cannot disagree about what "landed" means.
 
 An unknown ahead count (`READY-01`) shall read as *not* merged. Pruning rewrites fi's branch list and force-pushes it, so a missing signal has to fail towards keeping someone's branch: `git branch -r --merged` could not answer "merged" by accident, and a count derived from a parse can. When listing, git-fi shall strike the branch name through and mark it `merged`, and shall suppress the behind marker for it (`READY-02`) — a landed branch trails the default branch by definition, and rebasing is not what it needs. The word accompanies the strikethrough rather than replacing it: not every terminal draws SGR 9, and a name that silently renders unstruck would carry no signal at all, the same reason `GITLAB-06` words a deleted branch instead of only coloring it.
+
+`READY-08` When the action names a branch whose local counterpart has drifted from `origin/<branch>`, git-fi shall warn on stderr, naming the count in each direction: `fi merges origin/X, and your X is 2 ahead, 3 behind`. The merge takes `origin/<branch>` (`MERGE-08`) and never the caller's checkout, so a local branch carrying commits that were never pushed contributes nothing to fi, and one trailing the remote means fi holds a newer branch than the caller is looking at.
+
+The comparison is against `origin/<branch>` rather than the local branch's configured upstream, because `origin/<branch>` is the ref that reaches fi whatever the branch is set to track. Only the branches the action names are checked: `--again` re-merges the whole list without being a statement about any one branch, so warning across it would report every stale local copy of a teammate's branch. git-fi shall say nothing where there is no local branch of that name, where the two share no history, or in a shallow repository, whose truncated walk would describe the fetched window rather than the branch (`READY-01`).
+
+Shared history shall be established with `git merge-base` before the counts are read, because `git rev-list --left-right --count` succeeds on disjoint histories and returns the full size of each side — every commit on each branch, which is not drift. Both sides shall be named by their full refs, `refs/heads/<branch>` and `refs/remotes/origin/<branch>`: a tag sharing the branch's name wins the short form, and the count would then describe the tag (`MERGE-02`).
 
 
 ## `STORAGE`

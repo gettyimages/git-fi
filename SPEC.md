@@ -262,9 +262,9 @@ feature-a feature-b
 
 `LIST-06` git-fi shall display branches in insertion order — the order in which they were originally added. git-fi shall not apply alphabetical or date-based sorting.
 
-`LIST-07` When fi holds no branches, git-fi shall omit the table entirely (no headers or separator are printed) and shall print an italic `(no branches)` in its place. Italic rather than dim, because the `fi:` pipeline line directly below it is dim and two grays read as one line. A zero-row table prints nothing at all, which reads as a command that failed rather than as an fi with nothing in it. The `fi:` pipeline line (GITLAB-05) shall still be shown if applicable. Under the conditions that carry the CI-status hint (`LIST-04`), git-fi shall follow the list with `Add a branch with git fi --add <branch>.`
+`LIST-07` When fi holds no branches, git-fi shall omit the table entirely (no headers or separator are printed) and shall print an italic `(no branches)` in its place. Italic rather than dim, because the `fi:` pipeline line directly below it is dim and two grays read as one line. A zero-row table prints nothing at all, which reads as a command that failed rather than as an fi with nothing in it. The `fi:` pipeline line (GITLAB-05) shall still be shown if applicable. Under the conditions that carry the CI-status hint (`LIST-04`), a plain `list` shall follow the list with `Add a branch with git fi --add <branch>.` After an action that writes fi (`--add`, `--remove`, `--force`, `--again`, `--abort`), git-fi shall omit that line: the caller asked for the state they got, so bootstrap advice reads as though the action had failed.
 
-**Output (empty fi):**
+**Output (empty fi, plain `list`):**
 
 ```
 (no branches)

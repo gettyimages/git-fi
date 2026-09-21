@@ -1,5 +1,5 @@
 import type { Options, CIResult } from "./types.js";
-import { makeStyle, printTable, abort, hintsEnabled } from "./style.js";
+import { makeStyle, printTable, abort, hintsEnabled, bootstrapHintEnabled } from "./style.js";
 import {
   git,
   gitExitCode,
@@ -121,7 +121,7 @@ export async function cmdList(
 
   process.stdout.write("\n");
 
-  if (branches.length === 0 && hintsEnabled(opts)) {
+  if (bootstrapHintEnabled(command, branches.length, opts)) {
     process.stdout.write("Add a branch with git fi --add <branch>.\n");
   }
 

@@ -4,6 +4,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { makeSandbox, type Sandbox } from "./helpers.ts";
 import {
+  bootstrapHintEnabled,
   colorEnabled,
   hintsEnabled,
   hyperlinksEnabled,
@@ -67,6 +68,46 @@ describe("hintsEnabled (LIST-04, UPDATE-03)", () => {
     withEnv({ CI: undefined, GIT_FI_NO_HINTS: undefined }, () => {
       assert.equal(hintsEnabled({ ...OPTS, bare: true }, true), false);
       assert.equal(hintsEnabled({ ...OPTS, json: true }, true), false);
+    });
+  });
+});
+
+describe("bootstrapHintEnabled (LIST-07)", () => {
+  const onATerminal = (fn: () => void) =>
+    withEnv({ CI: undefined, GIT_FI_NO_HINTS: undefined }, fn);
+
+  test("on when a plain list finds fi empty", () => {
+    onATerminal(() => {
+      assert.equal(bootstrapHintEnabled("list", 0, OPTS, true), true);
+    });
+  });
+
+  test("off after an action that writes fi — the caller asked for this state", () => {
+    onATerminal(() => {
+      for (const command of ["add", "remove", "force", "again", "abort"]) {
+        assert.equal(
+          bootstrapHintEnabled(command, 0, OPTS, true),
+          false,
+          `--${command} should not offer to bootstrap the fi it just wrote`
+        );
+      }
+    });
+  });
+
+  test("off when fi holds something to show", () => {
+    onATerminal(() => {
+      assert.equal(bootstrapHintEnabled("list", 1, OPTS, true), false);
+    });
+  });
+
+  test("off wherever the CI-status hint is off", () => {
+    withEnv({ CI: "true", GIT_FI_NO_HINTS: undefined }, () => {
+      assert.equal(bootstrapHintEnabled("list", 0, OPTS, true), false);
+    });
+    onATerminal(() => {
+      assert.equal(bootstrapHintEnabled("list", 0, OPTS, false), false);
+      assert.equal(bootstrapHintEnabled("list", 0, { ...OPTS, bare: true }, true), false);
+      assert.equal(bootstrapHintEnabled("list", 0, { ...OPTS, json: true }, true), false);
     });
   });
 });

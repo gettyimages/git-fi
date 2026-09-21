@@ -29,7 +29,23 @@ export function hintsEnabled(opts: Options, tty = isTTY): boolean {
 }
 
 /**
- * The explicit half of the gate above, split out because one advisory wants it
+ * Whether to close an empty list with how to add a branch (`LIST-07`). It is
+ * bootstrap advice, so it belongs to a plain `list`: after an action that
+ * writes fi, the caller asked for the state they got, and the advice reads as
+ * though the action had failed.
+ */
+export function bootstrapHintEnabled(
+  command: string,
+  branchCount: number,
+  opts: Options,
+  tty?: boolean
+): boolean {
+  if (command !== "list" || branchCount > 0) return false;
+  return hintsEnabled(opts, tty);
+}
+
+/**
+ * The explicit half of `hintsEnabled`, split out because one advisory wants it
  * alone: the INSTALL-01 notice answers a question the user just asked, so the
  * ambient conditions (CI, a pipe) are not reasons to withhold it, while the
  * switch someone set on purpose still is.

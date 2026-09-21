@@ -2,7 +2,7 @@
 
 Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 
-**Last updated:** 2026-09-17
+**Last updated:** 2026-09-21
 
 Locations name the file and the enclosing symbol rather than a line range, so an
 edit elsewhere in the same file leaves the row correct. `git grep` the symbol to
@@ -112,7 +112,7 @@ List Command
 | LIST-04 | Hint suppression     | Covered | `src/style.ts` (`hintsEnabled`), `src/commands.ts` (`cmdList`) |
 | LIST-05 | Filter mode          | Covered | `src/commands.ts` (`cmdList`) |
 | LIST-06 | Insertion order      | Covered | `src/git.ts` (`parseBranchList`) |
-| LIST-07 | Empty list shows `(no branches)` | Covered | `src/style.ts` (`printTable`, `makeStyle`), `src/commands.ts` (`cmdList`) |
+| LIST-07 | Empty list shows `(no branches)` | Covered | `src/style.ts` (`printTable`, `makeStyle`, `bootstrapHintEnabled`), `src/commands.ts` (`cmdList`) |
 
 ## `SELECT`
 

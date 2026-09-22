@@ -5,6 +5,49 @@ GitHub Release by the release workflow (`.github/workflows/release.yml`).
 
 <!-- releases below -->
 
+## v1.3.0 (2026-09-22)
+
+### Breaking
+
+- **`--json` output is restructured.** Everything about a branch is nested under it, so `branches` is an array of objects rather than names, and the separate top-level `ci` array is gone.
+
+  ```json
+  // before
+  { "branches": ["feature-auth"], "ci": [ { "branch": "feature-auth", "status": "success" } ] }
+
+  // now
+  { "branches": [ { "name": "feature-auth", "ahead": 5, "behind": 0, "merged": false,
+                    "ci": { "status": "success", "pipelineId": "11111" } } ] }
+  ```
+
+  A consumer reading `.branches[]` as strings, or joining `.ci[]` by name, needs updating. `ci` is `null` where no GitLab token is configured.
+
+- **git 2.41.0 or newer is required**, up from 2.13.0, for the `%(ahead-behind:)` the branch listing reads. Installing on older git now fails during postinstall rather than at the first command. Upgrade git, or install `1.2.2` to stay on the previous floor.
+
+### Features
+
+- A failed merge names which branch actually conflicts, what it conflicts with, and the rebase that clears it, instead of printing the whole set it tried. The usual response to a failure stops being `git fi -f <my-branch>`, which discards everyone else's integration and leaves the conflict for the next person.
+- The branch list marks how far each branch trails `main` (`↓12`) and strikes through branches that have already landed, so you can see which one to rebase before `fi` starts failing.
+- Merges run entirely in the object database. `git fi` no longer refuses on a dirty index, never checks out a temporary branch, and leaves nothing to clean up if a push is rejected or you interrupt it.
+- A rename on one branch against an edit to the same file on another merges cleanly.
+- `fi` commits are signed where `commit.gpgsign` is set, so a forge that requires signatures accepts the push.
+- `--version` names another `git-fi` ahead of it on `PATH`, which is what a stale launcher from the Ruby gem leaves behind.
+- An expired token now comes back with the link that mints a new one and the source the rejected token came from.
+- `--json` on a failed merge reports the attribution as a `conflicts` array, so a CI job can act on it without parsing the log.
+
+### Fixes
+
+- `--json` piped to another program is no longer truncated at 64 KiB partway through a string.
+- `--debug` shows git's stderr, which it had been collecting and discarding.
+- Conflicted paths print the way git prints them, so a filename holding a newline or an escape sequence can't split the report or repaint the terminal.
+- A branch whose tip author has a unit separator in their email stays in the listing instead of disappearing from it.
+- A local branch named `origin/<something>` no longer wins over the remote ref, which had put unpushed work into the shared branch.
+- Listing branches works in a repository whose default branch was renamed or pruned.
+- A merge-tree probe that fails to run is no longer read as a branch that doesn't conflict.
+- `just trial:off` reinstalls the version the trial replaced rather than whatever npm now calls latest.
+- `git fi -g` on an empty `fi` no longer closes with advice to add a branch, when an empty `fi` is what the rebuild was asked for.
+
+
 ## v1.2.2 (2026-09-04)
 
 ## What's Changed

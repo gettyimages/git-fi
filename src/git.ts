@@ -314,15 +314,19 @@ export function resolveBranches(
 
 // `git branch --format` has no field separator of its own, so use a unit
 // separator. A ref name cannot contain one (git rejects control characters),
-// but `%(authoremail:trim)` is free text a commit author chooses, so the
+// but the author's name and email are free text a commit author chooses, so the
 // separator alone does not fix the field count — see FIELD_COUNT below.
 const FIELD_SEP = "\x1f";
 
-// Every field the format asks for. `%(authoremail:trim)` is the only one that
-// can carry the separator and it is last, so a longer split rejoins into it. A
-// shorter one lost a field the format asked for, and there is no way to tell
-// which value landed where, so the line is dropped rather than guessed at.
+// Every field the format asks for. The author is the only one that can carry
+// the separator and it is last, so a longer split rejoins into it. A shorter
+// one lost a field the format asked for, and there is no way to tell which
+// value landed where, so the line is dropped rather than guessed at.
 const FIELD_COUNT = 5;
+
+// Name and email share that last field, split at the first `<`: git's ident
+// parser ends the name there, so `%(authorname)` can never contain one.
+const AUTHOR_FORMAT = "%(authorname)<%(authoremail:trim)";
 
 interface RemoteBranch {
   name: string;
@@ -333,7 +337,12 @@ interface RemoteBranch {
   /** Commits of the default branch this branch does not yet contain (READY-01). */
   behind: number | null;
   /** Author of the branch tip — who last moved it, so who owns a rebase of it. */
-  authorEmail: string;
+  author: Author;
+}
+
+export interface Author {
+  name: string;
+  email: string;
 }
 
 /**
@@ -411,7 +420,7 @@ function listRemoteBranches(
     "branch",
     "-r",
     ...extraArgs,
-    `--format=%(refname:short)${FIELD_SEP}%(symref)${FIELD_SEP}%(committerdate:short)${FIELD_SEP}${aheadBehindAtom}${FIELD_SEP}%(authoremail:trim)`,
+    `--format=%(refname:short)${FIELD_SEP}%(symref)${FIELD_SEP}%(committerdate:short)${FIELD_SEP}${aheadBehindAtom}${FIELD_SEP}${AUTHOR_FORMAT}`,
   ]);
 
   // In a shallow clone the walk stops at the graft, so a count describes the
@@ -434,7 +443,8 @@ function listRemoteBranches(
     const fields = line.split(FIELD_SEP);
     if (fields.length < FIELD_COUNT) continue;
     const [name, symref, date, aheadBehind] = fields;
-    const authorEmail = fields.slice(FIELD_COUNT - 1).join(FIELD_SEP);
+    const author = fields.slice(FIELD_COUNT - 1).join(FIELD_SEP);
+    const nameEnd = author.indexOf("<");
     // origin/HEAD renders as a bare `origin` under refname:short, so it slips
     // past a name comparison. Match the symref field, which only HEAD sets.
     if (symref) continue;
@@ -446,7 +456,10 @@ function listRemoteBranches(
       date,
       ahead: count(ahead),
       behind: truncated ? null : count(behind),
-      authorEmail: sanitize(authorEmail),
+      author: {
+        name: sanitize(author.slice(0, nameEnd)).trim(),
+        email: sanitize(author.slice(nameEnd + 1)),
+      },
     });
   }
   return branches;
@@ -492,12 +505,17 @@ export function allRemoteBranches(defBranch: string): string[] {
  * It is the tip commit's author rather than a branch owner git does not record,
  * so a bot-pushed tip reports the bot.
  */
-export function branchAuthors(defBranch: string): Map<string, string> {
-  const authors = new Map<string, string>();
+export function branchAuthors(defBranch: string): Map<string, Author> {
+  const authors = new Map<string, Author>();
   for (const b of cachedRemoteBranches(defBranch)) {
-    if (b.authorEmail) authors.set(b.name, b.authorEmail);
+    if (b.author.email) authors.set(b.name, b.author);
   }
   return authors;
+}
+
+/** The caller's own `user.email`, to tell their branches from a teammate's. */
+export function userEmail(): string {
+  return git(["config", "user.email"], { allowFailure: true }) ?? "";
 }
 
 /**

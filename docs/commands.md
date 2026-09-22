@@ -94,12 +94,17 @@ A merge that fails writes a JSON object too, rather than only the diagnostics on
   ],
   "attempted": ["feature-auth", "feature-search"],
   "conflicts": [
-    { "branch": "feature-search", "with": ["feature-auth"], "paths": ["src/routes.ts"] }
+    {
+      "branch": "feature-search",
+      "author": { "name": "Bob Li", "email": "bob@example.com" },
+      "with": ["feature-auth"],
+      "paths": ["src/routes.ts"]
+    }
   ]
 }
 ```
 
-Nothing is pushed when a merge fails, so `branches` is `fi` as it still stands — the same thing it means after an action that succeeded. `attempted` is the set the merge tried. `with` names what the branch conflicts with: peer branches, or `main` by name when the branch simply needs rebasing.
+Nothing is pushed when a merge fails, so `branches` is `fi` as it still stands — the same thing it means after an action that succeeded. `attempted` is the set the merge tried. `author` is the author of the failing branch's latest commit, so a CI job can notify them; it's `null` when that commit has an empty author email, which git allows. `with` names what the branch conflicts with: peer branches, or `main` by name when the branch simply needs rebasing.
 
 `conflicts` can come back empty on a failed merge. That means `git merge-tree` couldn't run at all (an unresolvable ref, or a shallow clone whose histories look unrelated), so nothing was measured and nothing is blamed. Re-run with `--debug` for what git reported.
 

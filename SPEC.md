@@ -117,7 +117,8 @@ Terminal Output
 - **Behind indicator** (`↓12`) — dim (`READY-02`)
 - **Merged branch** (`bugfix-nav merged`) — name struck through, `merged` dim (`READY-07`)
 - **Conflict attribution** (`conflicts with main`) — red, bold (`READY-04`)
-
+- **Message recipients** (`Message Alice Ng <alice@example.com>:`) — bold; the message itself plain, so it copies as written (`READY-04`)
+- **Remove command** (`git fi -r ...` closing a failed merge) — green, bold, below a dim rule (`READY-04`)
 `TERM-05` When stdout is not a TTY, `--bare` or `--json` is specified, or the `NO_COLOR` environment variable is set, the system shall disable all color output (see [no-color.org](https://no-color.org)).
 
 ### Progress
@@ -433,21 +434,41 @@ If no GitLab token resolves (`AUTH-01`), the table has only a Branch column (no 
 
 ### Failure Output
 
-Each failing branch is named with what it conflicts with and the remedy that clears it (`READY-04`):
+Each failing branch is named with what it conflicts with, and carries a message for the authors who can fix it (`READY-04`):
 
 ```
 Failed trying to merge branch(es):
 
  * feature-a (bob@example.com)  conflicts with main
      * src/config.ts
-     git checkout feature-a && git rebase origin/main && git push --force-with-lease
- * feature-c (cara@example.com)  conflicts with feature-b (bob@example.com)
+     Message Bob Li <bob@example.com>:
+       hey Bob, feature-a couldn't merge into web/app@fi; main changed the same lines in src/config.ts:
+         <<<<<<< origin/main
+         timeout = 10
+         ||||||| 0c5cabe
+         timeout = 30
+         =======
+         timeout = 60
+         >>>>>>> origin/feature-a
+       To fix:
+       1. git checkout feature-a && git pull && git rebase origin/main
+       2. resolve the conflict, then git rebase --continue
+       3. git push --force-with-lease
+
+ * feature-c (cara@example.com)  conflicts with feature-b (dan@example.com)
      * src/router.ts
      * src/routes.ts
-     rebase feature-c onto feature-b (or the reverse) and settle the overlap there
+     Message Cara Diaz <cara@example.com>:
+       hey Cara, feature-c couldn't merge into web/app@fi: feature-b (Dan Ro) already changes src/router.ts, and feature-c's change to the same lines conflicts with it:
+         <<<<<<< origin/feature-b
+         ...
+         >>>>>>> origin/feature-c
+       To fix: talk to Dan about how the two changes should fit together.
 
-Or temporarily remove them from fi — the conflict comes back when they do:
+────────────────────────────────────────
+To get fi building again now, take the failing branches out:
   git fi -r feature-a feature-c
+Then send the messages above, so they can be fixed and added back.
 
 Aborted due to merge failures
 ```
@@ -472,12 +493,19 @@ Three conditions leave the counts *unknown*, and git-fi shall represent unknown 
 
 A nonzero exit is not by itself a conflict. `git merge-tree` exits 1 for an unresolvable ref and for a shallow clone's unrelated histories as well as for a conflict, writing nothing to stdout in the error cases, and exits 128 for others. The tree OID is what separates them: a conflict always writes one. git-fi shall treat a probe that produced no tree OID as *could not attribute*, and shall abandon attribution for the whole list rather than filing the branch as conflicting with the default branch — a false first verdict propagates, because the branch is then left out of the accumulated set and every branch after it is measured against a set it should have joined.
 
-`READY-04` git-fi shall report each conflicting branch (`READY-03`) with the remedy its case calls for:
+`READY-04` git-fi shall report each conflicting branch (`READY-03`) with a message the reader can send to the authors who can fix it. The authors of the conflicting branches are the ones who resolve it, so the output hands the reader something to send them. Each message names the branch, where it failed to merge (`<project>@fi`, the project from the origin URL, or `fi` alone where the URL names none), the first conflicted hunk, and what to do:
 
-- **Conflicts with the default branch** — the branch needs rebasing onto the default branch and re-pushing, and git-fi shall print that command line.
-- **Conflicts with a peer** — git-fi shall name the peer branches and say that one needs rebasing onto the other, so the two owners can settle the overlap between them rather than each discovering it at release time.
+- **Conflicts with the default branch** — the message goes to the branch's author and ends with the steps that fix it: update the branch and rebase it onto the default branch, resolve the conflict and continue the rebase, then re-push. The push is its own step because the rebase stops at the conflict for someone to resolve; one chained line would read as though it finished the job on its own.
+- **Conflicts with a peer** — keeping a branch mergeable into the default branch is its author's job, with or without fi. A peer conflict is two branches that will collide once the first of them lands, and fi merges in insertion order (`READY-03`), so the branch that failed is the later arrival and its author is the one to adjust. The message goes to that author, names the peer and its author, says the peer already changes the file and the branch's change to the same lines conflicts with it, and gives the fix: talk to the peer's author about how the two changes should fit together. Where the failing branch is the reader's own, the message becomes a heads-up to the peer's author instead, saying the reader will adjust their branch and asking what is in flight on the file.
+- **Conflicts only with the combination** — the message goes to the branch's author and says the branch merges cleanly with each peer alone but not with the set.
 
-Every branch named shall carry its tip author's email, so the report says who is responsible for the fix rather than leaving the reader to work out whose branch it is. The email comes from the `%(authoremail:trim)` field of the same batched listing (`PERF-01`), and it identifies whoever last moved the branch — git records no branch owner, so a bot-pushed tip reports the bot. The default branch is named bare: it is nobody's to rebase.
+A message is addressed by the tip author's name and email, skipping the reader, matched on `user.email`. A branch of the reader's own has nobody to message, so its command line and hunk print without one.
+
+The entries shall be ordered so a branch several failures collide with leads, with those failures grouped together: one conversation with its author clears all of them. Entries of equal weight keep the merge's order.
+
+The hunk is the first one git's conflict markers delimit in the tree the failed probe wrote, rendered diff3-style so the merge base sits between the two sides, capped at 20 lines with the remainder counted. The markers name the refs as `origin/<branch>`. A conflict with no markers (binary, modify/delete, rename) contributes no hunk, and the next conflicted path is tried. The hunk's bytes are a file's contents printed to a terminal, so git-fi shall strip control characters other than tab from each line, the same hazard as an author's email.
+
+Every branch named shall carry its tip author's email, so the output says who is responsible for the fix rather than leaving the reader to work out whose branch it is. The name and email come from the last field of the same batched listing (`PERF-01`), `%(authorname)<%(authoremail:trim)`, split at the first `<`: git's ident parser ends the name there, so the name never holds one. They identify the author of the branch's latest commit — git records no branch owner, so a bot-authored tip reports the bot. The default branch is named bare: it is nobody's to rebase.
 
 The email is chosen by whoever wrote the commit and git accepts ANSI escapes in one: `git fsck --strict` passes them and the format atom emits the bytes verbatim. Printed beside a command line, `\e[2K` or `\e[A` would let a branch tip repaint text git-fi had already written. git-fi shall strip control characters from listing fields as they are read (`READY-01`), rather than leaving each printing site to remember.
 
@@ -487,7 +515,7 @@ Either way git-fi shall list the conflicted paths beneath the branch as list ite
 
 A filename takes any byte but `/` and NUL, and `-z` hands those bytes over intact (`READY-03`), so git-fi shall render each listed path the way git prints one: bare where it carries nothing to escape, otherwise double-quoted with git's C escapes and three-digit octal for the rest, escaping bytes outside ASCII as `core.quotePath` asks. A path holding a newline would otherwise split the item across lines, and one holding `\e[2K` would repaint text git-fi had already written — the same hazard as an author's email, a byte further from the reader. This is how git shows a path rather than a form it reads back: a quoted pathspec matches nothing, and the raw bytes are what `--json` carries (`JSON-03`) and what git takes via `--pathspec-file-nul`.
 
-git-fi shall close the report with the `--remove` command line that takes the failing branches out of fi, marked as temporary and placed below the fixes. Unlike `--force` it drops only the named branches, so the rest of fi survives; it defers the conflict rather than resolving it, which is why it follows the rebases instead of leading. The line shall name only the failing branches fi actually holds: a branch that failed on the way *in* was never added, so there is nothing to remove, and where none of the failing branches is in fi the line is omitted. git-fi shall not offer `--force` as a remedy at all: replacing fi with one branch discards the other branches' integration instead of resolving anything, and naming the pair is what makes the smaller fix visible.
+git-fi shall close the output with the `--remove` command line that takes the failing branches out of fi, set off from the messages by a dim rule, introduced as the way to get fi building again now, and followed, where any message was printed, by a line saying to send the messages above. The messages run long, so without the rule a command straight after the last one reads as part of it. Unlike `--force` it drops only the named branches, so the rest of fi survives for everyone else, while the messages are what bring the removed branches back. The line shall name only the failing branches fi actually holds: a branch that failed on the way *in* was never added, so there is nothing to remove, and where none of the failing branches is in fi the line is omitted. git-fi shall not offer `--force` as a remedy at all: replacing fi with one branch discards the other branches' integration instead of resolving anything, and naming the pair is what makes the smaller fix visible.
 
 `READY-05` The merge (`MERGE-08`) and attribution (`READY-03`) are one traversal: the branch that fails a step of the merge is the branch attribution then places. git-fi shall print the result (`READY-04`) in place of the bare list of failed branch names.
 
@@ -495,7 +523,7 @@ Attribution can name nobody in one way, and git-fi shall say so rather than fall
 
 Where the failing branch merges cleanly against both the default branch and every peer taken singly, the conflict lives in the combination, and `READY-04` names the accumulated set.
 
-`READY-06` A branch list that merges cleanly shall cost one `git merge-tree` and one `git commit-tree` per branch. Each branch that fails costs one further probe against the default branch, and where the default branch is not the cause, one pairwise probe per branch already in the set, so a list on which every branch fails that way is quadratic in the branch count. That growth is left uncapped where the path list is capped (`READY-04`), because it is bounded by the branch count rather than by a repository's contents and is only reached once the merge has already failed. The walk shall read and write nothing outside the object database (`MERGE-02`), and the intermediate commits it writes are unreferenced, so `git gc` reclaims them.
+`READY-06` A branch list that merges cleanly shall cost one `git merge-tree` and one `git commit-tree` per branch. Each branch that fails costs one further probe against the default branch, and where the default branch is not the cause, one pairwise probe per branch already in the set, so a list on which every branch fails that way is quadratic in the branch count. Reading the hunk (`READY-04`) costs one `git cat-file` per conflicted path tried, stopping at the first that carries markers. That growth is left uncapped where the path list is capped (`READY-04`), because it is bounded by the branch count rather than by a repository's contents and is only reached once the merge has already failed. The walk shall read and write nothing outside the object database (`MERGE-02`), and the intermediate commits it writes are unreferenced, so `git gc` reclaims them.
 
 `READY-07` A branch with nothing ahead of the default branch — the *ahead* half of the same `%(ahead-behind:...)` field (`READY-01`) — has landed: every commit it carries is already on the default branch, and the next mutation drops it from fi (`MERGE-07`). git-fi shall determine already-merged status from that field rather than from a separate `git branch -r --merged` invocation, so one listing answers both questions (`PERF-01`), and shall derive it in one place, so the display and the pruning cannot disagree about what "landed" means.
 
@@ -687,7 +715,7 @@ Everything about a branch is nested under it rather than spread across arrays ke
 
 `JSON-03` Each branch shall carry its `ahead` and `behind` counts and its `merged` flag (`READY-01`, `READY-07`). Counts git could not produce shall be `null` rather than `0`, which is a real position — level with the default branch.
 
-When a merge fails under `--json`, git-fi shall write the object rather than only aborting, and shall still exit non-zero (`EXIT-02`) — a pipeline that stops on the exit code should not have to scrape stderr to learn which branch needs the rebase. git-fi shall wait for that write to reach the operating system before it exits: stdout is asynchronous on a pipe, so an exit on the same tick truncates the object at the pipe buffer, and the consumer this object exists for is the one reading it through a pipe. The `paths` list is uncapped here where the report caps it (`READY-04`), so a conflict across enough files reaches that buffer. Nothing is pushed on that path, so `branches` is fi as it still stands, the same thing it means after an action that succeeded; the set the merge tried is a different list and gets its own name, `attempted`. `conflicts` carries the attribution (`READY-03`), and is empty where attribution named nobody (`READY-05`). The failure object reaches no API, so every `ci` in it is `null`. `with` names what the branch conflicts with, the default branch by its own name:
+When a merge fails under `--json`, git-fi shall write the object rather than only aborting, and shall still exit non-zero (`EXIT-02`) — a pipeline that stops on the exit code should not have to scrape stderr to learn which branch needs the rebase. git-fi shall wait for that write to reach the operating system before it exits: stdout is asynchronous on a pipe, so an exit on the same tick truncates the object at the pipe buffer, and the consumer this object exists for is the one reading it through a pipe. The `paths` list is uncapped here where the report caps it (`READY-04`), so a conflict across enough files reaches that buffer. Nothing is pushed on that path, so `branches` is fi as it still stands, the same thing it means after an action that succeeded; the set the merge tried is a different list and gets its own name, `attempted`. `conflicts` carries the attribution (`READY-03`), and is empty where attribution named nobody (`READY-05`). The failure object reaches no API, so every `ci` in it is `null`. `author` is the author of the branch's latest commit (`READY-04`), the person a job would notify, and is `null` where that commit's author email is empty, which git accepts. `with` names what the branch conflicts with, the default branch by its own name:
 
 ```json
 {
@@ -697,8 +725,8 @@ When a merge fails under `--json`, git-fi shall write the object rather than onl
   ],
   "attempted": ["feature-b", "feature-a", "feature-c"],
   "conflicts": [
-    {"branch": "feature-a", "with": ["main"], "paths": ["src/config.ts"]},
-    {"branch": "feature-c", "with": ["feature-b"], "paths": ["src/router.ts"]}
+    {"branch": "feature-a", "author": {"name": "Bob Li", "email": "bob@example.com"}, "with": ["main"], "paths": ["src/config.ts"]},
+    {"branch": "feature-c", "author": {"name": "Cara Diaz", "email": "cara@example.com"}, "with": ["feature-b"], "paths": ["src/router.ts"]}
   ]
 }
 ```

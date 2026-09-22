@@ -14,6 +14,7 @@ import {
   localDivergence,
   mergedRemoteBranches,
   branchReadiness,
+  branchAuthors,
   currentFiBranches,
   isInteractive,
   signCommits,
@@ -431,11 +432,20 @@ export async function mergeProcess(
   // different list, so it gets a different name.
   if (opts.json) {
     const readiness = branchReadiness(defBranch);
+    const authors = branchAuthors(defBranch);
     await writeJson({
       command: action,
       branches: fiNow.map((b) => branchJson(b, readiness)),
       attempted: mergeable.map(localBranchName),
-      conflicts: outcome.outcome === "conflict" ? outcome.conflicts : [],
+      conflicts:
+        outcome.outcome === "conflict"
+          ? outcome.conflicts.map(({ branch, with: w, paths }) => ({
+              branch,
+              author: authors.get(`origin/${branch}`) ?? null,
+              with: w,
+              paths,
+            }))
+          : [],
     });
   }
 

@@ -109,25 +109,53 @@ feature-auth   │ 2026-03-30 │ Alice  │ 11111 ✅
 feature-search │ 2026-03-30 │ Bob    │ 22222 ✅
 ```
 
-On failure, git-fi names each branch that couldn't be merged, what stopped it, and the remedy, then aborts without pushing:
+On failure, git-fi names each branch that couldn't be merged and what stopped it, gives you a message to send its authors, then aborts without pushing:
 
 ```text
 Failed trying to merge branch(es):
 
  * feature-auth (alice@example.com)  conflicts with main
-     * src/config.ts
-     git checkout feature-auth && git rebase origin/main && git push --force-with-lease
- * feature-search (bob@example.com)  conflicts with feature-nav (cara@example.com)
-     * src/routes.ts
-     rebase feature-search onto feature-nav (or the reverse) and settle the overlap there
+     * config.ini
+     Message Alice Ng <alice@example.com>:
+       hey Alice, feature-auth couldn't merge into web/app@fi; main changed the same lines in config.ini:
+         <<<<<<< origin/main
+         timeout = 10
+         ||||||| 0c5cabe
+         timeout = 30
+         =======
+         timeout = 60
+         >>>>>>> origin/feature-auth
+       To fix:
+       1. git checkout feature-auth && git pull && git rebase origin/main
+       2. resolve the conflict, then git rebase --continue
+       3. git push --force-with-lease
 
-Or temporarily remove them from fi — the conflict comes back when they do:
+ * feature-search (bob@example.com)  conflicts with feature-nav (cara@example.com)
+     * routes.ts
+     Message Bob Li <bob@example.com>:
+       hey Bob, feature-search couldn't merge into web/app@fi: feature-nav (Cara Diaz) already changes routes.ts, and feature-search's change to the same lines conflicts with it:
+         <<<<<<< origin/feature-nav
+           "/nav",
+         ||||||| 0c5cabe
+           "/search",
+         =======
+           "/search?q",
+         >>>>>>> origin/feature-search
+       To fix: talk to Cara about how the two changes should fit together.
+
+────────────────────────────────────────
+To get fi building again now, take the failing branches out:
   git fi -r feature-auth feature-search
+Then send the messages above, so they can be fixed and added back.
 
 Aborted due to merge failures
 ```
 
-Each branch carries the email of whoever last moved it, so the report says who owns the fix. git records no branch owner, so that's the tip commit's author — a bot-pushed tip reports the bot.
+The authors of the conflicting branches are the ones who can resolve it, so each message is ready to paste into chat. It names the branch, the project from your origin URL, the first conflicting hunk (with the merge base between the two sides), and what to do. A branch that's yours has nobody to message, so you get the commands on their own.
+
+Each branch carries the name and email of the author of its latest commit. git records no branch owner, so a branch whose latest commit came from a bot names the bot.
+
+When several failing branches collide with the same branch, they're listed first and together: one conversation with that branch's author clears all of them.
 
 The `git fi -r <branch>...` line at the end names only the branches `fi` actually holds. One that failed on the way *in* was never added, so there is nothing to remove and it is left out; where none of the failing branches is in `fi`, the line is omitted entirely.
 
@@ -136,14 +164,14 @@ The `git fi -r <branch>...` line at the end names only the branches `fi` actuall
 Merging one branch at a time means the failing step names the branch, and git-fi then asks what that branch is actually fighting with: against the default branch alone, then against each branch already in the set. The result answers the question a bare list of failed branches doesn't:
 
 - **A branch conflicts with `main`.** `main` has moved somewhere the branch also changed. Its owner rebases and re-pushes; nobody else is involved.
-- **A branch conflicts with a peer.** Two in-flight branches overlap. This is what `fi` exists to surface — the conflict is real and would have surfaced at release time instead. The two owners settle it now, while both branches are still small.
-- **A branch conflicts only with the combination.** It merges cleanly against `main` and against every peer on its own, and fails only against the whole set. The report names the set.
+- **A branch conflicts with a peer.** Two in-flight branches change the same lines. This is what `fi` exists to surface: the conflict is real and would have surfaced at release time instead. Keeping a branch mergeable into `main` is its author's job, with or without `fi`. `fi` merges branches in the order they were added, so the one that failed is the later arrival, and its author adjusts it after talking to the other author about how the two changes should fit together. If the failing branch is yours, the message is a heads-up to the other author instead.
+- **A branch conflicts only with the combination.** It merges cleanly against `main` and against every peer on its own, and fails only against the whole set. The output names the set.
 
-A failing branch is left out of the accumulated set and the walk carries on, so one bad branch doesn't condemn every branch listed after it, and the report names all of them in one run.
+A failing branch is left out of the accumulated set and the walk carries on, so one bad branch doesn't condemn every branch listed after it, and the output names all of them in one run.
 
 So when any branch conflicts:
 
-1. git-fi prints the remedy each failing branch calls for, with the conflicted paths.
+1. git-fi prints a message for each failing branch's authors, with the conflicted paths and the first conflicting hunk.
 2. It exits with `Aborted due to merge failures`. **No `fi` is pushed**: the remote stays as it was, and so does your checkout.
 
-Reach for the named remedy before either escape hatch, and never for `git fi -f <your-branch>`. Forcing `fi` to hold only your branch clears the error by throwing away everyone else's integration, and the conflict it was reporting is still there the next time someone adds their branch back. The `git fi -r` line the report prints is the survivable version — it drops only the branches that failed and leaves everyone else's work in `fi` — but it still just defers the conflict to whenever those branches go back in.
+The `git fi -r` line gets `fi` building again for everyone else right away. Send the messages at the same time, so the authors can fix their branches and get them back into testing. `git fi -f <your-branch>` is never the answer: it clears the error by throwing away everyone else's integration.

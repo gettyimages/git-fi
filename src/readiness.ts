@@ -240,6 +240,28 @@ export function mergeBranches(
 // counted rather than dropped silently.
 const PATHS_SHOWN = 5;
 
+/**
+ * How a run changes fi's enlistment: the branches it carries and their merge
+ * order. What each branch holds (a rebase, the default branch moving) is not
+ * part of it.
+ */
+export interface EnlistmentChange {
+  /** The action that was run (`add`, `force`, ...), which is also its long flag. */
+  action: string;
+  /** The branches named on the command line, in the order given. */
+  named: string[];
+  /** fi's branch list before the run. */
+  prior: string[];
+  /** The list the run tried to write, in merge order. */
+  attempted: string[];
+}
+
+/** The branches the run enlists: the *new* branches of READY-09. */
+function enlistedBranches(change: EnlistmentChange): Set<string> {
+  const prior = new Set(change.prior);
+  return new Set(change.attempted.filter((b) => !prior.has(b)));
+}
+
 // Sets the closing -r line apart from the messages, which run long enough that
 // a command straight after the last one reads as part of it.
 const RULE_WIDTH = 40;
@@ -279,6 +301,20 @@ function byMostCleared(conflicts: BranchConflict[], defBranch: string): BranchCo
   );
 }
 
+/** Who a conflict's entry is addressed to (READY-09). */
+type Audience = "caller" | "peers" | "owner";
+
+function audienceFor(
+  kind: BranchConflict["kind"],
+  involvesNew: boolean,
+  owner: Author | undefined,
+  ownerIsMe: boolean
+): Audience {
+  if (involvesNew) return "caller";
+  if (ownerIsMe) return kind === "peer" ? "peers" : "caller";
+  return owner ? "owner" : "caller";
+}
+
 /**
  * The failing branches, each with a message for the authors who can fix it
  * (READY-04). The authors of the conflicting branches are the ones who resolve it, so the
@@ -286,13 +322,14 @@ function byMostCleared(conflicts: BranchConflict[], defBranch: string): BranchCo
  * works around them. Where the branch is the reader's own there is nobody to
  * message, and the commands print on their own.
  *
- * `--force` is deliberately absent: replacing fi with one branch discards the
- * other branches' integration instead of resolving anything.
+ * `--force` is offered only to repeat a `--force` the reader ran: as a remedy,
+ * replacing fi with one branch discards the other branches' integration
+ * instead of resolving anything.
  */
 export function renderConflicts(
   conflicts: BranchConflict[],
   defBranch: string,
-  inFi: Set<string>,
+  change: EnlistmentChange,
   opts: Options
 ): string {
   const s = makeStyle(opts);
@@ -301,6 +338,7 @@ export function renderConflicts(
   const project = detectGitlabProject()?.project;
   const where = project ? `${project}@fi` : "fi";
   const quote = quotePathEnabled();
+  const enlisted = enlistedBranches(change);
   const lines: string[] = [];
   let messages = 0;
 
@@ -343,6 +381,8 @@ export function renderConflicts(
     // its author is the one to adjust. Where that author is the reader, the
     // peer's author gets a heads-up instead: there is nobody else to ask, and
     // the overlap is still theirs to know about.
+    const enlistedHere = [c.branch, ...c.with].filter((n) => enlisted.has(n));
+    const rework = enlisted.has(c.branch) ? c.branch : enlistedHere.join(" and ");
     const owner = author(c.branch);
     const ownerIsMe = !!owner && owner.email.toLowerCase() === me;
     const peerAuthors: Author[] = [];
@@ -353,65 +393,72 @@ export function renderConflicts(
         if (!peerAuthors.some((r) => r.email === a.email)) peerAuthors.push(a);
       }
     }
-    const headsUp = c.kind === "peer" && ownerIsMe;
-    const recipients: Author[] = headsUp
-      ? peerAuthors
-      : owner && !ownerIsMe
-        ? [owner]
-        : [];
+    const audience = audienceFor(c.kind, enlistedHere.length > 0, owner, ownerIsMe);
+    const recipients: Record<Audience, Author[]> = {
+      caller: [],
+      peers: peerAuthors,
+      owner: owner ? [owner] : [],
+    };
 
     const firstName = (a: Author): string => a.name.split(/\s+/)[0] || a.email;
     const peers = c.with.join(" and ");
-    const peersNamed = c.with
-      .map((w) => {
-        const a = author(w);
-        return a?.name ? `${w} (${a.name})` : w;
-      })
-      .join(" and ");
+    const named = (w: string): string => {
+      const a = author(w);
+      return a?.name ? `${w} (${a.name})` : w;
+    };
+    const peersNamed = c.with.map(named).join(" and ");
     const peerFirstNames = peerAuthors.map(firstName).join(" and ");
     const path = quoteCStyle(c.chunk?.path ?? c.paths[0] ?? "", quote);
-    const peerFix = `change ${c.branch} so it no longer conflicts with ${peers}`;
+    const verb = c.with.length === 1 ? "changes" : "change";
+    const fitsWith = rework === c.branch ? peersNamed : named(c.branch);
+    const mergesWith = rework === c.branch ? "it" : c.branch;
 
-    // The hunk sits between the sentence that introduces it and what to do about it.
-    let intro: string;
-    let after: string[];
-    if (c.kind === "default") {
-      intro = c.chunk
-        ? `${c.branch} couldn't merge into ${where}; main changed the same lines in ${path}:`
-        : `${c.branch} couldn't merge into ${where}; it conflicts with main in ${path}.`;
-      after = ["To fix:", ...rebase(c.branch)];
-    } else if (headsUp) {
-      intro = `heads-up: my ${c.branch} overlaps your ${peers} in ${path} on ${where}${c.chunk ? ":" : "."}`;
-      after = [
-        `I'll adjust mine. Anything in flight on that file I should know about?`,
-      ];
-    } else if (c.kind === "peer") {
-      const verb = c.with.length === 1 ? "changes" : "change";
-      intro = c.chunk
-        ? `${c.branch} couldn't merge into ${where}: ${peersNamed} already ${verb} ${path}, and ${c.branch}'s change to the same lines conflicts with it:`
-        : `${c.branch} couldn't merge into ${where}: it conflicts with ${peersNamed} in ${path}.`;
-      after = [
-        peerFirstNames
-          ? `To fix: talk to ${peerFirstNames} about how the two changes should fit together.`
-          : `To fix: ${peerFix}.`,
-      ];
-    } else {
-      intro = `${c.branch} couldn't merge into ${where}. It merges cleanly with each branch on its own, but not with ${peers} together.`;
-      after = [];
-    }
+    // Each kind's text (READY-10): the message's intro and closing lines (the
+    // hunk sits between them), and the fix printed where there is nobody to
+    // message.
+    const text: Record<BranchConflict["kind"], { intro: string; after: string[]; fix: string[] }> = {
+      default: {
+        intro: c.chunk
+          ? `${c.branch} couldn't merge into ${where}; main changed the same lines in ${path}:`
+          : `${c.branch} couldn't merge into ${where}; it conflicts with main in ${path}.`,
+        after: ["To fix:", ...rebase(c.branch)],
+        fix: rebase(c.branch),
+      },
+      peer: {
+        intro: c.chunk
+          ? `${c.branch} couldn't merge into ${where}: ${peersNamed} already ${verb} ${path}, and ${c.branch}'s change to the same lines conflicts with it:`
+          : `${c.branch} couldn't merge into ${where}: it conflicts with ${peersNamed} in ${path}.`,
+        after: [
+          peerFirstNames
+            ? `To fix: talk to ${peerFirstNames} about how the two changes should fit together.`
+            : `To fix: change ${c.branch} so it no longer conflicts with ${peers}.`,
+        ],
+        fix: [`To fix: change ${rework} so it no longer conflicts with ${fitsWith}`],
+      },
+      combination: {
+        intro: `${c.branch} couldn't merge into ${where}. It merges cleanly with each branch on its own, but not with ${peers} together.`,
+        after: [],
+        fix: [`To fix: change ${rework} so ${mergesWith} merges with ${peers} together`],
+      },
+    };
+    const headsUp = {
+      intro: `heads-up: my ${c.branch} overlaps your ${peers} in ${path} on ${where}${c.chunk ? ":" : "."}`,
+      after: [`I'll adjust mine. Anything in flight on that file I should know about?`],
+    };
 
-    if (recipients.length > 0) {
+    const to = recipients[audience];
+    if (to.length > 0) {
       messages++;
-      const names = recipients.map(firstName).join(", ");
-      const to = recipients.map((r) => (r.name ? `${r.name} <${r.email}>` : r.email)).join(", ");
-      lines.push(`     ${s.bold(`Message ${to}:`)}`);
+      const { intro, after } = audience === "peers" ? headsUp : text[c.kind];
+      const names = to.map(firstName).join(", ");
+      const addressed = to.map((r) => (r.name ? `${r.name} <${r.email}>` : r.email)).join(", ");
+      lines.push(`     ${s.bold(`Message ${addressed}:`)}`);
       lines.push(`       hey ${names}, ${intro}`);
       lines.push(...chunkLines(c, "         "));
       lines.push(...after.map((l) => `       ${l}`));
     } else {
       lines.push(...chunkLines(c, "     "));
-      if (c.kind === "default") lines.push(...rebase(c.branch).map((l) => `     ${s.bold(l)}`));
-      if (c.kind === "peer") lines.push(`     ${s.bold(`To fix: ${peerFix}`)}`);
+      lines.push(...text[c.kind].fix.map((l) => `     ${s.bold(l)}`));
     }
     lines.push("");
   }
@@ -423,12 +470,20 @@ export function renderConflicts(
   // to remove and the line is only offered for the ones fi actually holds.
   const removable = conflicts
     .map((c) => c.branch)
-    .filter((name) => inFi.has(name));
+    .filter((name) => !enlisted.has(name));
+  // Nothing a failed run was adding reached fi, including the branches that
+  // merged cleanly, so bringing them in means repeating the whole command
+  // (READY-11).
+  const rerun = enlisted.size > 0;
+  if (removable.length > 0 || rerun) lines.push(s.dim("─".repeat(RULE_WIDTH)));
   if (removable.length > 0) {
-    lines.push(s.dim("─".repeat(RULE_WIDTH)));
     lines.push("To get fi building again now, take the failing branches out:");
     lines.push(`  ${s.greenBold(`git fi -r ${removable.map(shq).join(" ")}`)}`);
     if (messages > 0) lines.push(s.dim("Then send the messages above, so they can be fixed and added back."));
+  }
+  if (rerun) {
+    lines.push("Once your branches merge, run it again:");
+    lines.push(`  ${s.greenBold(`git fi --${change.action} ${change.named.map(shq).join(" ")}`)}`);
   }
 
   return lines.join("\n").replace(/\n+$/, "") + "\n";

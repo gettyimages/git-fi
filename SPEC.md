@@ -501,6 +501,8 @@ A nonzero exit is not by itself a conflict. `git merge-tree` exits 1 for an unre
 
 A message is addressed by the tip author's name and email, skipping the reader, matched on `user.email`. A branch of the reader's own has nobody to message, so its command line and hunk print without one.
 
+Who a message goes to, and what the entry says, follow `READY-09` to `READY-11`.
+
 The entries shall be ordered so a branch several failures collide with leads, with those failures grouped together: one conversation with its author clears all of them. Entries of equal weight keep the merge's order.
 
 The hunk is the first one git's conflict markers delimit in the tree the failed probe wrote, rendered diff3-style so the merge base sits between the two sides, capped at 20 lines with the remainder counted. The markers name the refs as `origin/<branch>`. A conflict with no markers (binary, modify/delete, rename) contributes no hunk, and the next conflicted path is tried. The hunk's bytes are a file's contents printed to a terminal, so git-fi shall strip control characters other than tab from each line, the same hazard as an author's email.
@@ -534,6 +536,30 @@ An unknown ahead count (`READY-01`) shall read as *not* merged. Pruning rewrites
 The comparison is against `origin/<branch>` rather than the local branch's configured upstream, because `origin/<branch>` is the ref that reaches fi whatever the branch is set to track. Only the branches the action names are checked: `--again` re-merges the whole list without being a statement about any one branch, so warning across it would report every stale local copy of a teammate's branch. git-fi shall say nothing where there is no local branch of that name, where the two share no history, or in a shallow repository, whose truncated walk would describe the fetched window rather than the branch (`READY-01`).
 
 Shared history shall be established with `git merge-base` before the counts are read, because `git rev-list --left-right --count` succeeds on disjoint histories and returns the full size of each side — every commit on each branch, which is not drift. Both sides shall be named by their full refs, `refs/heads/<branch>` and `refs/remotes/origin/<branch>`: a tag sharing the branch's name wins the short form, and the count would then describe the tag (`MERGE-02`).
+
+`READY-09` git-fi shall address each conflicting branch's entry (`READY-04`) by the decision tree below. A branch is *new* when the action adds it to fi, and a conflict *involves a new branch* when the branch that failed, or a branch it conflicts with, is new. `--force` merges in the order named, so a new branch can be the peer that a branch already in fi fails on.
+
+```mermaid
+%%{ init: { 'look': 'handDrawn' } }%%
+flowchart TD
+    A[Branch that failed to merge] --> B{Involves a new branch?}
+    B -- yes --> F1([No message: the fix, for the caller])
+    B -- no --> C{Its author is the caller?}
+    C -- yes --> D{Peer conflict?}
+    D -- yes --> HU([Heads-up to the peers' authors])
+    D -- no --> F2([No message: the fix, for the caller])
+    C -- no --> MSG([Message its author])
+```
+
+`READY-10` The fix and the message (`READY-09`) shall each depend on the kind of conflict (`READY-03`):
+
+| Conflict | Fix printed | Message ends with |
+| --- | --- | --- |
+| default | the rebase steps | the rebase steps |
+| peer | change the new branch so it no longer conflicts with the other, naming the other's author | talk to the peers' authors |
+| combination | change the new branch, or this one, so it merges with the set | nothing further |
+
+`READY-11` A failed merge pushes nothing, so every new branch (`READY-09`) stays out of fi, the ones that merged cleanly included. Where the action adds any, git-fi shall close the output with the same command, naming all of them in the order given, to run once they merge.
 
 
 ## `STORAGE`

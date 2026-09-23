@@ -153,6 +153,8 @@ Aborted due to merge failures
 
 The authors of the conflicting branches are the ones who can resolve it, so each message is ready to paste into chat. It names the branch, the project from your origin URL, the first conflicting hunk (with the merge base between the two sides), and what to do. A branch that's yours has nobody to message, so you get the commands on their own.
 
+A conflict with a branch you're adding gets no message: fitting it in is yours. The output names the conflicting paths, the other branch and its author, and the first hunk, then gives you the fix. It ends with the command to run again once your branches merge, naming every branch you were adding, since a failed merge adds none of them.
+
 Each branch carries the name and email of the author of its latest commit. git records no branch owner, so a branch whose latest commit came from a bot names the bot.
 
 When several failing branches collide with the same branch, they're listed first and together: one conversation with that branch's author clears all of them.
@@ -164,7 +166,7 @@ The `git fi -r <branch>...` line at the end names only the branches `fi` actuall
 Merging one branch at a time means the failing step names the branch, and git-fi then asks what that branch is actually fighting with: against the default branch alone, then against each branch already in the set. The result answers the question a bare list of failed branches doesn't:
 
 - **A branch conflicts with `main`.** `main` has moved somewhere the branch also changed. Its owner rebases and re-pushes; nobody else is involved.
-- **A branch conflicts with a peer.** Two in-flight branches change the same lines. This is what `fi` exists to surface: the conflict is real and would have surfaced at release time instead. Keeping a branch mergeable into `main` is its author's job, with or without `fi`. `fi` merges branches in the order they were added, so the one that failed is the later arrival, and its author adjusts it after talking to the other author about how the two changes should fit together. If the failing branch is yours, the message is a heads-up to the other author instead.
+- **A branch conflicts with a peer.** Two in-flight branches change the same lines. This is what `fi` exists to surface: the conflict is real and would have surfaced at release time instead. Keeping a branch mergeable into `main` is its author's job, with or without `fi`. `fi` merges branches in the order they were added, so the one that failed is the later arrival, and its author adjusts it after talking to the other author about how the two changes should fit together. If the failing branch is yours, the message is a heads-up to the other author instead. If you're adding the failing branch, there's no message: reworking it is yours.
 - **A branch conflicts only with the combination.** It merges cleanly against `main` and against every peer on its own, and fails only against the whole set. The output names the set.
 
 A failing branch is left out of the accumulated set and the walk carries on, so one bad branch doesn't condemn every branch listed after it, and the output names all of them in one run.

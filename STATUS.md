@@ -2,7 +2,7 @@
 
 Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 
-**Last updated:** 2026-09-21
+**Last updated:** 2026-09-23
 
 Locations name the file and the enclosing symbol rather than a line range, so an
 edit elsewhere in the same file leaves the row correct. `git grep` the symbol to
@@ -12,8 +12,8 @@ land on it.
 
 | Status  | Count |
 |---------|-------|
-| Covered | 134   |
-| Total   | 134   |
+| Covered | 137   |
+| Total   | 137   |
 
 ## `PRE`
 
@@ -176,6 +176,9 @@ Merge Process
 | READY-06 | Bounded probes        | Covered | `src/readiness.ts` (`mergeBranches`) |
 | READY-07 | Merged branch marker  | Covered | `src/git.ts` (`branchReadiness`, `mergedRemoteBranches`), `src/style.ts` (`strikeIfMerged`) |
 | READY-08 | Local drift warning   | Covered | `src/git.ts` (`localDivergence`, `existingLocalRefs`), `src/merge.ts` (`mergeProcess`) |
+| READY-09 | Who a remedy addresses | Covered | `src/readiness.ts` (`audienceFor`, `enlistedBranches`), `src/merge.ts` (`mergeProcess`) |
+| READY-10 | Remedy text by conflict kind | Covered | `src/readiness.ts` (`renderConflicts`) |
+| READY-11 | Repeat the adding command | Covered | `src/readiness.ts` (`renderConflicts`) |
 
 
 | ID    | Description           | Status  | Location                |

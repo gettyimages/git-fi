@@ -28,6 +28,7 @@ import {
   renderConflicts,
   OID,
   type MergeOutcome,
+  type EnlistmentChange,
 } from "./readiness.js";
 import { branchJson, writeJson } from "./json.js";
 
@@ -404,13 +405,18 @@ export async function mergeProcess(
   // is what says whether `-r` is a remedy for a given branch, and what `--json`
   // reports below as fi's branch list.
   const fiNow = currentFiBranches(defBranch);
-  const inFi = new Set(fiNow.map(localBranchName));
 
   diagnose("\nFailed trying to merge branch(es):\n\n");
   // Naming the whole failing set invites `--force` (replace fi with one branch
   // and start over) when the fix is usually one or two rebases (READY-05).
   if (outcome.outcome === "conflict") {
-    diagnose(renderConflicts(outcome.conflicts, defBranch, inFi, opts));
+    const change: EnlistmentChange = {
+      action,
+      named: mergeable.filter((b) => actionSet.has(b)).map(localBranchName),
+      prior: fiNow.map(localBranchName),
+      attempted: mergeable.map(localBranchName),
+    };
+    diagnose(renderConflicts(outcome.conflicts, defBranch, change, opts));
   } else {
     diagnose(bulletList(mergeable, opts));
     // Saying which branch failed is the promise this path makes, so when it

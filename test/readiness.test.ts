@@ -27,6 +27,16 @@ function pushBranchAs(
   sb.git(["checkout", "--quiet", "main"]);
 }
 
+/** Commit `content` to `file` on an existing branch as `author` and push. */
+function commitAs(sb: Sandbox, branch: string, file: string, content: string, author: string): void {
+  sb.git(["checkout", "--quiet", branch]);
+  writeFileSync(join(sb.work, file), content);
+  sb.git(["add", "."]);
+  sb.git(["commit", "--quiet", `--author=${author}`, "-m", `${branch}: ${file}`]);
+  sb.git(["push", "--quiet", "origin", branch]);
+  sb.git(["checkout", "--quiet", "main"]);
+}
+
 /** Commit `content` to `file` on main and push, so every branch off the old tip falls behind. */
 function advanceMain(sb: Sandbox, file: string, content: string): void {
   sb.git(["checkout", "--quiet", "main"]);
@@ -192,12 +202,13 @@ describe("conflict attribution (READY-03, READY-04, READY-05)", () => {
     assert.doesNotMatch(r.stdout, /Message /);
   });
 
-  test("a teammate's branch conflicting with main comes with a message for them (READY-04)", () => {
+  test("a teammate's branch in fi conflicting with main comes with a message for them (READY-04)", () => {
     pushBranchAs(sb, "feature-a", "shared.txt", "from-a\n", "Alice Ng <alice@example.com>");
     sb.bootstrapFi();
+    assert.equal(runFi(["--add", "feature-a"], sb.work).status, 0);
     advanceMain(sb, "shared.txt", "from-main\n");
 
-    const r = runFi(["--add", "feature-a"], sb.work);
+    const r = runFi(["--again"], sb.work);
     assert.equal(r.status, 1, r.stdout);
     assert.match(r.stdout, /Message Alice Ng <alice@example\.com>:/);
     assert.match(r.stdout, /hey Alice, feature-a couldn't merge into fi; main changed the same lines in shared\.txt:/);
@@ -208,13 +219,14 @@ describe("conflict attribution (READY-03, READY-04, READY-05)", () => {
     );
   });
 
-  test("a peer conflict is the failing branch owner's to fix, with the hunk (READY-04)", () => {
+  test("a peer conflict in fi is the failing branch owner's to fix, with the hunk (READY-04)", () => {
     pushBranchAs(sb, "feature-a", "shared.txt", "from-a\n", "Alice Ng <alice@example.com>");
-    pushBranchAs(sb, "feature-b", "shared.txt", "from-b\n", "Bob Li <bob@example.com>");
+    pushBranchAs(sb, "feature-b", "other.txt", "from-b\n", "Bob Li <bob@example.com>");
     sb.bootstrapFi();
-    assert.equal(runFi(["--add", "feature-a"], sb.work).status, 0);
+    assert.equal(runFi(["--add", "feature-a", "feature-b"], sb.work).status, 0);
+    commitAs(sb, "feature-b", "shared.txt", "from-b\n", "Bob Li <bob@example.com>");
 
-    const r = runFi(["--add", "feature-b"], sb.work);
+    const r = runFi(["--again"], sb.work);
     assert.equal(r.status, 1, r.stdout);
     assert.match(r.stdout, /feature-b \(\S+\)\s+conflicts with feature-a/);
     assert.doesNotMatch(r.stdout, /conflicts with main/);
@@ -233,7 +245,34 @@ describe("conflict attribution (READY-03, READY-04, READY-05)", () => {
     );
   });
 
-  test("a peer conflict on your own branch is a heads-up to the other author (READY-04)", () => {
+  test("a peer conflict on your own branch in fi is a heads-up to the other author (READY-04)", () => {
+    pushBranchAs(sb, "feature-a", "shared.txt", "from-a\n", "Alice Ng <alice@example.com>");
+    sb.pushBranch("feature-b", "other.txt", "from-b\n");
+    sb.bootstrapFi();
+    assert.equal(runFi(["--add", "feature-a", "feature-b"], sb.work).status, 0);
+    commitAs(sb, "feature-b", "shared.txt", "from-b\n", "Test User <test@example.com>");
+
+    const r = runFi(["--again"], sb.work);
+    assert.equal(r.status, 1, r.stdout);
+    assert.match(r.stdout, /Message Alice Ng <alice@example\.com>:/);
+    assert.match(r.stdout, /hey Alice, heads-up: my feature-b overlaps your feature-a in shared\.txt on fi:/);
+    assert.match(r.stdout, /I'll adjust mine\. Anything in flight on that file I should know about\?/);
+  });
+
+  test("adding a teammate's branch that conflicts with main is yours to rebase, not theirs (READY-09)", () => {
+    pushBranchAs(sb, "feature-a", "shared.txt", "from-a\n", "Alice Ng <alice@example.com>");
+    sb.bootstrapFi();
+    advanceMain(sb, "shared.txt", "from-main\n");
+
+    const r = runFi(["--add", "feature-a"], sb.work);
+    assert.equal(r.status, 1, r.stdout);
+    assert.match(r.stdout, /feature-a \(alice@example\.com\)\s+conflicts with main/);
+    assert.doesNotMatch(r.stdout, /Message /);
+    assert.match(r.stdout, /^ {5}3\. git push --force-with-lease$/m);
+    assert.match(r.stdout, /Once your branches merge, run it again:\n {2}git fi --add feature-a\n/);
+  });
+
+  test("adding a branch that conflicts with a peer is yours to rework, naming the peer's author (READY-09, READY-10)", () => {
     pushBranchAs(sb, "feature-a", "shared.txt", "from-a\n", "Alice Ng <alice@example.com>");
     sb.pushBranch("feature-b", "shared.txt", "from-b\n");
     sb.bootstrapFi();
@@ -241,9 +280,44 @@ describe("conflict attribution (READY-03, READY-04, READY-05)", () => {
 
     const r = runFi(["--add", "feature-b"], sb.work);
     assert.equal(r.status, 1, r.stdout);
-    assert.match(r.stdout, /Message Alice Ng <alice@example\.com>:/);
-    assert.match(r.stdout, /hey Alice, heads-up: my feature-b overlaps your feature-a in shared\.txt on fi:/);
-    assert.match(r.stdout, /I'll adjust mine\. Anything in flight on that file I should know about\?/);
+    assert.match(r.stdout, /conflicts with feature-a \(alice@example\.com\)/);
+    assert.doesNotMatch(r.stdout, /Message |heads-up/);
+    assert.match(r.stdout, />>>>>>> origin\/feature-b\n/);
+    assert.match(
+      r.stdout,
+      /^ {5}To fix: change feature-b so it no longer conflicts with feature-a \(Alice Ng\)$/m
+    );
+  });
+
+  test("the retry names every branch the failed add brought, the clean ones too (READY-11)", () => {
+    sb.pushBranch("feature-a", "shared.txt", "from-a\n");
+    sb.pushBranch("feature-b", "other.txt", "from-b\n");
+    sb.pushBranch("feature-c", "shared.txt", "from-c\n");
+    sb.bootstrapFi();
+    assert.equal(runFi(["--add", "feature-a"], sb.work).status, 0);
+
+    // feature-b merges cleanly, but nothing is pushed, so it is not in fi either.
+    const r = runFi(["--add", "feature-b", "feature-c"], sb.work);
+    assert.equal(r.status, 1, r.stdout);
+    assert.match(r.stdout, /Once your branches merge, run it again:\n {2}git fi --add feature-b feature-c\n/);
+  });
+
+  test("an enlisted branch failing on a branch --force brings in is yours, not its author's (READY-09)", () => {
+    pushBranchAs(sb, "feature-a", "shared.txt", "from-a\n", "Alice Ng <alice@example.com>");
+    sb.pushBranch("feature-x", "shared.txt", "from-x\n");
+    sb.bootstrapFi();
+    assert.equal(runFi(["--add", "feature-a"], sb.work).status, 0);
+
+    // --force merges in the order named, so feature-a is the one that fails.
+    const r = runFi(["--force", "feature-x", "feature-a"], sb.work);
+    assert.equal(r.status, 1, r.stdout);
+    assert.match(r.stdout, /feature-a \(alice@example\.com\)\s+conflicts with feature-x/);
+    assert.doesNotMatch(r.stdout, /Message /);
+    assert.match(
+      r.stdout,
+      /^ {5}To fix: change feature-x so it no longer conflicts with feature-a \(Alice Ng\)$/m
+    );
+    assert.match(r.stdout, /Once your branches merge, run it again:\n {2}git fi --force feature-x feature-a\n/);
   });
 
   test("a hunk's control bytes are stripped before they reach the terminal (READY-04)", () => {

@@ -5,6 +5,14 @@ GitHub Release by the release workflow (`.github/workflows/release.yml`).
 
 <!-- releases below -->
 
+## v1.3.2 (2026-09-23)
+
+### Fixes
+
+- A conflict with a branch you're adding no longer drafts a message to anyone. You get the conflicting paths, the other branch and its author, and the fix to make yourself. This also applies to a branch that `--force` brings in.
+- When adding branches fails, the output ends with the command to run again once they merge. It names every branch you were adding, since a failed merge adds none of them.
+
+
 ## v1.3.1 (2026-09-23)
 
 ### Features

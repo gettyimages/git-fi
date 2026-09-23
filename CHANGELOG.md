@@ -5,6 +5,15 @@ GitHub Release by the release workflow (`.github/workflows/release.yml`).
 
 <!-- releases below -->
 
+## v1.3.1 (2026-09-23)
+
+### Features
+
+- A failed merge drafts a message for each failing branch's author, ready to paste into chat. It names the branch, the project, the first conflicting hunk (with the merge base between the two sides), and how to fix it. When the failing branch is yours, you get a heads-up to send the other branch's author instead.
+- Failures that collide with the same branch are listed first and together, so one conversation with that branch's author clears all of them.
+- `--json` on a failed merge gives each conflict an `author` (`name` and `email`), so a CI job can notify them. It's `null` when the branch's latest commit has an empty author email.
+
+
 ## v1.3.0 (2026-09-22)
 
 ### Breaking

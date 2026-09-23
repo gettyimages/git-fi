@@ -5,8 +5,11 @@ import {
   gitOutcome,
   branchAuthors,
   quotePathEnabled,
+  userEmail,
+  type Author,
 } from "./git.js";
 import { localBranchName, remoteRef } from "./branches.js";
+import { detectGitlabProject } from "./gitlab.js";
 
 /** A branch that could not be merged, and what stopped it (READY-03). */
 export interface BranchConflict {
@@ -16,6 +19,17 @@ export interface BranchConflict {
   with: string[];
   /** Paths merge-tree reported as conflicted. */
   paths: string[];
+  /** Which probe named `with`: the default branch, single peers, or only their combination. */
+  kind: "default" | "peer" | "combination";
+  /** The first conflicted hunk, diff3 style, where a conflicted file carries markers. */
+  chunk?: ConflictChunk;
+}
+
+export interface ConflictChunk {
+  path: string;
+  lines: string[];
+  /** Lines past the cap, counted rather than dropped silently. */
+  more: number;
 }
 
 /**
@@ -31,7 +45,7 @@ export type MergeOutcome =
 
 type MergeTreeResult =
   | { outcome: "merged"; tree: string }
-  | { outcome: "conflict"; paths: string[] }
+  | { outcome: "conflict"; tree: string; paths: string[] }
   | { outcome: "error" };
 
 // 40 hex for SHA-1, 64 for a SHA-256 repository.
@@ -43,7 +57,11 @@ export const OID = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 // non-ASCII byte intact: without it git C-quotes the path, and the quoted form
 // matches nothing on disk.
 function mergeTree(base: string, other: string): MergeTreeResult {
+  // diff3 puts the merge base's version between the two sides, so a conflicted
+  // hunk shows what each branch changed rather than only where they ended up.
   const { status, out } = gitOutcome([
+    "-c",
+    "merge.conflictStyle=diff3",
     "merge-tree",
     "--write-tree",
     "--name-only",
@@ -64,7 +82,46 @@ function mergeTree(base: string, other: string): MergeTreeResult {
     if (field === "") break;
     paths.push(field);
   }
-  return { outcome: "conflict", paths };
+  return { outcome: "conflict", tree, paths };
+}
+
+// Enough of a hunk for authors who know the code to recognize it; the preview
+// is a cue for the conversation, not the resolution.
+const CHUNK_LINES = 20;
+
+// Tabs survive; every other control is stripped, since a file's bytes printed
+// raw could repaint the terminal the same way an author's email could.
+function sanitizeLine(line: string): string {
+  return line.replace(/[\x00-\x08\x0a-\x1f\x7f-\x9f]/g, "");
+}
+
+/**
+ * The first conflicted hunk in the tree a failed merge-tree wrote. That tree
+ * carries git's conflict markers in each conflicted file, so this reads it with
+ * no checkout. A conflict with no markers — binary, modify/delete, rename —
+ * has no hunk to show, and the next path is tried.
+ */
+function firstChunk(tree: string, paths: string[]): ConflictChunk | undefined {
+  for (const path of paths) {
+    const blob = git(["cat-file", "blob", `${tree}:${path}`], { allowFailure: true });
+    if (blob === null) continue;
+    const lines = blob.split("\n");
+    const start = lines.findIndex((l) => l.startsWith("<<<<<<< "));
+    if (start < 0) continue;
+    const end = lines.findIndex((l, i) => i > start && l.startsWith(">>>>>>> "));
+    if (end < 0) continue;
+    // The markers carry the refs as merge-tree was given them; `origin/x` is
+    // the name the reader knows.
+    const hunk = lines
+      .slice(start, end + 1)
+      .map((l) => sanitizeLine(l).replace(/^(<{7}|>{7}) refs\/remotes\//, "$1 "));
+    return {
+      path,
+      lines: hunk.slice(0, CHUNK_LINES),
+      more: Math.max(0, hunk.length - CHUNK_LINES),
+    };
+  }
+  return undefined;
 }
 
 // Each clean step of the walk, so the next branch has a commit to merge onto.
@@ -133,26 +190,35 @@ export function mergeBranches(
         branch: localBranchName(branch),
         with: [defBranch],
         paths: vsDefault.paths,
+        kind: "default",
+        chunk: firstChunk(vsDefault.tree, vsDefault.paths),
       });
       continue;
     }
 
     const peers: string[] = [];
+    let firstPeerConflict: MergeTreeResult | null = null;
     for (const peer of merged) {
       const vsPeer = mergeTree(remoteRef(peer), ref);
       // An unrun probe read as "this peer is fine" empties the sweep, and the
       // fallback below then reports a combination-only failure: the confident
       // wrong answer, where the two probes above say nothing instead.
       if (vsPeer.outcome === "error") return giveUp();
-      if (vsPeer.outcome === "conflict") peers.push(peer);
+      if (vsPeer.outcome === "conflict") {
+        peers.push(peer);
+        firstPeerConflict ??= vsPeer;
+      }
     }
+    // A peer sweep can come up empty when the conflict only appears in the
+    // combination — say the branch to add against the merge of two others.
+    // Naming the set is the honest answer there.
+    const shown = firstPeerConflict?.outcome === "conflict" ? firstPeerConflict : result;
     conflicts.push({
       branch: localBranchName(branch),
-      // A peer sweep can come up empty when the conflict only appears in the
-      // combination — say the branch to add against the merge of two others.
-      // Naming the set is the honest answer there.
       with: (peers.length > 0 ? peers : merged).map(localBranchName),
       paths: result.paths,
+      kind: peers.length > 0 ? "peer" : "combination",
+      chunk: firstChunk(shown.tree, shown.paths),
     });
   }
 
@@ -174,6 +240,10 @@ export function mergeBranches(
 // counted rather than dropped silently.
 const PATHS_SHOWN = 5;
 
+// Sets the closing -r line apart from the messages, which run long enough that
+// a command straight after the last one reads as part of it.
+const RULE_WIDTH = 40;
+
 /** The conflicted paths as list items — a list of one is still a list. */
 function pathItems(paths: string[], opts: Options): string[] {
   const s = makeStyle(opts);
@@ -186,10 +256,38 @@ function pathItems(paths: string[], opts: Options): string[] {
 }
 
 /**
- * The failing branches with the remedy each one calls for (READY-04). `--force`
- * is deliberately absent: replacing fi with one branch discards the other
- * branches' integration instead of resolving anything, and naming the pair is
- * what makes the smaller fix — one or two rebases — visible.
+ * Most cleared first: a branch several failures collide with is one
+ * conversation that clears all of them, so its entries lead, grouped together.
+ * The sort is stable, so equal weights keep the merge's own order.
+ */
+function byMostCleared(conflicts: BranchConflict[], defBranch: string): BranchConflict[] {
+  const named = new Map<string, number>();
+  for (const c of conflicts) {
+    for (const w of c.with) {
+      if (w !== defBranch) named.set(w, (named.get(w) ?? 0) + 1);
+    }
+  }
+  const hub = (c: BranchConflict): string =>
+    c.with.reduce((best, w) => ((named.get(w) ?? 0) > (named.get(best) ?? 0) ? w : best), c.branch);
+  const weight = (c: BranchConflict): number => Math.max(1, named.get(hub(c)) ?? 0);
+  const firstSeen = new Map<string, number>();
+  conflicts.forEach((c, i) => {
+    if (!firstSeen.has(hub(c))) firstSeen.set(hub(c), i);
+  });
+  return [...conflicts].sort(
+    (a, b) => weight(b) - weight(a) || firstSeen.get(hub(a))! - firstSeen.get(hub(b))!
+  );
+}
+
+/**
+ * The failing branches, each with a message for the authors who can fix it
+ * (READY-04). The authors of the conflicting branches are the ones who resolve it, so the
+ * output hands the reader something to send them rather than a command that
+ * works around them. Where the branch is the reader's own there is nobody to
+ * message, and the commands print on their own.
+ *
+ * `--force` is deliberately absent: replacing fi with one branch discards the
+ * other branches' integration instead of resolving anything.
  */
 export function renderConflicts(
   conflicts: BranchConflict[],
@@ -199,17 +297,39 @@ export function renderConflicts(
 ): string {
   const s = makeStyle(opts);
   const authors = branchAuthors(defBranch);
+  const me = userEmail().toLowerCase();
+  const project = detectGitlabProject()?.project;
+  const where = project ? `${project}@fi` : "fi";
+  const quote = quotePathEnabled();
   const lines: string[] = [];
+  let messages = 0;
 
-  // Each branch carries its tip author, so the line says who owns the rebase
+  const author = (name: string): Author | undefined => authors.get(`origin/${name}`);
+
+  // Each branch carries its latest commit's author, so the line says who fixes it
   // rather than leaving the reader to work out whose branch it is. The default
   // branch is nobody's to rebase, so it is named bare.
   const owned = (name: string): string => {
-    const email = authors.get(`origin/${name}`);
-    return email ? `${name} (${email})` : name;
+    const a = author(name);
+    return a ? `${name} (${a.email})` : name;
   };
 
-  for (const c of conflicts) {
+  // The rebase stops at the conflict for someone to resolve, so the push is its
+  // own step after it rather than the end of one chain that reads as automatic.
+  const rebase = (branch: string): string[] => [
+    `1. git checkout ${shq(branch)} && git pull && git rebase origin/${shq(defBranch)}`,
+    "2. resolve the conflict, then git rebase --continue",
+    "3. git push --force-with-lease",
+  ];
+
+  const chunkLines = (c: BranchConflict, indent: string): string[] => {
+    if (!c.chunk) return [];
+    const out = c.chunk.lines.map((l) => `${indent}${l}`);
+    if (c.chunk.more > 0) out.push(`${indent}${s.dim(`… +${c.chunk.more} more lines`)}`);
+    return out;
+  };
+
+  for (const c of byMostCleared(conflicts, defBranch)) {
     const against = c.with
       .map((w) => (w === defBranch ? w : owned(w)))
       .join(", ");
@@ -218,21 +338,86 @@ export function renderConflicts(
     );
     lines.push(...pathItems(c.paths, opts));
 
-    if (c.with.length === 1 && c.with[0] === defBranch) {
-      lines.push(
-        `     ${s.bold(`git checkout ${shq(c.branch)} && git rebase origin/${shq(defBranch)} && git push --force-with-lease`)}`
-      );
-    } else {
-      const peers = c.with.join(" or ");
-      lines.push(
-        `     ${s.dim(`rebase ${c.branch} onto ${peers} (or the reverse) and settle the overlap there`)}`
-      );
+    // Keeping a branch mergeable is its author's job, fi or no fi, and fi merges
+    // in insertion order, so the branch that failed is the later arrival and
+    // its author is the one to adjust. Where that author is the reader, the
+    // peer's author gets a heads-up instead: there is nobody else to ask, and
+    // the overlap is still theirs to know about.
+    const owner = author(c.branch);
+    const ownerIsMe = !!owner && owner.email.toLowerCase() === me;
+    const peerAuthors: Author[] = [];
+    if (c.kind === "peer") {
+      for (const name of c.with) {
+        const a = author(name);
+        if (!a || a.email.toLowerCase() === me) continue;
+        if (!peerAuthors.some((r) => r.email === a.email)) peerAuthors.push(a);
+      }
     }
+    const headsUp = c.kind === "peer" && ownerIsMe;
+    const recipients: Author[] = headsUp
+      ? peerAuthors
+      : owner && !ownerIsMe
+        ? [owner]
+        : [];
+
+    const firstName = (a: Author): string => a.name.split(/\s+/)[0] || a.email;
+    const peers = c.with.join(" and ");
+    const peersNamed = c.with
+      .map((w) => {
+        const a = author(w);
+        return a?.name ? `${w} (${a.name})` : w;
+      })
+      .join(" and ");
+    const peerFirstNames = peerAuthors.map(firstName).join(" and ");
+    const path = quoteCStyle(c.chunk?.path ?? c.paths[0] ?? "", quote);
+    const peerFix = `change ${c.branch} so it no longer conflicts with ${peers}`;
+
+    // The hunk sits between the sentence that introduces it and what to do about it.
+    let intro: string;
+    let after: string[];
+    if (c.kind === "default") {
+      intro = c.chunk
+        ? `${c.branch} couldn't merge into ${where}; main changed the same lines in ${path}:`
+        : `${c.branch} couldn't merge into ${where}; it conflicts with main in ${path}.`;
+      after = ["To fix:", ...rebase(c.branch)];
+    } else if (headsUp) {
+      intro = `heads-up: my ${c.branch} overlaps your ${peers} in ${path} on ${where}${c.chunk ? ":" : "."}`;
+      after = [
+        `I'll adjust mine. Anything in flight on that file I should know about?`,
+      ];
+    } else if (c.kind === "peer") {
+      const verb = c.with.length === 1 ? "changes" : "change";
+      intro = c.chunk
+        ? `${c.branch} couldn't merge into ${where}: ${peersNamed} already ${verb} ${path}, and ${c.branch}'s change to the same lines conflicts with it:`
+        : `${c.branch} couldn't merge into ${where}: it conflicts with ${peersNamed} in ${path}.`;
+      after = [
+        peerFirstNames
+          ? `To fix: talk to ${peerFirstNames} about how the two changes should fit together.`
+          : `To fix: ${peerFix}.`,
+      ];
+    } else {
+      intro = `${c.branch} couldn't merge into ${where}. It merges cleanly with each branch on its own, but not with ${peers} together.`;
+      after = [];
+    }
+
+    if (recipients.length > 0) {
+      messages++;
+      const names = recipients.map(firstName).join(", ");
+      const to = recipients.map((r) => (r.name ? `${r.name} <${r.email}>` : r.email)).join(", ");
+      lines.push(`     ${s.bold(`Message ${to}:`)}`);
+      lines.push(`       hey ${names}, ${intro}`);
+      lines.push(...chunkLines(c, "         "));
+      lines.push(...after.map((l) => `       ${l}`));
+    } else {
+      lines.push(...chunkLines(c, "     "));
+      if (c.kind === "default") lines.push(...rebase(c.branch).map((l) => `     ${s.bold(l)}`));
+      if (c.kind === "peer") lines.push(`     ${s.bold(`To fix: ${peerFix}`)}`);
+    }
+    lines.push("");
   }
 
-  // The escape hatch, below the fixes and marked temporary: -r takes out only
-  // the named branches, so unlike -f the rest of fi survives. It defers the
-  // conflict rather than resolving it, which is why it is not offered first.
+  // Taking the failing branches out gets fi building for everyone else now;
+  // the messages above are what get those branches back in.
   //
   // A branch that failed on the way *in* was never added, so there is nothing
   // to remove and the line is only offered for the ones fi actually holds.
@@ -240,12 +425,11 @@ export function renderConflicts(
     .map((c) => c.branch)
     .filter((name) => inFi.has(name));
   if (removable.length > 0) {
-    lines.push("");
-    lines.push(
-      s.dim("Or temporarily remove them from fi — the conflict comes back when they do:")
-    );
-    lines.push(`  ${s.bold(`git fi -r ${removable.map(shq).join(" ")}`)}`);
+    lines.push(s.dim("─".repeat(RULE_WIDTH)));
+    lines.push("To get fi building again now, take the failing branches out:");
+    lines.push(`  ${s.greenBold(`git fi -r ${removable.map(shq).join(" ")}`)}`);
+    if (messages > 0) lines.push(s.dim("Then send the messages above, so they can be fixed and added back."));
   }
 
-  return lines.join("\n") + "\n";
+  return lines.join("\n").replace(/\n+$/, "") + "\n";
 }

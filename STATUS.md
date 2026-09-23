@@ -171,7 +171,7 @@ Merge Process
 | READY-01 | Behind count           | Covered | `src/git.ts` (`listRemoteBranches`, `cachedListing`, `branchReadiness`) |
 | READY-02 | Behind marker         | Covered | `src/style.ts` (`readinessMarker`, `withReadiness`), `src/commands.ts` (`cmdList`), `src/gitlab.ts` (`printCITable`) |
 | READY-03 | Merge-tree attribution | Covered | `src/readiness.ts` (`mergeBranches`, `mergeTree`, `commitTree`) |
-| READY-04 | Per-branch remedy     | Covered | `src/readiness.ts` (`renderConflicts`, `pathItems`), `src/style.ts` (`shq`, `quoteCStyle`), `src/git.ts` (`quotePathEnabled`) |
+| READY-04 | Per-branch remedy     | Covered | `src/readiness.ts` (`renderConflicts`, `byMostCleared`, `firstChunk`, `pathItems`), `src/style.ts` (`shq`, `quoteCStyle`), `src/git.ts` (`quotePathEnabled`, `branchAuthors`, `userEmail`) |
 | READY-05 | Attribution on failure | Covered | `src/merge.ts` (`mergeProcess`) |
 | READY-06 | Bounded probes        | Covered | `src/readiness.ts` (`mergeBranches`) |
 | READY-07 | Merged branch marker  | Covered | `src/git.ts` (`branchReadiness`, `mergedRemoteBranches`), `src/style.ts` (`strikeIfMerged`) |

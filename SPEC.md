@@ -133,29 +133,16 @@ Terminal Output
 
 `TERM-08` When a mutation operation is in progress and stdout is a TTY, git-fi shall print the branch display and update each action annotation (`<- ...`) in-place using cursor movement, progressing through a sequence of states where each state fully replaces the previous annotation text.
 
-**Initial state** — displayed when the branch list is first printed:
+| Action   | Initial         | Intermediate | Success         | Failure       |
+|----------|-----------------|--------------|-----------------|---------------|
+| add      | `<- new`        | steps        | `<- added`      | `<- failed`   |
+| remove   | `<- removing`   | none         | `<- removed`    | `<- failed`   |
+| force    | `<- replacing`  | steps        | `<- replaced`   | `<- failed`   |
+| again    | `<- re-merging` | steps        | `<- re-merged`  | `<- failed`   |
 
-| Action   | Initial annotation |
-|----------|--------------------|
-| add      | `<- new`           |
-| remove   | `<- removing`      |
-| force    | `<- replacing`     |
-| again    | `<- re-merging`    |
-
-**Intermediate states** — each overwrites the annotation in-place as the operation progresses:
-
-1. `<- merging` — before `git merge` (skipped when no branches to merge)
-2. `<- committing` — before `git commit`
-3. `<- pushing` — before `git push`
-
-**Terminal states** — the final annotation, styled green bold on success or red bold on failure:
-
-| Action   | Success annotation | Failure annotation |
-|----------|--------------------|--------------------|
-| add      | `<- added`         | `<- failed`        |
-| remove   | `<- removed`       | `<- failed`        |
-| force    | `<- replaced`      | `<- failed`        |
-| again    | `<- re-merged`     | `<- failed`        |
+- **Initial** — displayed when the branch list is first printed.
+- **Intermediate** — where the column reads *steps*, each step overwrites the annotation as the operation reaches it: `<- merging` before `git merge` (skipped when no branches to merge), `<- committing` before `git commit`, `<- pushing` before `git push`. Under remove the annotation sits beside the branch leaving fi, where `<- pushing` would read as that branch being pushed, so it holds its initial state.
+- **Success / Failure** — the terminal annotation, styled green bold on success or red bold on failure.
 
 `TERM-09` When stdout is not a TTY, git-fi shall print neither the branch display nor any annotation from `TERM-08`, and on success shall state the outcome once as `<verb> fi`:
 

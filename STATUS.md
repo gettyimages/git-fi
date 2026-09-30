@@ -84,7 +84,7 @@ Terminal Output
 | TERM-05 | Color disabled conditions    | Covered | `src/style.ts` (`colorEnabled`) |
 | TERM-06 | Progress on stderr           | Covered | `src/style.ts` (`createSpinner`), `src/gitlab.ts` (`fetchGitlabCI`) |
 | TERM-07 | Suppress progress when !TTY  | Covered | `src/style.ts` (`progressEnabled`) |
-| TERM-08 | Annotation lifecycle         | Covered | `src/merge.ts` (`mergeProcess`: `updateAnnotation`, `finalizeDone`, `finalizeError`) |
+| TERM-08 | Annotation lifecycle         | Covered | `src/merge.ts` (`mergeProcess`: `updateAnnotation`, `updateProgress`, `finalizeDone`, `finalizeError`) |
 | TERM-09 | Off-TTY: outcome line only   | Covered | `src/merge.ts` (`ACTION_OUTCOME`, `mergeProcess`: `finalizeDone`) |
 | TERM-10 | Status worded without glyphs | Covered | `src/gitlab.ts` (`statusLabel`, `STATUS_WORD`), `src/commands.ts` (`cmdList`) |
 

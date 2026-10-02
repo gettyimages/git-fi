@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join, delimiter } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
-import { runFi, makeSandbox, DIST_INDEX, type Sandbox } from "./helpers.ts";
+import { runFi, runFiOnTty, makeSandbox, DIST_INDEX, type Sandbox } from "./helpers.ts";
 
 const { name, version } = createRequire(import.meta.url)("../package.json");
 
@@ -597,6 +597,28 @@ describe("add / remove / list lifecycle", () => {
     sb.git(["checkout", "--quiet", "main"]);
     assert.equal(r.status, 0, r.stderr);
     assert.deepEqual(listedBranches(sb).sort(), ["feature-a", "feature-c"]);
+  });
+});
+
+describe("in-place annotations (TERM-08)", () => {
+  let sb: Sandbox;
+  before(() => {
+    sb = makeSandbox();
+    sb.pushBranch("feature-a", "a.txt", "a\n");
+    sb.pushBranch("feature-b", "b.txt", "b\n");
+    sb.bootstrapFi();
+    runFi(["--add", "feature-a", "feature-b"], sb.work);
+  });
+  after(() => sb.cleanup());
+
+  const annotations = (stdout: string) =>
+    [...stdout.matchAll(/<- ([\w-]+)/g)].map((m) => m[1]);
+
+  test("a removed branch reads removing until it reads removed", () => {
+    const r = runFiOnTty(["--remove", "feature-b"], sb.work);
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(annotations(r.stdout), ["removing", "removed"]);
+    assert.deepEqual(listedBranches(sb), ["feature-a"]);
   });
 });
 

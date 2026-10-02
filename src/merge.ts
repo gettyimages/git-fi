@@ -227,6 +227,9 @@ export async function mergeProcess(
   }
   const displayLines: string[] = [];
   const annotations: AnnotationInfo[] = [];
+  // The annotation the merge, commit, and push steps are written onto; remove
+  // has none, so its lines hold `<- removing` (TERM-08).
+  let progressAnn: AnnotationInfo | undefined;
 
   for (const b of mergeable) {
     const name = localBranchName(b);
@@ -240,7 +243,8 @@ export async function mergeProcess(
     if (action === "add" && actionSet.has(b)) {
       const baseLine = ` ${s.dim("*")} ${label}`;
       displayLines.push(`${baseLine}  ${s.dim("<- " + initialVerb)}`);
-      annotations.push({ lineIndex: displayLines.length - 1, branch: b, baseLine });
+      progressAnn = { lineIndex: displayLines.length - 1, branch: b, baseLine };
+      annotations.push(progressAnn);
     } else {
       displayLines.push(` ${s.dim("*")} ${label}`);
     }
@@ -258,7 +262,8 @@ export async function mergeProcess(
   if (["again", "force"].includes(action) || annotations.length === 0) {
     const baseLine = "";
     displayLines.push(`${s.dim("<- " + initialVerb)}`);
-    annotations.push({ lineIndex: displayLines.length - 1, branch: "", baseLine });
+    progressAnn = { lineIndex: displayLines.length - 1, branch: "", baseLine };
+    annotations.push(progressAnn);
   }
 
   // Printed once, up front, only because the annotations are about to be
@@ -286,11 +291,8 @@ export async function mergeProcess(
     rewriteAnnotation(ann, `${prefix}${s.dim("<- " + status)}`);
   }
 
-  function updateLastAnnotation(status: string) {
-    if (!tty) return;
-    const lastAnn = annotations[annotations.length - 1];
-    if (!lastAnn) return;
-    updateAnnotation(lastAnn, status);
+  function updateProgress(status: string) {
+    if (progressAnn) updateAnnotation(progressAnn, status);
   }
 
   function finalizeDone() {
@@ -348,7 +350,7 @@ export async function mergeProcess(
   // does not carry over: there is no merge for it to describe.
   let mergeSpin = null;
   if (mergeable.length > 0) {
-    updateLastAnnotation("merging");
+    updateProgress("merging");
     mergeSpin = createSpinner(`Merging ${mergeable.length} branches...`, opts);
   }
   let outcome: MergeOutcome;
@@ -359,7 +361,7 @@ export async function mergeProcess(
   }
 
   if (outcome.outcome === "merged") {
-    updateLastAnnotation("committing");
+    updateProgress("committing");
     const commitMsg = buildCommitMessage(mergeable, defBranch, commitFormat);
     // The parents a merge commit carries: the default branch fi is rebuilt
     // from, then each branch in the order it was merged.
@@ -387,7 +389,7 @@ export async function mergeProcess(
       );
     }
 
-    updateLastAnnotation("pushing");
+    updateProgress("pushing");
     // The commit is reachable from nothing local, so it is named by sha. A push
     // still moves refs/remotes/origin/fi, which is what the branch list printed
     // after this reads.

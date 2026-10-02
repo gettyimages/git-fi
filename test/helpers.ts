@@ -54,6 +54,16 @@ export function runFi(
   };
 }
 
+/**
+ * Run git-fi with stdout reporting itself as a TTY, so the in-place annotation
+ * rewrites (TERM-08) are drawn. Output is still captured through a pipe.
+ */
+export function runFiOnTty(args: string[], cwd: string): RunResult {
+  return runFi(args, cwd, {
+    NODE_OPTIONS: "--import=data:text/javascript,process.stdout.isTTY=true",
+  });
+}
+
 function git(repo: string, args: string[]): string {
   return execFileSync("git", args, {
     cwd: repo,

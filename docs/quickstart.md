@@ -156,6 +156,8 @@ git fi -r my-feature
 
 The `fi` branch is rebuilt with only the remaining branches.
 
+See [remove](commands.md#remove) for more information.
+
 ### 5. Use the interactive picker
 
 ```bash
@@ -166,6 +168,7 @@ Browse remote branches and select which ones to add or remove.
 
 ## Next Steps
 
+- [Daily Workflow](/daily-workflow) — a feature branch from first commit to `main`
 - [Basic Commands](/commands) — list, add, remove, and select
 - [Advanced Commands](/advanced) — force, again, pruning, and CI mode
 - [Merge Process](/merge-process) — what happens under the hood

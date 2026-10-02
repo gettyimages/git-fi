@@ -56,8 +56,6 @@ When your team has a finite number of pre-production environments — one stagin
 ```bash
 git fi                # see what's in fi
 git fi -a my-feature  # add your branch
-git fi -r my-feature  # remove it when done
-git fi -g             # rebuild fi with the same branches
 ```
 
 ## How git-fi Compares
@@ -214,5 +212,6 @@ git-fi is less useful when you practice trunk-based development with very short-
 ## Next Steps
 
 - [Quick Start](/quickstart) — install and run your first command
+- [Daily Workflow](/daily-workflow) — a feature branch from first commit to `main`
 - [Basic Commands](/commands) — list, add, remove, and interactive select
 - [Advanced Commands](/advanced) — force, again, pruning, and CI mode

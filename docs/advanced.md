@@ -30,13 +30,12 @@ Rebuild `fi` from the branches currently in it, on top of the current default br
 git fi -g
 ```
 
-This is the command to reach for when:
+Where CI runs `git fi -g` as a post-build job (see [Typical CI Workflow](ci-integration.md#typical-ci-workflow)), pushes already cover commits, `main` moving, and conflicts resolved upstream. Running it by hand on top starts a second `fi` pipeline. Run it yourself when:
 
-- You've force-pushed a feature branch and want `fi` to pick up the new commits
-- `main` has moved and you want `fi` rebuilt on top of it
-- A transient merge conflict has been resolved upstream
+- The repository has no post-build job, so nothing else rebuilds `fi`
+- You need a new build after a dependency `fi` builds against has changed
 - You want to verify that the current set of branches still integrates cleanly
-- You want to tidy `fi`, dropping branches that were deleted or have landed
+- You want to tidy `fi` now, dropping branches that were deleted or have landed, without waiting for the next rebuild
 
 That last point is the same thing as the others, not an extra mode: the [merge process](/merge-process) drops dead and already-merged branches on its way through, so re-merging is what prunes `fi`. See [Dead Branch Pruning](#dead-branch-pruning) below.
 
@@ -77,7 +76,7 @@ There's nothing left to clean up afterwards. A branch that has landed leaves `fi
 
 When running inside a CI pipeline (`CI=true`), git-fi includes pipeline context (build ID and triggering ref) in the `fi` commit message for traceability.
 
-The typical CI use case is a post-build job that runs `git fi -g` after a successful feature branch build, keeping the integration branch continuously up to date. Since `fi` already exists by then, that job runs non-interactively. To create `fi` for the first time from a pipeline, pass `--yes` (`-y`) so the bootstrap confirmation — which otherwise needs a terminal — is skipped.
+The typical CI use case is a post-build job that runs `git fi -g` after a successful build of `main` or of a branch in `fi`, keeping the integration branch continuously up to date. Since `fi` already exists by then, that job runs non-interactively.
 
 See [CI Integration](/ci-integration) for full details.
 

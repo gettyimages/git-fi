@@ -149,6 +149,8 @@ git fi -a
 
 All specified branches must exist on the remote. The `origin/` prefix is optional — `feature-auth` and `origin/feature-auth` are equivalent.
 
+Where CI runs `git fi -g` after each build, add a branch once its own pipeline has finished. [Daily Workflow](daily-workflow.md) follows a branch from there to `main`.
+
 ## remove
 
 Remove one or more branches from `fi`.
@@ -156,6 +158,13 @@ Remove one or more branches from `fi`.
 ```bash
 git fi -r feature-auth
 ```
+
+Reasons to take a branch out:
+
+- It conflicts with another branch or with `main`, so every rebuild of `fi` fails until it's rebased.
+- It breaks the staging environment `fi` deploys to, and nobody else can test there.
+
+A branch merged to `main` needs no removal. It leaves `fi` on the next rebuild, and until then [list](#list-default) shows it with the `merged` marker.
 
 If no branch name is given, the current working branch is used. Removing a branch that isn't in `fi` is silently ignored.
 

@@ -116,22 +116,35 @@ The variables below are GitLab CI's predefined names; a future forge integration
 
 This flow is forge-agnostic — it works on any CI that can run `git fi -g` after a build.
 
+A post-build job runs `git fi -g` after a successful build. It runs on the default branch's pipeline every time, and on a feature branch's pipeline only when that branch is in `fi`. In GitLab it's a job in the pipeline's last stage; in GitHub Actions, a job that `needs` the build.
+
 ```mermaid
 %%{ init: { 'look': 'handDrawn' } }%%
 flowchart LR
-  A[Push to feature branch] --> B[Feature branch pipeline]
-  B --> C{Build passes?}
-  C -- yes --> D[Post-build: git fi -g]
-  D --> E[fi branch pipeline]
-  E --> F[Deploy fi to staging]
-  C -- no --> G[Fix and push again]
+  subgraph pmain["main"]
+    direction LR
+    M1[build] --> M2[test] --> M3["rebuild fi<br/>git fi -g"]
+  end
+  subgraph pauth["feature-auth (in fi)"]
+    direction LR
+    A1[build] --> A2[test] --> A3["rebuild fi<br/>git fi -g"]
+  end
+  subgraph pother["feature-docs (not in fi)"]
+    direction LR
+    O1[build] --> O2[test] -.- O3["ends here:<br/>not deployable"]
+  end
+  subgraph pfi["fi"]
+    direction LR
+    F1[build] --> F2[test] --> F3[deploy to staging]
+  end
+  M3 --> pfi
+  A3 --> pfi
+  style O3 stroke-dasharray: 5 5
 ```
 
-1. Developer pushes to a feature branch
-2. Feature branch CI pipeline runs tests
-3. On success, a post-build job runs `git fi -g` to rebuild `fi`
-4. The updated `fi` branch triggers its own pipeline
-5. The `fi` pipeline deploys to a staging/candidate environment
+Each box is one branch's pipeline. A push to `feature-auth` rebuilds `fi` with its new commits. A merge to `main` rebuilds `fi` on top of it, dropping branches that are now [already merged](advanced.md#merged-branch-pruning). `feature-docs` isn't in `fi`, so its pipeline has no rebuild job and ends at test.
+
+Anything else that rebuilds `fi` while one of these pipelines is running starts a second `fi` pipeline. [Daily Workflow](daily-workflow.md) covers when to run `git fi` yourself alongside this job.
 
 This gives teams a continuously updated integration environment that reflects all in-flight work.
 

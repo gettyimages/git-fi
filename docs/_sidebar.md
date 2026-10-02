@@ -1,5 +1,6 @@
 - [Home](/home)
 - [Quick Start](/quickstart)
+- [Daily Workflow](/daily-workflow)
 - [Basic Commands](/commands)
 - [Advanced Commands](/advanced)
 - [Merge Process](/merge-process)

@@ -1,4 +1,4 @@
-- [Home](/home)
+- [Home](/)
 - [Quick Start](/quickstart)
 - [Daily Workflow](/daily-workflow)
 - [Basic Commands](/commands)

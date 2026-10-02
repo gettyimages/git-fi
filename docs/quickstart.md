@@ -168,7 +168,7 @@ Browse remote branches and select which ones to add or remove.
 
 ## Next Steps
 
-- [Daily Workflow](/daily-workflow) — a feature branch from first commit to `main`
+- [Daily Workflow](/daily-workflow) — a feature branch from first commit until it merges to `main`
 - [Basic Commands](/commands) — list, add, remove, and select
 - [Advanced Commands](/advanced) — force, again, pruning, and CI mode
 - [Merge Process](/merge-process) — what happens under the hood

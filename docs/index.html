@@ -245,6 +245,49 @@
 <body class="notranslate" translate="no">
   <div id="app"></div>
   <script>
+    // The search plugin indexes each block's raw markdown (token.text), so
+    // its results show link syntax, backticks, and tags, and a linked or HTML
+    // heading slugs to an id no heading has. Hand search a lexer whose
+    // tokens carry the text the page renders: the snippet is cut from plain
+    // text, and a heading's plain text slugs to the id docsify renders.
+    // Only search reads window.marked.lexer; pages render through the marked
+    // docsify captured at startup, so swapping window.marked leaves them be.
+    function searchPlainText(hook) {
+      hook.init(function () {
+        var marked = window.marked;
+        var lex = marked.lexer;
+        function text(html) {
+          return new DOMParser().parseFromString(html, 'text/html').body.textContent.trim();
+        }
+        // docsify slugs a heading's rendered HTML, trimming it before it
+        // strips the tags, so <img> Name gets the id "-name" where the plain
+        // text would slug to "name". These are its slugify rules without the
+        // per-page counter, which the index's own slugify still applies.
+        var SLUG_PUNCT = /[\u2000-\u206F\u2E00-\u2E7F\\'!"#$%&()*+,./:;<=>?@[\]^`{|}~]/g;
+        function pageId(html) {
+          return html.trim().replace(/[A-Z]+/g, function (s) { return s.toLowerCase(); })
+            .replace(/<[^>]+>/g, '').replace(SLUG_PUNCT, '')
+            .replace(/\s/g, '-').replace(/-+/g, '-').replace(/^(\d)/, '_$1');
+        }
+        function heading(md) {
+          // Inline only: the heading renderer advances docsify's slug
+          // counter, which would shift every indexed id to "<id>-1".
+          var html = marked.parseInline(md);
+          return /</.test(html) ? text(html) + ' :id=' + pageId(html) : text(html);
+        }
+        function lexer(src, options) {
+          var tokens = lex(src, options);
+          tokens.forEach(function (token) {
+            if (token.type === 'heading') token.text = heading(token.text);
+            else if (token.type === 'code') token.text = token.lang === 'mermaid' ? '' : token.text;
+            else if (token.type !== 'space') token.text = text(marked(token.raw));
+          });
+          return tokens;
+        }
+        window.marked = Object.assign(function () { return marked.apply(this, arguments); }, marked, { lexer: lexer });
+      });
+    }
+
     window.$docsify = {
       name: 'git-fi',
       // nameLink is intentionally omitted: Docsify defaults it to
@@ -264,6 +307,7 @@
         noData: 'No results',
         depth: 5
       },
+      plugins: [searchPlainText],
       mermaidConfig: {
         querySelector: '.mermaid',
         theme: 'dark',

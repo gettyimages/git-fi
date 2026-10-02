@@ -1,27 +1,32 @@
 # Daily Workflow
 
-A feature usually takes a few days: scope it and get to a first commit, iterate, then ship. This page follows one branch, `feature-search`, through that week in a repository where CI runs `git fi -g` after each build (see [CI Integration](ci-integration.md#typical-ci-workflow)).
+A feature usually takes a few days. It starts in *isolation*, where its pipeline tests it alone. When it's ready to be tested in **collaboration** with the rest of the in-flight work, you add it to `fi`. Merging it to `main` ships it. This page follows one branch, `feature-search`, through that week in a repository where CI rebuilds `fi` after each build (see [CI Integration](ci-integration.md#typical-ci-workflow)). Select a step to jump to it.
 
 ```mermaid
 %%{ init: { 'look': 'handDrawn' } }%%
 flowchart LR
-  subgraph d1["Day 1: enlist"]
-    direction TB
-    A1[Create branch, first commit, push] --> A2[Branch pipeline finishes] --> A3[git fi -a]
+  subgraph iso["Day 1: in isolation"]
+    S[Start a branch] --> I[Test alone]
+    I -- push --> I
   end
-  subgraph d2["Days 2–4: iterate"]
-    direction TB
-    B1[Push to the branch] --> B2[Pipeline rebuilds fi] --> B3[Test in staging]
-    B3 -.-> B1
+  subgraph col["Days 2–4: in collaboration"]
+    E[Add to fi] --> C[Test together]
+    C -- push --> C
   end
-  subgraph d5["Day 5: ship"]
-    direction TB
-    C1[Merge to main] --> C2[main's pipeline rebuilds fi without the branch]
+  subgraph shp["Day 5: shipped"]
+    M[Merge to main] --> L[Leaves fi]
   end
-  d1 --> d2 --> d5
+  I -- ready to deploy --> E
+  C -- done --> M
+  click S "#/daily-workflow?id=day-1-start-in-isolation"
+  click I "#/daily-workflow?id=day-1-start-in-isolation"
+  click E "#/daily-workflow?id=days-24-test-in-collaboration"
+  click C "#/daily-workflow?id=days-24-test-in-collaboration"
+  click M "#/daily-workflow?id=day-5-ship-it"
+  click L "#/daily-workflow?id=day-5-ship-it"
 ```
 
-## Day 1: Scope the work and enlist
+## Day 1: Start in isolation
 
 Create the branch, get to a first commit, and push it:
 
@@ -31,19 +36,22 @@ git commit -m "Add search endpoint"
 git push -u origin feature-search
 ```
 
-Once the branch's pipeline finishes, add it to `fi`:
+The branch's pipeline builds and tests it on its own. Keep pushing until the feature is far enough along that you'd want to see it running.
+
+## Days 2–4: Test in collaboration
+
+When you're ready to deploy the feature to the shared environment, add the branch to `fi`:
 
 ```bash
 git fi -a
 ```
 
-With no branch name, `-a` adds the branch you're on. It rebuilds `fi` and pushes it, which starts a `fi` pipeline. Waiting for the branch pipeline first is what keeps that to one: added while its pipeline is still running, the branch is in `fi` by the time the pipeline finishes, so the post-build job starts a second `fi` pipeline for the same commits.
+With no branch name, `-a` adds the branch you're on. It merges your branch with every other branch in `fi` and pushes the result, and `fi`'s pipeline deploys it to staging. From there your feature runs alongside everyone else's in-flight work, so a conflict or a broken interaction shows up now rather than at merge time. Add it from a commit whose pipeline has finished: added mid-pipeline, the branch is already in `fi` when that pipeline's post-build job rebuilds it, which starts a second `fi` pipeline for the same commits.
 
-## Days 2–4: Iterate
+Keep pushing to the branch. Each push rebuilds `fi` with your new commits, so staging has them once the branch's pipeline finishes. `git fi` shows what `fi` holds and, with a GitLab token, each branch's pipeline status.
 
-Keep pushing to the branch. Each push runs the branch pipeline, and its post-build job rebuilds `fi` with your new commits and deploys it to staging, alongside everyone else's in-flight work. When you want to try the feature in the integrated environment, it's already there once that pipeline finishes. `git fi` shows what `fi` holds and, with a GitLab token, each branch's pipeline status.
-
-The push is the rebuild, so there's no `git fi -g` to run. A manual one on top starts a second `fi` pipeline. [again](advanced.md#again) lists the cases where running it yourself is right.
+> [!TIP|label:Let CI rebuild fi]
+> A post-build `git fi -g` job keeps `fi` current on every push, so nobody has to remember to rebuild it (see [Typical CI Workflow](ci-integration.md#typical-ci-workflow)). Running `git fi -g` by hand on top of it starts a second `fi` pipeline; [again](advanced.md#again) lists the cases where running it yourself is right.
 
 If a rebuild fails, the job log names the branch at fault and what it conflicts with (see [Conflict Handling](merge-process.md#conflict-handling)):
 

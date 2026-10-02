@@ -212,6 +212,6 @@ git-fi is less useful when you practice trunk-based development with very short-
 ## Next Steps
 
 - [Quick Start](/quickstart) — install and run your first command
-- [Daily Workflow](/daily-workflow) — a feature branch from first commit to `main`
+- [Daily Workflow](/daily-workflow) — a feature branch from first commit until it merges to `main`
 - [Basic Commands](/commands) — list, add, remove, and interactive select
 - [Advanced Commands](/advanced) — force, again, pruning, and CI mode

@@ -149,7 +149,7 @@ git fi -a
 
 All specified branches must exist on the remote. The `origin/` prefix is optional — `feature-auth` and `origin/feature-auth` are equivalent.
 
-Where CI runs `git fi -g` after each build, add a branch once its own pipeline has finished. [Daily Workflow](daily-workflow.md) follows a branch from there to `main`.
+Add a branch when it's ready to be tested along with the rest of the in-flight work, typically when you want it deployed to the shared environment. [Daily Workflow](daily-workflow.md) follows a branch from its first push until it merges to `main`.
 
 ## remove
 

@@ -64,7 +64,7 @@ justfile       Task runner wrapping the npm scripts
 src/           TypeScript implementation
 test/          Integration suite (Node test runner)
 docs/          Docsify documentation site
-scripts/       Build-time generators, the npm postinstall, the trial:on/off helper
+scripts/       Build-time generators, the npm postinstall, the trial:on/off helper, the docs server
 man/           Generated man page (git-fi.1)
 completions/   Generated bash + zsh completions (_git-fi, _git_fi, git-fi.bash)
 ```

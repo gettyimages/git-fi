@@ -17,7 +17,8 @@
     "verify:generated": "node --import tsx scripts/gen-docs.ts --check",
     "prepublishOnly": "npm test",
     "trial:on": "bash scripts/trial.sh on",
-    "trial:off": "bash scripts/trial.sh off"
+    "trial:off": "bash scripts/trial.sh off",
+    "docs": "node scripts/serve-docs.mjs"
   },
   "files": [
     "dist",

@@ -288,6 +288,26 @@
       });
     }
 
+    // docsify scrolls to a ?id= heading only when the click's target, or its
+    // parent, has tagName 'A'. A mermaid `click` link is an SVG <a> (tagName
+    // 'a') around a label <p>, so docsify takes the hash change for back or
+    // forward and leaves the page where it is. Replay the click on an HTML
+    // link so docsify sees a link navigation.
+    function mermaidLinks(hook) {
+      hook.mounted(function () {
+        document.addEventListener('click', function (e) {
+          var svgLink = e.target.closest('.mermaid a');
+          if (!svgLink) return;
+          e.preventDefault();
+          var link = document.createElement('a');
+          link.href = svgLink.getAttribute('xlink:href') || svgLink.getAttribute('href');
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+        });
+      });
+    }
+
     window.$docsify = {
       name: 'git-fi',
       // nameLink is intentionally omitted: Docsify defaults it to
@@ -307,7 +327,7 @@
         noData: 'No results',
         depth: 5
       },
-      plugins: [searchPlainText],
+      plugins: [searchPlainText, mermaidLinks],
       mermaidConfig: {
         querySelector: '.mermaid',
         theme: 'dark',

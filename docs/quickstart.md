@@ -8,111 +8,9 @@ git-fi is a git subcommand: once the `git-fi` binary is on your `PATH`, invoke i
 npm install -g @gettyimages/git-fi
 ```
 
-This puts `git-fi` on your `PATH`, which is what makes the `git fi` subcommand work. To preview without installing (this runs as `npx @gettyimages/git-fi`, **not** `git fi`):
+To try it without installing, run `npx @gettyimages/git-fi --help` (this runs as `npx @gettyimages/git-fi`, not `git fi`).
 
-```bash
-npx @gettyimages/git-fi --help
-```
-
-The install checks git first and stops if it is older than 2.41.0, naming the version it found. Where the git you have is the one your platform gives you (a long-support distribution, Apple's command line tools), `npm install -g @gettyimages/git-fi@1.2.2` is the last release that runs on git 2.13 and newer.
-
-> [!TIP|label:Migrating from older versions]
-> 💎 git-fi shipped as a Ruby gem through 0.9.3400163. `git fi` runs whichever `git-fi` comes first on your `PATH`, so remove the gem before you install the npm package:
->
-> ```bash
-> gem uninstall git-fi
-> npm install -g @gettyimages/git-fi
-> ```
->
-> Use `gem uninstall` rather than deleting the gem's files.
->
-> Then open a new shell and run `git fi --version`. If it reports a `0.x` version, or fails with `cannot load such file` or `Maybe git-fi is broken?`, an older `git-fi` is ahead of npm's on your `PATH`. List them in resolution order and delete any outside npm's own prefix (`npm config get prefix`):
->
-> ```bash
-> which -a git-fi
-> ```
->
-> If `git fi` doesn't reach git-fi at all, ask through npx instead:
->
-> ```bash
-> npx @gettyimages/git-fi --version
-> ```
->
-> That names the `git-fi` your `PATH` resolves, so you can see which file to remove.
-
-> [!TIP|label:Migrating on Windows]
-> Where Ruby is installed system-wide (under `C:\tools`, say), run `gem uninstall` from an administrator shell, then confirm it with `gem list git`.
->
-> To list every `git-fi` in resolution order:
->
-> ```powershell
-> Get-Command git-fi -All
-> ```
->
-> `Get-Command` cannot run a launcher with no file extension, so it leaves that one out — if `git fi` fails with `Program 'git-fi' failed to run` or `Maybe git-fi is broken?`, check Ruby's `bin` directory directly.
-
-### Updating
-
-```bash
-git fi --update
-```
-
-Installs the latest published version, from any directory. git-fi prints a one-line notice naming this command when a newer version is out, so you don't have to check.
-
-If that reports an unknown option, you're on a version that predates the flag; update once with npm and you'll have it:
-
-```bash
-npm install -g @gettyimages/git-fi
-```
-
-> Working on git-fi itself? The [README](https://github.com/gettyimages/git-fi#readme) covers running from source.
-
-### Getting help
-
-```bash
-git fi -h        # quick summary
-git fi help      # same summary (a plain subcommand)
-git fi --help    # opens the man page
-```
-
-`git` itself intercepts `git fi --help` and routes it to `man git-fi` — so it works once the man page is installed (it ships with the npm package). `git fi -h` and `git fi help` reach git-fi directly and always print the summary.
-
-### Shell completion
-
-In zsh, `npm install -g` sets this up for you — open a new shell and press `<TAB>`:
-
-```zsh
-git fi <TAB>          # actions, options, subcommands
-git fi --add <TAB>    # origin branches not yet in fi
-git fi --remove <TAB> # only branches currently in fi
-```
-
-The install writes the completion files into npm's own prefix (`$(npm config get prefix)/share/zsh/site-functions`), the directory Homebrew and `/usr/local` zsh setups already read.
-
-If `git fi <TAB>` offers filenames instead, that directory isn't on your `fpath`. Install into one that is — this creates it if needed and tells you what it wrote:
-
-```zsh
-git fi install-completions --write "${fpath[1]}"
-autoload -Uz compinit && compinit
-```
-
-For bash, add one line to `~/.bashrc` (git's bash completion has to be loaded first):
-
-```bash
-source <(git fi install-completions bash)
-```
-
-<details>
-<summary>Packaging git-fi, or placing the files yourself?</summary>
-
-`install-completions <bash|zsh|zsh-git>` prints a single script to stdout, so you can put it wherever your packaging wants. The two zsh files exist because two providers dispatch `git fi`, and which one is live depends on the git install: zsh's built-in `_git` calls `_git-fi`, while git's own completion wrapper (what ships with git, and what you get on macOS/Homebrew) calls `_git_fi`. Installing both covers either one, since each provider loads only the file it dispatches to.
-
-```zsh
-git fi install-completions zsh     > "${fpath[1]}/_git-fi"
-git fi install-completions zsh-git > "${fpath[1]}/_git_fi"
-```
-
-</details>
+On older git, or upgrading from the Ruby gem? See [Troubleshooting](/troubleshooting).
 
 ## Your First Integration
 
@@ -166,9 +64,60 @@ git fi -s
 
 Browse remote branches and select which ones to add or remove.
 
+## Setup
+
+### Updating
+
+```bash
+git fi --update
+```
+
+Installs the latest published version, from any directory. git-fi prints a one-line notice naming this command when a newer version is out, so you don't have to check.
+
+> Working on git-fi itself? The [README](https://github.com/gettyimages/git-fi#readme) covers running from source.
+
+### Getting help
+
+```bash
+git fi -h        # quick summary
+git fi help      # same summary (a plain subcommand)
+git fi --help    # opens the man page
+```
+
+`git` itself intercepts `git fi --help` and routes it to `man git-fi` — so it works once the man page is installed (it ships with the npm package). `git fi -h` and `git fi help` reach git-fi directly and always print the summary.
+
+### Shell completion
+
+In zsh, `npm install -g` sets this up for you — open a new shell and press `<TAB>`:
+
+```zsh
+git fi <TAB>          # actions, options, subcommands
+git fi --add <TAB>    # origin branches not yet in fi
+git fi --remove <TAB> # only branches currently in fi
+```
+
+For bash, add one line to `~/.bashrc` (git's bash completion has to be loaded first):
+
+```bash
+source <(git fi install-completions bash)
+```
+
+<details>
+<summary>Packaging git-fi, or placing the files yourself?</summary>
+
+`install-completions <bash|zsh|zsh-git>` prints a single script to stdout, so you can put it wherever your packaging wants. The two zsh files exist because two providers dispatch `git fi`, and which one is live depends on the git install: zsh's built-in `_git` calls `_git-fi`, while git's own completion wrapper (what ships with git, and what you get on macOS/Homebrew) calls `_git_fi`. Installing both covers either one, since each provider loads only the file it dispatches to.
+
+```zsh
+git fi install-completions zsh     > "${fpath[1]}/_git-fi"
+git fi install-completions zsh-git > "${fpath[1]}/_git_fi"
+```
+
+</details>
+
 ## Next Steps
 
 - [Daily Workflow](/daily-workflow) — a feature branch from first commit until it merges to `main`
 - [Basic Commands](/commands) — list, add, remove, and select
 - [Advanced Commands](/advanced) — force, again, pruning, and CI mode
 - [Merge Process](/merge-process) — what happens under the hood
+- [Troubleshooting](/troubleshooting) — older git, upgrading from the Ruby gem, completion setup

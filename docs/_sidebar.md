@@ -5,4 +5,5 @@
 - [Advanced Commands](/advanced)
 - [Merge Process](/merge-process)
 - [CI Integration](/ci-integration)
+- [Troubleshooting](/troubleshooting)
 - [Specification](/spec)

@@ -1,8 +1,18 @@
-<img class="gf-hero" src="hero.svg" alt="git-fi: feature branches curving into a single fi integration branch, where conflicts surface early before reaching main.">
-
 # git-fi
 
 A git plugin that maintains a temporary integration branch named `fi`. Merge multiple in-progress feature branches together to detect conflicts early and test features in collaboration — before they land on `main`.
+
+## Get Started
+
+<div class="gf-start">
+
+```bash
+npm install -g @gettyimages/git-fi   # needs Node.js 22+ and git 2.41+
+```
+
+</div>
+
+Then run your first integration with the [Quick Start](/quickstart), or follow a branch from first commit to `main` in the [Daily Workflow](/daily-workflow).
 
 ## The Problem
 
@@ -50,13 +60,6 @@ Teams use `fi` to:
 - **Deploy combinations** of features to a staging environment for validation
 
 When your team has a finite number of pre-production environments — one staging server, one QA box — `fi` replaces the mutex. Instead of deploying one feature branch at a time while others wait, `fi` combines them so the environment serves all in-flight work simultaneously.
-
-## Quick Example
-
-```bash
-git fi                # see what's in fi
-git fi -a my-feature  # add your branch
-```
 
 ## How git-fi Compares
 

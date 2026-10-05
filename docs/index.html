@@ -49,7 +49,15 @@
       --code-font-family: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
       --code-font-size: 0.86em;
 
+      /* The base theme derives its chevrons, search field, and borders from a
+         blue accent and blue-grey neutrals; point both at the darkroom hues. */
+      --theme-color: var(--gf-accent);
+      --mono-hue: 35;
+      --mono-saturation: 14%;
+
       --sidebar-width: 290px;
+      --sidebar-name-text-align: left;
+      --search-input-background-color: var(--gf-elevated);
       --base-background-color: var(--gf-canvas);
       --base-color: var(--gf-text);
       --sidebar-background: var(--gf-sidebar);
@@ -92,9 +100,18 @@
     }
     .markdown-section h2 { letter-spacing: -0.01em; }
     .app-name-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5em;
       font-family: var(--heading-font-family) !important;
       font-weight: 700 !important;
       letter-spacing: -0.01em;
+    }
+    .app-name-link::before {
+      content: "";
+      width: 1.5em;
+      height: 1.5em;
+      background: url(favicon.svg) center / contain no-repeat;
     }
 
     /* Warm code surfaces (dracula tokens on a darkroom-matched background) */
@@ -107,16 +124,30 @@
     }
     .markdown-section pre { border: 1px solid var(--gf-divider); border-radius: 10px; }
 
-    /* The hero banner on the home page */
-    .gf-hero {
-      display: block;
-      width: 100%;
-      height: auto;
-      border: 1px solid var(--gf-divider);
-      border-radius: 14px;
-      margin: 0.5rem 0 2.75rem;
-      box-shadow: 0 24px 60px -28px rgba(0, 0, 0, 0.8);
+    /* Home page: the title carries the convergence mark, and the lede and
+       the Get Started commands sit above the fold. */
+    body[data-page="home.md"] .markdown-section > h1:first-child {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      font-size: clamp(2.6rem, 7vw, 3.75rem);
+      margin: 0.75rem 0 0.5rem;
     }
+    body[data-page="home.md"] .markdown-section > h1:first-child::after {
+      content: "";
+      flex: 1 1 auto;
+      max-width: 340px;
+      height: 1.4em;
+      margin-left: auto;
+      background: url(mark.svg) right center / contain no-repeat;
+    }
+    body[data-page="home.md"] .markdown-section > h1:first-child + p {
+      font-size: 1.15rem;
+      color: var(--gf-heading);
+      max-width: 38em;
+    }
+    .markdown-section .gf-start pre { border-left: 3px solid var(--gf-accent); }
+    .markdown-section .gf-start .docsify-copy-code-button { opacity: 1; }
 
     /* Visible focus ring (keyboard accessibility, >= 3:1) */
     a:focus-visible,
@@ -239,6 +270,7 @@
 
     @media screen and (min-width: 768px) {
       .sidebar-toggle { display: none; }
+      .markdown-section .gf-start pre { font-size: 1.02rem; }
     }
   </style>
 </head>

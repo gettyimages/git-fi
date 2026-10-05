@@ -5,6 +5,17 @@ GitHub Release by the release workflow (`.github/workflows/release.yml`).
 
 <!-- releases below -->
 
+## v1.3.3 (2026-10-05)
+
+### Fixes
+
+- On a terminal, `git fi -r` shows the branch you're removing as `removing` until it reads `removed`, instead of stepping through `merging`, `committing`, and `pushing` beside a branch that is leaving `fi`.
+
+### Other
+
+- The docs add a Daily Workflow guide that follows a branch from its first push to its merge, and a Troubleshooting page. The command reference says when to add a branch and when to take one out.
+
+
 ## v1.3.2 (2026-09-23)
 
 ### Fixes

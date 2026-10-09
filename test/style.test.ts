@@ -134,19 +134,7 @@ describe("hyperlinksEnabled (GITLAB-04)", () => {
 
 // The suite runs off a TTY, so these are the CI-log renderings (GITLAB-09).
 describe("link rendering", () => {
-  const compare = "https://gitlab.example.com/group/proj/-/compare/main...feature-a";
   const s = makeStyle(OPTS);
-
-  test("linkOrMarkdown writes the address out, which an escape sequence would lose", () => {
-    assert.equal(s.linkOrMarkdown("feature-a", compare), `[feature-a](${compare})`);
-    assert.doesNotMatch(s.linkOrMarkdown("feature-a", compare), /\x1b\]8;;/);
-  });
-
-  test("the fallback pastes into Slack or an issue as a live link", () => {
-    // The reason it is markdown and not `text (url)`: a line lifted out of a
-    // build log keeps working wherever it lands.
-    assert.equal(s.linkOrMarkdown("feat/oauth", compare), `[feat/oauth](${compare})`);
-  });
 
   test("link drops to plain text, keeping the table narrow", () => {
     assert.equal(s.link("1284412", "https://gitlab.example.com/group/proj/-/pipelines/1284412"), "1284412");
@@ -164,7 +152,7 @@ describe("readiness rendering (READY-02, READY-07)", () => {
   const landed: BranchReadiness = { ahead: 0, behind: 14, merged: true };
 
   test("a trailing branch carries the arrow where it will be drawn", () => {
-    withEnv({ NO_COLOR: undefined }, () => {
+    withEnv({ NO_COLOR: undefined, CI: undefined }, () => {
       assert.equal(
         withReadiness("feature-a", behind(12), OPTS, true).replace(/\x1b\[[0-9;]*m/g, ""),
         "feature-a ↓12"
@@ -173,7 +161,21 @@ describe("readiness rendering (READY-02, READY-07)", () => {
   });
 
   test("and the word where it will not (TERM-10)", () => {
-    assert.equal(withReadiness("feature-a", behind(12), OPTS, false), "feature-a behind 12");
+    withEnv({ CI: undefined }, () => {
+      assert.equal(withReadiness("feature-a", behind(12), OPTS, false), "feature-a behind 12");
+    });
+  });
+
+  test("under $CI the count is left out", () => {
+    withEnv({ CI: "true" }, () => {
+      assert.equal(withReadiness("feature-a", behind(12), OPTS, false), "feature-a");
+    });
+  });
+
+  test("merged still shows under $CI", () => {
+    withEnv({ CI: "true" }, () => {
+      assert.equal(withReadiness("bugfix-nav", landed, OPTS, false), "bugfix-nav merged");
+    });
   });
 
   test("a branch level with the default branch carries nothing", () => {

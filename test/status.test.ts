@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { STATUS_EMOJI, STATUS_WORD, statusLabel } from "../src/gitlab.ts";
+import { STATUS_EMOJI, STATUS_WORD, printBranchLinks, statusLabel } from "../src/gitlab.ts";
 import type { Options } from "../src/types.ts";
 
 const PLAIN: Options = {
@@ -30,5 +30,45 @@ describe("statusLabel", () => {
 
   test("an unrecognized status renders as nothing, not as 'undefined'", () => {
     assert.equal(statusLabel("no-such-status", PLAIN), "");
+  });
+});
+
+describe("printBranchLinks (GITLAB-09)", () => {
+  const gitlab = { host: "gitlab.example.com", project: "group/proj" };
+  const OPTS: Options = { ...PLAIN, bare: false };
+
+  function capture(fn: () => void): string {
+    const write = process.stdout.write;
+    let out = "";
+    process.stdout.write = ((chunk: string) => {
+      out += chunk;
+      return true;
+    }) as typeof process.stdout.write;
+    try {
+      fn();
+    } finally {
+      process.stdout.write = write;
+    }
+    return out;
+  }
+
+  test("lists each compare URL on its own line, aligned, below the table", () => {
+    const out = capture(() =>
+      printBranchLinks(["origin/feature-auth", "origin/fix"], gitlab, "main", OPTS)
+    );
+    assert.equal(
+      out,
+      "\n" +
+        "feature-auth  https://gitlab.example.com/group/proj/-/compare/main...feature-auth\n" +
+        "fix           https://gitlab.example.com/group/proj/-/compare/main...fix\n"
+    );
+  });
+
+  test("prints nothing without a GitLab project to link to", () => {
+    assert.equal(capture(() => printBranchLinks(["origin/fix"], null, "main", OPTS)), "");
+  });
+
+  test("prints nothing for an empty fi", () => {
+    assert.equal(capture(() => printBranchLinks([], gitlab, "main", OPTS)), "");
   });
 });

@@ -38,16 +38,16 @@ pass show gitlab/git-fi | git fi --auth=login
 Once a token resolves, `git fi` (list mode) shows each branch's pipeline status in a table, followed by a line for the `fi` branch's own pipeline:
 
 ```text
-Branch             │ Date       │ Author │ Pipeline
-───────────────────┼────────────┼────────┼──────────
-feature-auth       │ 2026-03-30 │ Alice  │ 11111 ✅
-feature-search ↓12 │ 2026-03-30 │ Bob    │ 22222 ⏳
+Branch             │ Date       │ Author │ Pipeline │ Status
+───────────────────┼────────────┼────────┼──────────┼───────
+feature-auth       │ 2026-03-30 │ Alice  │ 11111    │ ✅
+feature-search ↓12 │ 2026-03-30 │ Bob    │ 22222    │ ⏳
 fi: #12345 ⏳
 ```
 
 ### Status Indicators
 
-Each pipeline's GitLab status maps to an emoji on a terminal, and to a word anywhere the emoji would land in plain text — a job log, a piped run, `--bare`, `--json`, or `NO_COLOR`. The status is the only thing in that cell, so it has to survive being read as text.
+Each pipeline's GitLab status maps to an emoji on a terminal, and to a word anywhere the emoji would land in plain text — a job log, a piped run, `--bare`, `--json`, or `NO_COLOR`. The status is the only thing in its column, so it has to survive being read as text.
 
 | Emoji | Plain text | GitLab status | Meaning |
 |-------|------------|---------------|---------|
@@ -79,16 +79,19 @@ Off a terminal, git-fi drops the animated branch display it can't animate and st
 
 ```text
 re-merged fi
-Branch                                                                                  │ Date       │ Author │ Pipeline
-────────────────────────────────────────────────────────────────────────────────────────┼────────────┼────────┼──────────────
-[feature-auth](https://gitlab.example.com/group/proj/-/compare/main...feature-auth)     │ 2026-03-30 │ Alice  │ 11111 success
-[feature-search](https://gitlab.example.com/group/proj/-/compare/main...feature-search) │ 2026-03-30 │ Bob    │ 22222 running
+Branch         │ Date       │ Author │ Pipeline │ Status
+───────────────┼────────────┼────────┼──────────┼────────
+feature-auth   │ 2026-03-30 │ Alice  │ 11111    │ success
+feature-search │ 2026-03-30 │ Bob    │ 22222    │ running
 fi: #12345 running
+
+feature-auth    https://gitlab.example.com/group/proj/-/compare/main...feature-auth
+feature-search  https://gitlab.example.com/group/proj/-/compare/main...feature-search
 ```
 
 The outcome verb names the action: `added to fi`, `removed from fi`, `replaced fi`, `re-merged fi`. Everything below it is the resulting state of `fi`, so a job log is two facts deep: what happened, and which branches `fi` holds now.
 
-On a terminal the branch name is a clickable link to that comparison and the table stays narrow. A job log can't render the escape sequence, so the reference is written out as markdown — copy a row into Slack, an issue, or an MR comment and the link works there. Pipeline IDs stay bare: carrying both URLs inline pushed the table past 200 columns, and the comparison is the one you leave the log to read.
+On a terminal the branch name is a clickable link to its comparison against `main`. A job log can't render that escape sequence, so the comparison URLs are listed below the table, one per branch, where they don't widen it. Pipeline IDs stay bare: the comparison is the one you leave the log to read. The behind count (`↓12`) is left out under `CI`, since it's advice for whoever is about to rebase at a terminal.
 
 On failure there's no outcome line. Each conflicting branch with what it conflicts with and the remedy, then `Aborted due to merge failures`, are what you get, and the job exits non-zero. Under `--json` that attribution comes back as a `conflicts` array on stdout as well, so a job can act on it without parsing the log; `branches` is `fi` as it stands (unchanged, since nothing was pushed) and `attempted` is the set the merge tried.
 

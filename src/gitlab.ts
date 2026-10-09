@@ -1,5 +1,5 @@
 import type { Options, CIResult, BranchReadiness } from "./types.js";
-import { makeStyle, glyphsEnabled, createSpinner, printTable, abort, withReadiness, strikeIfMerged } from "./style.js";
+import { makeStyle, glyphsEnabled, hyperlinksEnabled, createSpinner, printTable, abort, withReadiness, strikeIfMerged } from "./style.js";
 import { git, branchReadiness } from "./git.js";
 import { localBranchName } from "./branches.js";
 import { resolveToken, tokenFormUrl, REQUIRED_SCOPE, type TokenResolution } from "./auth.js";
@@ -360,9 +360,29 @@ export function branchLabel(
   const r = readiness.get(branch);
   const text = strikeIfMerged(name, r, opts);
   const label = gitlab
-    ? s.linkOrMarkdown(s.cyan(text), branchCompareUrl(gitlab, name, defaultBranch))
+    ? s.link(s.cyan(text), branchCompareUrl(gitlab, name, defaultBranch))
     : s.cyan(text);
   return withReadiness(label, r, opts);
+}
+
+/**
+ * Off a TTY, each branch's compare URL on a line of its own below the table
+ * (GITLAB-09). Inside a cell the URL would set the Branch column's width; here
+ * it stays copyable without widening a row.
+ */
+export function printBranchLinks(
+  branches: string[],
+  gitlab: GitlabProject | null | undefined,
+  defaultBranch: string,
+  opts: Options
+): void {
+  if (!gitlab || branches.length === 0 || hyperlinksEnabled(opts)) return;
+  const names = branches.map(localBranchName);
+  const width = Math.max(...names.map((n) => n.length));
+  process.stdout.write("\n");
+  for (const name of names) {
+    process.stdout.write(`${name.padEnd(width)}  ${branchCompareUrl(gitlab, name, defaultBranch)}\n`);
+  }
 }
 
 export function printCITable(
@@ -373,7 +393,9 @@ export function printCITable(
 ): void {
   const s = makeStyle(opts);
   const readiness = branchReadiness(defaultBranch);
-  const headers = ["Branch", "Date", "Author", "Pipeline"];
+  // Status is the last column because an emoji's display width differs from
+  // its string length, which would misalign any column padded after it.
+  const headers = ["Branch", "Date", "Author", "Pipeline", "Status"];
   const rows = ciResults.map((item) => {
     // A deleted branch has no readiness worth reporting — the remedy is to drop
     // it from fi, not to rebase it.
@@ -381,11 +403,10 @@ export function printCITable(
       ? s.yellow(`${localBranchName(item.branch)} (deleted)`)
       : branchLabel(item.branch, readiness, gitlab, defaultBranch, opts);
     const status = item.status in STATUS_EMOJI ? item.status : "missing";
-    const label = statusLabel(status, opts);
-    const pipeline = item.pipelineId
-      ? `${gitlab ? s.link(item.pipelineId, `https://${gitlab.host}/${gitlab.project}/-/pipelines/${item.pipelineId}`) : item.pipelineId} ${label}`
-      : label;
-    return [branch, item.date, item.author, pipeline];
+    const pipeline = item.pipelineId && gitlab
+      ? s.link(item.pipelineId, `https://${gitlab.host}/${gitlab.project}/-/pipelines/${item.pipelineId}`)
+      : item.pipelineId;
+    return [branch, item.date, item.author, pipeline, statusLabel(status, opts)];
   });
   printTable(headers, rows, opts);
 }

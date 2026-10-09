@@ -103,10 +103,10 @@ git-fi also *reads* a compact **terse** format (`(feature-auth, feature-search, 
 On success, git-fi prints the branch list table (identical to `list` output, including the `fi` pipeline line when a GitLab token is configured), so you see the final state without running a separate command:
 
 ```text
-Branch         │ Date       │ Author │ Pipeline
-───────────────┼────────────┼────────┼──────────
-feature-auth   │ 2026-03-30 │ Alice  │ 11111 ✅
-feature-search │ 2026-03-30 │ Bob    │ 22222 ✅
+Branch         │ Date       │ Author │ Pipeline │ Status
+───────────────┼────────────┼────────┼──────────┼───────
+feature-auth   │ 2026-03-30 │ Alice  │ 11111    │ ✅
+feature-search │ 2026-03-30 │ Bob    │ 22222    │ ✅
 ```
 
 On failure, git-fi names each branch that couldn't be merged and what stopped it, gives you a message to send its authors, then aborts without pushing:

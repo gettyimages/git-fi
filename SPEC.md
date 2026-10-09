@@ -399,22 +399,25 @@ On a TTY, the annotation line(s) update in-place to show the terminal state (see
 fi:
  * feature-a
  * feature-b  <- added
-Branch        │ Date       │ Author │ Pipeline
-──────────────┼────────────┼────────┼──────────
-feature-a     │ 2026-03-30 │ Alice  │ 11111 ✅
-feature-b ↓12 │ 2026-03-30 │ Bob    │ 22222 ✅
+Branch        │ Date       │ Author │ Pipeline │ Status
+──────────────┼────────────┼────────┼──────────┼───────
+feature-a     │ 2026-03-30 │ Alice  │ 11111    │ ✅
+feature-b ↓12 │ 2026-03-30 │ Bob    │ 22222    │ ✅
 fi: #12345 ⏳
 ```
 
-Off a TTY — a CI job log, or a piped run — the display and its annotations are gone, the outcome is one line (TERM-09), and status is worded (TERM-10):
+Off a TTY — a CI job log, or a piped run — the display and its annotations are gone, the outcome is one line (TERM-09), status is worded (TERM-10), and the branch compare URLs follow the table (GITLAB-09). In a CI job (`$CI` set) the behind count is left out (READY-02):
 
 ```
 added to fi
-Branch              │ Date       │ Author │ Pipeline
-────────────────────┼────────────┼────────┼──────────
-feature-a           │ 2026-03-30 │ Alice  │ 11111 success
-feature-b behind 12 │ 2026-03-30 │ Bob    │ 22222 running
+Branch    │ Date       │ Author │ Pipeline │ Status
+──────────┼────────────┼────────┼──────────┼────────
+feature-a │ 2026-03-30 │ Alice  │ 11111    │ success
+feature-b │ 2026-03-30 │ Bob    │ 22222    │ running
 fi: #12345 running
+
+feature-a  https://gitlab.example.com/group/proj/-/compare/main...feature-a
+feature-b  https://gitlab.example.com/group/proj/-/compare/main...feature-b
 ```
 
 If no GitLab token resolves (`AUTH-01`), the table has only a Branch column (no CI data). The `fi:` pipeline line (GITLAB-05) is also omitted.
@@ -474,7 +477,7 @@ Three conditions leave the counts *unknown*, and git-fi shall represent unknown 
 - **A shallow clone.** The walk stops at the graft, so a count describes the fetched window rather than the branch: one measured 1 ahead and 6 behind reports 2 and 2. git-fi shall treat the *behind* count as unknown wherever `git rev-parse --is-shallow-repository` is true — it is reported to a reader as a number (`READY-02`), and a wrong one is worse than none, in an environment where the output is read long afterwards. The *ahead* count is kept: the only thing derived from it is already-merged status (`READY-07`), and truncation moves that the safe way, since a window hiding a branch's commits makes it look more ahead rather than less. A landed branch can therefore go unpruned in a shallow clone, but a live one is never declared merged.
 - **A field that did not parse.** `%(authoremail:trim)` is free text a commit author chooses, so it can carry the field separator; it is also the last field the format asks for, so git-fi shall rejoin a listing line's surplus fields into it and shall discard only a line that splits into fewer fields than the format asked for. git-fi shall strip control characters from the fields it keeps (`READY-04`), which takes the separator back out of a rejoined email.
 
-`READY-02` When listing branches (`LIST-03`), git-fi shall mark each branch with a nonzero behind count (`READY-01`) as `↓N` beside its name, dim, and shall word it `behind N` under the `TERM-10` conditions where the glyph is not the right carrier. A branch whose count is unknown (`READY-01`) carries no marker, the same as one level with the default branch: the marker states a position, and there is none to state. The marker sits inside the Branch cell rather than in a column of its own: the table has only a Branch column when no token resolves (`LIST-03`), and a column that is blank for most rows costs more width than the signal is worth. It is dim because most branches are behind most of the time — being behind is not itself a problem, and the marker earns attention only once a conflict (`READY-04`) names the branch.
+`READY-02` When listing branches (`LIST-03`), git-fi shall mark each branch with a nonzero behind count (`READY-01`) as `↓N` beside its name, dim, and shall word it `behind N` under the `TERM-10` conditions where the glyph is not the right carrier. A branch whose count is unknown (`READY-01`) carries no marker, the same as one level with the default branch: the marker states a position, and there is none to state. The marker sits inside the Branch cell rather than in a column of its own: the table has only a Branch column when no token resolves (`LIST-03`), and a column that is blank for most rows costs more width than the signal is worth. It is dim because most branches are behind most of the time — being behind is not itself a problem, and the marker earns attention only once a conflict (`READY-04`) names the branch. Where `$CI` is set, git-fi shall omit the marker: it tells the person at a terminal which branch to rebase, and a job log has no such reader. `merged` (`READY-07`) is kept there.
 
 `READY-03` git-fi shall determine, for a given branch list, which branches cannot be merged and what each one conflicts with, by merging the list incrementally with `git merge-tree --write-tree`: starting from `origin/<default>` and adding branches one at a time in insertion order (`LIST-06`), wrapping each accumulated tree with `git commit-tree` to carry into the next step. A branch whose merge-tree reports a conflict shall be probed against `origin/<default>` alone, which separates the two cases: failing there too means it conflicts with the default branch, and failing only against the accumulated set means it conflicts with something already in that set. In the second case git-fi shall probe the branch pairwise against each branch already merged and name the ones that actually conflict, rather than naming the accumulated set as a whole — the difference between "rebase these two" and "everything is broken" is the point of attributing at all. Where no single peer conflicts — the overlap appears only in the combination — git-fi shall name the accumulated set, which is then the honest answer. Conflicted paths come from `--name-only -z`, whose NUL separators keep a path with a non-ASCII byte or a newline intact; the line-based form C-quotes such a path into a string that matches nothing on disk. A branch that fails is left out of the accumulated set, so one conflict does not cascade into a verdict against every branch after it.
 
@@ -630,7 +633,7 @@ git-fi stores its own token rather than borrowing another tool's. Shelling out t
 
 GitLab CI Status
 
-`GITLAB-01` When a GitLab token resolves for the origin's host (`AUTH-01`), git-fi shall fetch pipeline status for each branch from the GitLab API and display a table with columns: Branch, Date, Author, Pipeline. git-fi shall show status with emoji indicators:
+`GITLAB-01` When a GitLab token resolves for the origin's host (`AUTH-01`), git-fi shall fetch pipeline status for each branch from the GitLab API and display a table with columns: Branch, Date, Author, Pipeline, Status. The Pipeline column carries the pipeline ID and the Status column its status, last because an emoji's display width differs from its string length and would misalign any column padded after it. git-fi shall show status with emoji indicators:
 
 | Emoji | Status |
 | --- | --- |
@@ -649,7 +652,7 @@ Where the emoji will not be drawn as a glyph, the word is shown instead (`TERM-1
 
 `GITLAB-04` When a GitLab project is detected, git-fi shall render branch names and pipeline IDs as clickable terminal hyperlinks (OSC 8). A branch shall link to its comparison against the default branch (`/-/compare/<default>...<branch>`) rather than its file tree — a reader scanning fi is asking what a branch adds, which the compare view answers and a tree listing does not. Hyperlinks are deliberately not tied to the color conditions in `TERM-05`: `NO_COLOR` asks for no color, not for no links, so a plain terminal keeps clickable references.
 
-`GITLAB-09` Where an OSC 8 sequence would not be rendered — stdout not a TTY, or `--bare` / `--json` — an unrendered sequence drops the address entirely, so git-fi shall write the branch compare reference out as a markdown link, `[<branch>](<url>)`. Markdown rather than plain text because of where a line from a build log goes next: pasted into Slack, an issue, or an MR comment, it arrives as a working link. Pipeline IDs shall stay bare there: the branch comparison is what a reader leaves a build log to open, and carrying both URLs inline pushes the table past 200 columns, where the wrap costs more than the second link is worth.
+`GITLAB-09` Where an OSC 8 sequence would not be rendered — stdout not a TTY, or `--bare` / `--json` — an unrendered sequence drops the address entirely, and GitLab's job log mangles one rather than rendering it ([gitlab-org/gitlab#550221](https://gitlab.com/gitlab-org/gitlab/-/issues/550221)). There git-fi shall print branch names plain in the table and list each branch's compare URL below it, after the `fi:` line (GITLAB-05) and a blank line: one line per branch, the name padded to the longest, two spaces, then the bare URL. Deleted branches (GITLAB-06) are left out, having nothing to compare. A URL in a cell would set the Branch column's width for every row; below the table it costs one line. Bare rather than markdown, so a log viewer that links URLs finds the end of it, and a line pasted into Slack or an issue still arrives as a working link. Pipeline IDs stay bare: the branch comparison is what a reader leaves a build log to open.
 
 `GITLAB-05` **Pipeline link after merge:** When a GitLab token resolves (`AUTH-01`) and a merge operation succeeds, git-fi shall fetch the pipeline for the `fi` branch matching the just-pushed SHA and display it as `fi: #<id> <status>`, where `#<id>` is a clickable hyperlink (OSC 8) and the status indicator uses the same set as GITLAB-01, worded off a TTY per `TERM-10`. The `fi:` prefix distinguishes this integration pipeline from the per-branch pipelines shown in the list table. GitLab registers the pipeline for a push asynchronously, so if no matching pipeline is found yet, git-fi shall retry with escalating delays of 500 ms, 1 s, and 2 s, returning as soon as one appears so the common case pays only the shortest wait. If the API call fails or no matching pipeline appears, the line is silently omitted.
 

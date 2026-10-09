@@ -68,9 +68,9 @@ export function glyphsEnabled(opts: Options, tty = isTTY): boolean {
  * Whether OSC 8 hyperlinks will survive the destination. Deliberately not tied
  * to `colorEnabled`: `NO_COLOR` asks for no color, not for no links, so a plain
  * terminal keeps its clickable branch and pipeline references. Where this is
- * false the branch reference has to carry its URL in the text instead (`GITLAB-09`)
- * — an unrendered OSC 8 sequence drops the address entirely, which is how CI
- * logs ended up naming branches they gave no way to open.
+ * false the branch compare URLs are listed below the table instead (`GITLAB-09`):
+ * an unrendered OSC 8 sequence drops the address entirely, and GitLab's job log
+ * mangles one rather than rendering it.
  */
 export function hyperlinksEnabled(opts: Options, tty = isTTY): boolean {
   if (opts.bare || opts.json) return false;
@@ -95,20 +95,8 @@ export function makeStyle(opts: Options, tty = isTTY) {
     // applied to the bare name and still sit inside a color or hyperlink span.
     strike: (s: string) => `${esc("9")}${s}${esc("29")}`,
     fi: () => (on ? `${esc("1")}fi${reset}` : "fi"),
-    // Two renderings because the two kinds of reference are worth different
-    // amounts of width off a TTY. `link` decorates — losing it costs nothing a
-    // reader can't get from the id itself. `linkOrMarkdown` is for the reference
-    // someone leaves the log to open, and pays a long line to keep it.
-    //
-    // The fallback is markdown rather than `text (url)` because of where a line
-    // from a build log goes next: pasted into Slack or an issue, `[name](url)`
-    // arrives as a working link. `text` is safe to put inside the brackets —
-    // links and color are disabled by the same non-TTY condition, so there are
-    // no escape sequences in it here.
     link: (text: string, url: string) =>
       links ? `\x1b]8;;${url}\x1b\\${text}\x1b]8;;\x1b\\` : text,
-    linkOrMarkdown: (text: string, url: string) =>
-      links ? `\x1b]8;;${url}\x1b\\${text}\x1b]8;;\x1b\\` : `[${text}](${url})`,
   };
 }
 
@@ -275,6 +263,8 @@ export function strikeIfMerged(
  *
  * `merged` supersedes the behind count rather than joining it: a landed branch
  * trails the default branch by definition, and rebasing is not what it needs.
+ * Under `$CI` the count is left out: it tells the person at a terminal which
+ * branch to rebase, and nobody reading a job log is about to.
  */
 function readinessMarker(
   readiness: BranchReadiness | undefined,
@@ -284,7 +274,7 @@ function readinessMarker(
   if (!readiness) return "";
   const s = makeStyle(opts, tty);
   if (readiness.merged) return s.dim("merged");
-  if (!readiness.behind) return "";
+  if (!readiness.behind || process.env.CI) return "";
   return s.dim(
     glyphsEnabled(opts, tty)
       ? `↓${readiness.behind}`

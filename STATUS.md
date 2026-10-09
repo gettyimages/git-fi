@@ -231,7 +231,7 @@ GitLab CI
 | GITLAB-06 | Deleted branch indicator | Covered | `src/gitlab.ts` (`fetchGitlabCI`, `printCITable`) |
 | GITLAB-07 | Bounded concurrent lookups, stable order | Covered | `src/gitlab.ts` (`API_CONCURRENCY`, `mapLimit`, `fetchGitlabCI`) |
 | GITLAB-08 | Built-in HTTP client, 10 s timeout | Covered | `src/gitlab.ts` (`API_TIMEOUT_MS`, `apiGet`) |
-| GITLAB-09 | Markdown link off a TTY | Covered | `src/style.ts` (`makeStyle`: `linkOrMarkdown`), `src/gitlab.ts` (`printCITable`), `src/commands.ts` (`cmdList`) |
+| GITLAB-09 | Compare URLs below the table off a TTY | Covered | `src/style.ts` (`hyperlinksEnabled`), `src/gitlab.ts` (`printBranchLinks`), `src/commands.ts` (`cmdList`) |
 
 ## `JSON`
 

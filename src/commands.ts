@@ -13,7 +13,7 @@ import {
   isInteractive,
 } from "./git.js";
 import { localBranchName } from "./branches.js";
-import { fetchGitlabCI, printCITable, detectGitlabProject, fetchFiPipeline, statusLabel, branchLabel, gitlabToken } from "./gitlab.js";
+import { fetchGitlabCI, printCITable, printBranchLinks, detectGitlabProject, fetchFiPipeline, statusLabel, branchLabel, gitlabToken } from "./gitlab.js";
 import { mergeProcess } from "./merge.js";
 import { branchJson, writeJson } from "./json.js";
 import { pickBranches } from "./ui.js";
@@ -111,12 +111,15 @@ export async function cmdList(
         process.stdout.write(`fi: ${idText} ${label}\n`);
       }
     }
+    const live = ci.filter((r) => !r.branchMissing).map((r) => r.branch);
+    printBranchLinks(live, gitlab, defBranch, opts);
   } else {
     const readiness = branchReadiness(defBranch);
     const rows = branches.map((branch) => [
       branchLabel(branch, readiness, gitlab, defBranch, opts),
     ]);
     printTable(["Branch"], rows, opts);
+    printBranchLinks(branches, gitlab, defBranch, opts);
   }
 
   process.stdout.write("\n");

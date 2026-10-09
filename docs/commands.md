@@ -43,7 +43,7 @@ git fi
 
 (`bugfix-nav` is struck through on a terminal; a code block cannot show that.)
 
-A `↓N` beside a branch means `main` has moved `N` commits past it. That on its own is normal — branches trail `main` constantly — but it's the precondition for the conflict you'd otherwise meet at merge time, so it tells you which branch to rebase first when `fi` starts failing. Off a terminal the marker is worded `behind 12`, since a log read as plain text can't rely on the arrow.
+A `↓N` beside a branch means `main` has moved `N` commits past it. That on its own is normal — branches trail `main` constantly — but it's the precondition for the conflict you'd otherwise meet at merge time, so it tells you which branch to rebase first when `fi` starts failing. Off a terminal the marker is worded `behind 12`, since a log read as plain text can't rely on the arrow. In a CI job it's left out.
 
 A struck-through name marked `merged` has landed on `main` — every commit it carries is already there, so it's finished and no longer earning its place in `fi`. The next mutation drops it (`git fi -g` on its own is the prune), which is why the marker is transient: it shows the interval between a branch landing and `fi` catching up. The word rides alongside the strikethrough because not every terminal draws one.
 

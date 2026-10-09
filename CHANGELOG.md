@@ -5,6 +5,14 @@ GitHub Release by the release workflow (`.github/workflows/release.yml`).
 
 <!-- releases below -->
 
+## v1.3.4 (2026-10-09)
+
+### Fixes
+
+- Off a terminal (a CI job log or a piped run), the branch table stays narrow: branch names are plain, and each branch's compare URL is listed below the table instead of inside it. Pipeline status moves into its own Status column.
+- In a CI job, the branch table leaves out the behind count (`↓12`); `merged` still shows.
+
+
 ## v1.3.3 (2026-10-05)
 
 ### Fixes

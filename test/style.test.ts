@@ -82,6 +82,12 @@ describe("bootstrapHintEnabled (LIST-07)", () => {
     });
   });
 
+  test("on after --bootstrap, whose empty fi is waiting on a first branch", () => {
+    onATerminal(() => {
+      assert.equal(bootstrapHintEnabled("bootstrap", 0, OPTS, true), true);
+    });
+  });
+
   test("off after an action that writes fi — the caller asked for this state", () => {
     onATerminal(() => {
       for (const command of ["add", "remove", "force", "again", "abort"]) {

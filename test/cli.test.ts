@@ -434,10 +434,69 @@ describe("preflight checks", () => {
     sb.git(["config", "push.default", "simple"]);
   });
 
-  test("list aborts when no fi branch exists", () => {
+  test("list aborts when no fi branch exists, recommending --bootstrap (LIST-01)", () => {
     const r = runFi([], sb.work);
     assert.equal(r.status, 1);
     assert.match(r.stderr, /there is no .*fi.* branch/);
+    assert.match(r.stderr, /Bootstrap one with git fi --bootstrap/);
+  });
+});
+
+describe("--bootstrap (COMMAND-08, COMMAND-09)", () => {
+  let sb: Sandbox;
+  beforeEach(() => {
+    sb = makeSandbox();
+  });
+  afterEach(() => sb.cleanup());
+
+  const fiSha = () =>
+    sb.git(["for-each-ref", "--format=%(objectname)", "refs/remotes/origin/fi"]);
+
+  test("creates an empty fi without a TTY or --yes", () => {
+    const r = runFi(["--bootstrap"], sb.work);
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /bootstrapped fi/);
+    assert.match(r.stdout, /\(no branches\)/);
+    assert.notEqual(fiSha(), "", "origin/fi should exist after --bootstrap");
+    assert.deepEqual(listedBranches(sb), []);
+  });
+
+  test("on a terminal, finalizes the annotation and offers the next step", () => {
+    const r = runFiOnTty(["--bootstrap"], sb.work);
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /<- bootstrapped/);
+    assert.match(r.stdout, /Add a branch with git fi --add <branch>\./);
+  });
+
+  test("leaves an existing fi untouched and lists it", () => {
+    sb.pushBranch("feature-a", "a.txt", "a\n");
+    assert.equal(runFi(["--add", "feature-a", "--yes"], sb.work).status, 0);
+    const before = fiSha();
+
+    const r = runFi(["--bootstrap"], sb.work);
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stderr, /fi already exists for this project\./);
+    assert.match(r.stdout, /feature-a/);
+    assert.equal(fiSha(), before, "--bootstrap must not rewrite an existing fi");
+  });
+
+  test("--json names the action", () => {
+    const r = runFi(["--bootstrap", "--json"], sb.work);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(JSON.parse(r.stdout).command, "bootstrap");
+  });
+
+  test("rejects branch names", () => {
+    const r = runFi(["--bootstrap", "feature-a"], sb.work);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /--bootstrap does not accept branch names/);
+    assert.equal(fiSha(), "");
+  });
+
+  test("does not combine with another action", () => {
+    const r = runFi(["--again", "--bootstrap"], sb.work);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /Cannot combine --again with --bootstrap/);
   });
 });
 
@@ -452,7 +511,7 @@ describe("non-interactive bootstrap (MERGE-15)", () => {
   test("aborts (without hanging) when bootstrap is needed and there is no TTY", () => {
     const r = runFi(["--add", "feature-a"], sb.work);
     assert.equal(r.status, 1);
-    assert.match(r.stderr, /re-run with --yes/);
+    assert.match(r.stderr, /run git fi --bootstrap first, or re-run with --yes/);
     assert.equal(
       sb.git(["for-each-ref", "--format=%(refname)", "refs/remotes/origin/fi"]),
       "",

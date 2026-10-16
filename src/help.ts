@@ -9,9 +9,9 @@ export interface Flag {
   /** Long form without the leading dashes, e.g. "add". */
   long: string;
   /**
-   * Single-character short form without the dash, e.g. "a". Absent for the
-   * once-per-machine flags (OPTION-12, OPTION-13) — the single letters are
-   * worth more to a flag someone types daily.
+   * Single-character short form without the dash, e.g. "a". Absent for flags
+   * typed once per machine or per repository (OPTION-12) — the single letters
+   * are worth more to a flag someone types daily.
    */
   short?: string;
   /** One-line description. */
@@ -36,6 +36,7 @@ export const ACTIONS: Flag[] = [
   { long: "force", short: "f", desc: "Replace fi contents with only the given branch(es)" },
   { long: "again", short: "g", desc: "Re-merge fi, dropping dead and already-merged branches" },
   { long: "abort", short: "A", desc: "Re-pull fi from origin" },
+  { long: "bootstrap", desc: "Create an empty fi for this project, without prompting" },
 ];
 
 export const OPTIONS: Flag[] = [
@@ -43,7 +44,7 @@ export const OPTIONS: Flag[] = [
   { long: "bare", short: "b", desc: "Machine-readable output: space-separated branch names" },
   { long: "json", short: "j", desc: "Structured JSON output" },
   { long: "select", short: "s", desc: "Interactive branch picker (requires a TTY)" },
-  { long: "yes", short: "y", desc: "Bootstrap fi without the confirmation prompt (for CI/scripts)" },
+  { long: "yes", short: "y", desc: "Confirm bootstrapping fi from any action (for CI/scripts; see --bootstrap)" },
   { long: "update", short: "u", desc: "Update git-fi itself to the latest published version" },
   {
     long: "auth",

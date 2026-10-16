@@ -143,6 +143,8 @@ Commands
 | COMMAND-05 | Again re-merges and prunes | Covered | `src/commands.ts` (`cmdAgain`), `src/merge.ts` (`mergeProcess`) |
 | COMMAND-06 | Abort re-pulls fi, then lists | Covered | `src/commands.ts` (`cmdAbort`) |
 | COMMAND-07 | Abort no origin/fi       | Covered | `src/commands.ts` (`cmdAbort`) |
+| COMMAND-08 | Bootstrap creates an empty fi | Covered | `src/index.ts` (`parseArgs`), `src/help.ts` (`ACTIONS`), `src/commands.ts` (`cmdBootstrap`), `src/merge.ts` (`mergeProcess`) |
+| COMMAND-09 | Bootstrap on an existing fi lists it | Covered | `src/commands.ts` (`cmdBootstrap`) |
 
 ## `MERGE`
 
@@ -162,7 +164,7 @@ Merge Process
 | MERGE-11 | On failure               | Covered | `src/merge.ts` (`mergeProcess`) |
 | MERGE-13 | CI commit message        | Covered | `src/merge.ts` (`buildCommitMessage`) |
 | MERGE-14 | Bootstrap link           | Covered | `src/ui.ts` (`confirm`) |
-| MERGE-15 | Bootstrap confirmation / `--yes` | Covered | `src/merge.ts` (`mergeProcess`) |
+| MERGE-15 | Bootstrap confirmation / `--yes` / `--bootstrap` | Covered | `src/merge.ts` (`mergeProcess`), `src/commands.ts` (`cmdBootstrap`) |
 
 ## Merge Readiness
 

@@ -45,7 +45,7 @@ _git_fi () {
 		return
 		;;
 	-*)
-		__gitcomp "--add --remove --force --again --abort --debug --bare --json --select --yes --update --auth --host --version --help"
+		__gitcomp "--add --remove --force --again --abort --bootstrap --debug --bare --json --select --yes --update --auth --host --version --help"
 		return
 		;;
 	esac
@@ -69,7 +69,7 @@ _git_fi () {
 		# No action flag yet: offer the actions/options and subcommands, not a
 		# branch dump. The branch argument completes once an action flag is
 		# present (a bare positional is only a list-filter pattern).
-		__gitcomp "--add --remove --force --again --abort --debug --bare --json --select --yes --update --auth --host --version --help help install-completions"
+		__gitcomp "--add --remove --force --again --abort --bootstrap --debug --bare --json --select --yes --update --auth --host --version --help help install-completions"
 		;;
 	esac
 }

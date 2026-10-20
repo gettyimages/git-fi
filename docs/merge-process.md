@@ -96,9 +96,11 @@ Because each step names the branch it was merging, a failure already knows who i
 
 ### 7. Commit and push
 
-The resulting tree is committed with `git commit-tree`, taking `origin/main` and each merged branch as its parents (the same shape a merge commit has), and a message that records the branches included in `fi`, so the list round-trips on the next run. git-fi currently writes the **legacy** standard git merge message:
+The resulting tree is committed with `git commit-tree`, taking `origin/main` and each merged branch as its parents (the same shape a merge commit has), and a message that records the branches included in `fi`, so the list round-trips on the next run. Above the branch list, a line says which branches the run that wrote the commit added and removed; a rebuild that changed neither leaves it out. git-fi currently writes the branch list as the **legacy** standard git merge message:
 
 ```text
+Added bugfix-nav; removed old-search.
+
 Merge remote-tracking branches 'origin/feature-auth', 'origin/feature-search' and 'origin/bugfix-nav' into fi
 ```
 

@@ -189,6 +189,7 @@ Merge Process
 | STORAGE-02 | Parsing (reads both)  | Covered | `src/git.ts` (`parseBranchList`) |
 | STORAGE-03 | Legacy format + read detection | Covered | `src/git.ts` (`detectCommitFormat`, `parseBranchList`), `src/merge.ts` (`buildLegacyMessage`) |
 | STORAGE-04 | Write format pinned to legacy for rollout | Covered | `src/merge.ts` (`DEFAULT_WRITE_FORMAT`, `mergeProcess`) |
+| STORAGE-05 | Message shape and change paragraph | Covered | `src/merge.ts` (`buildCommitMessage`, `describeChange`) |
 
 ## `FORMAT`
 

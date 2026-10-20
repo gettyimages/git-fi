@@ -30,7 +30,8 @@ export function hintsEnabled(opts: Options, tty = isTTY): boolean {
 
 /**
  * Whether to close an empty list with how to add a branch (`LIST-07`). It is
- * bootstrap advice, so it belongs to a plain `list`: after an action that
+ * getting-started advice, so it belongs to a plain `list` and to `--bootstrap`,
+ * whose empty fi is waiting on exactly that step. After any other action that
  * writes fi, the caller asked for the state they got, and the advice reads as
  * though the action had failed.
  */
@@ -40,7 +41,7 @@ export function bootstrapHintEnabled(
   opts: Options,
   tty?: boolean
 ): boolean {
-  if (command !== "list" || branchCount > 0) return false;
+  if ((command !== "list" && command !== "bootstrap") || branchCount > 0) return false;
   return hintsEnabled(opts, tty);
 }
 

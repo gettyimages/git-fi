@@ -88,6 +88,7 @@ const ACTION_INITIAL: Record<string, string> = {
   remove: "removing",
   force: "replacing",
   again: "re-merging",
+  bootstrap: "bootstrapping",
 };
 
 const ACTION_DONE: Record<string, string> = {
@@ -95,6 +96,7 @@ const ACTION_DONE: Record<string, string> = {
   remove: "removed",
   force: "replaced",
   again: "re-merged",
+  bootstrap: "bootstrapped",
 };
 
 // The same verbs as a standalone sentence, for the one-line outcome printed
@@ -105,6 +107,7 @@ const ACTION_OUTCOME: Record<string, string> = {
   remove: "removed from",
   force: "replaced",
   again: "re-merged",
+  bootstrap: "bootstrapped",
 };
 
 export async function mergeProcess(
@@ -156,7 +159,7 @@ export async function mergeProcess(
   if (fiExistsAfterFetch === null && !opts.yes) {
     if (!isInteractive(opts)) {
       abort(
-        "Bootstrapping fi requires confirmation; re-run with --yes or from an interactive terminal.",
+        "Bootstrapping fi requires confirmation; run git fi --bootstrap first, or re-run with --yes or from an interactive terminal.",
         opts
       );
     }

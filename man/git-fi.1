@@ -25,6 +25,9 @@ Re\-merge fi, dropping dead and already\-merged branches
 .TP
 .BR \-A ", " \-\-abort
 Re\-pull fi from origin
+.TP
+.B \-\-bootstrap
+Create an empty fi for this project, without prompting
 .SH OPTIONS
 .TP
 .BR \-d ", " \-\-debug
@@ -40,7 +43,7 @@ Structured JSON output
 Interactive branch picker (requires a TTY)
 .TP
 .BR \-y ", " \-\-yes
-Bootstrap fi without the confirmation prompt (for CI/scripts)
+Confirm bootstrapping fi from any action (for CI/scripts; see \-\-bootstrap)
 .TP
 .BR \-u ", " \-\-update
 Update git\-fi itself to the latest published version

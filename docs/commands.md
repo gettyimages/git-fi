@@ -24,6 +24,7 @@ Every action flag at a glance. See the sections below and [Advanced Commands](/a
 | `-f` | `--force` | Replace fi contents with only the given branch(es) |
 | `-g` | `--again` | Re-merge fi, dropping dead and already-merged branches |
 | `-A` | `--abort` | Re-pull fi from origin |
+|  | `--bootstrap` | Create an empty fi for this project, without prompting |
 
 <!-- END GENERATED: actions -->
 
@@ -205,7 +206,7 @@ Shows only branches currently in `fi`. Select which to remove.
 | `-b` | `--bare` | Machine-readable output: space-separated branch names |
 | `-j` | `--json` | Structured JSON output |
 | `-s` | `--select` | Interactive branch picker (requires a TTY) |
-| `-y` | `--yes` | Bootstrap fi without the confirmation prompt (for CI/scripts) |
+| `-y` | `--yes` | Confirm bootstrapping fi from any action (for CI/scripts; see --bootstrap) |
 | `-u` | `--update` | Update git-fi itself to the latest published version |
 |  | `--auth[=<action>]` | Report which GitLab token is in effect; =login stores one, =logout removes it |
 |  | `--host <hostname>` | Which GitLab host --auth acts on (default: from the origin remote) |

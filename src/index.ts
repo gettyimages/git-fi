@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import type { Options } from "./types.js";
 import { abort } from "./style.js";
 import { preflightChecks, ensureFetched, setDebug } from "./git.js";
-import { cmdList, cmdAdd, cmdRemove, cmdForce, cmdAgain, cmdAbort, cmdSelect } from "./commands.js";
+import { cmdList, cmdAdd, cmdRemove, cmdForce, cmdAgain, cmdAbort, cmdBootstrap, cmdSelect } from "./commands.js";
 import { notifyUpdate, updateSelf } from "./update-check.js";
 import { renderHelp } from "./help.js";
 import { installCompletions } from "./install-completions.js";
@@ -123,6 +123,10 @@ function parseArgs(argv: string[]) {
       case "-A":
         if (action) abort(`Cannot combine --${action} with ${arg}`, opts);
         action = "abort";
+        break;
+      case "--bootstrap":
+        if (action) abort(`Cannot combine --${action} with ${arg}`, opts);
+        action = "bootstrap";
         break;
       // Listed under Options rather than Actions (it acts on the install, not
       // on fi), but it dispatches as one, so it collides with them the same way.
@@ -265,6 +269,9 @@ async function main() {
       break;
     case "abort":
       await cmdAbort(branches, opts);
+      break;
+    case "bootstrap":
+      await cmdBootstrap(branches, opts);
       break;
     case "select":
       await cmdSelect(opts);

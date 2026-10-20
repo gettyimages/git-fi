@@ -22,7 +22,13 @@ From any git repository:
 git fi
 ```
 
-If `fi` exists but nothing has been added to it, the list reads `(no branches)`. If `fi` doesn't exist in the repository at all, git-fi says so and tells you how to bootstrap it.
+If `fi` exists but nothing has been added to it, the list reads `(no branches)`. If `fi` doesn't exist in the repository at all, git-fi says so and points you at `--bootstrap`, which creates an empty one:
+
+```bash
+git fi --bootstrap
+```
+
+It doesn't prompt, so it works the same at a terminal and in CI, and running it where `fi` already exists only lists what's there.
 
 ### 2. Add a branch
 
@@ -36,7 +42,7 @@ git-fi will:
 3. Merge `origin/my-feature` into it
 4. Push `fi` to origin
 
-The first time you run this in a repository that has no `fi` branch yet, git-fi asks you to confirm bootstrapping it. In CI or scripts, pass `--yes` (`-y`) to bootstrap without the prompt. Once `fi` exists, every command runs non-interactively.
+If you skipped `--bootstrap` and the repository has no `fi` branch yet, git-fi asks you to confirm creating it; in CI or scripts, pass `--yes` (`-y`) to confirm without the prompt. Once `fi` exists, every command runs non-interactively.
 
 ### 3. Add more branches
 

@@ -1,6 +1,6 @@
 # Merge Process
 
-Every mutation command (`-a`, `-r`, `-f`, `-g`) triggers the same merge process. git-fi rebuilds the `fi` branch from scratch each time — it never amends or cherry-picks onto an existing `fi`.
+Every mutation command (`-a`, `-r`, `-f`, `-g`, `--bootstrap`) triggers the same merge process. git-fi rebuilds the `fi` branch from scratch each time — it never amends or cherry-picks onto an existing `fi`.
 
 ## Flow
 
@@ -27,13 +27,19 @@ Nothing below reads or writes your working tree, your index, or `HEAD`. A half-f
 
 ### 1. Bootstrap confirmation
 
-The first time `fi` is created in a repository, git-fi asks for confirmation:
+When the repository has no `fi` yet, an action that would create it asks for confirmation first:
 
 ```text
-No fi branch detected. Create one? [y/n]
+Bootstrap path/to/repo with fi capability?
+See: https://github.com/gettyimages/git-fi
+
+y - yes
+anything else: no
+
+Are you sure?
 ```
 
-In CI mode (`CI=true`), this prompt is skipped and `fi` is created automatically.
+`git fi --bootstrap` is the confirmation on its own, and `--yes` (`-y`) confirms on any other action. Without either, git-fi needs a terminal to ask on: in CI or a pipe it aborts rather than create and force-push a shared branch nobody approved.
 
 ### 2. Branch list computation
 

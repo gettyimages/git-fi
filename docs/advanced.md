@@ -51,6 +51,16 @@ git fi -A
 
 Use this when your local view of `fi` has drifted from the remote (for example, someone else rebuilt it) and you want to resync. Unlike the other actions, `abort` does not run the merge process — it only re-fetches `origin/fi`. If `origin/fi` doesn't exist, git-fi aborts with `origin/fi does not exist — nothing to re-pull`. Does not accept branch arguments.
 
+## bootstrap
+
+Create an empty `fi` at `main`, without the confirmation prompt the other actions show for a missing `fi`.
+
+```bash
+git fi --bootstrap
+```
+
+Run it once when a repository adopts git-fi, or from a CI job that sets up `fi` before anything adds to it. Where `fi` already exists, it says so on stderr and lists the branches, leaving `fi` untouched, so a job can run it unconditionally. Does not accept branch arguments; add them afterwards with `-a`.
+
 ## Dead Branch Pruning
 
 During any merge operation, git-fi drops branches that no longer exist on the remote, warning on stderr as it goes:
@@ -94,10 +104,12 @@ flowchart TD
   B -- -f --> FRC[force: replace branch list]
   B -- -g --> AGN[again: re-merge, dropping dead and merged branches]
   B -- -A --> ABT[abort: re-pull fi from origin]
+  B -->|"--bootstrap"| BOOT[bootstrap: create an empty fi]
   ADD --> M[Merge Process]
   REM --> M
   FRC --> M
   AGN --> M
+  BOOT --> M
   L --> OUT[Print branch list]
   ABT --> OUT2[Re-pull only, no merge]
 ```

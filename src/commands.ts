@@ -51,8 +51,8 @@ export async function cmdList(
       `${s.redBold(`there is no ${s.fi()} branch for this project.`)}\n`
     );
     process.stderr.write(
-      `${s.dim("Bootstrap one with")} ${s.bold("git fi --add <branch>")}` +
-        ` ${s.dim(`(add --yes for CI). Docs: ${DOCS_URL}`)}\n`
+      `${s.dim("Bootstrap one with")} ${s.bold("git fi --bootstrap")}` +
+        `${s.dim(`. Docs: ${DOCS_URL}`)}\n`
     );
     process.exit(1);
   }
@@ -272,6 +272,30 @@ export async function cmdAbort(
   // by rendering the resulting branch list on stdout (OPTION-08). Without it,
   // `--abort --json` would exit 0 having written no JSON at all.
   await cmdList(opts, undefined, null, "abort");
+}
+
+/**
+ * Create an empty fi, or list the one that is already there (COMMAND-08,
+ * COMMAND-09). Naming the action is the confirmation MERGE-15 asks for, so it
+ * never prompts.
+ */
+export async function cmdBootstrap(
+  branches: string[],
+  opts: Options
+): Promise<void> {
+  const s = makeStyle(opts);
+  if (branches.length > 0) {
+    abort("--bootstrap does not accept branch names", opts);
+  }
+
+  if (gitExitCode(["rev-parse", "--verify", "origin/fi"]) === 0) {
+    process.stderr.write(`${s.fi()} already exists for this project.\n`);
+    await cmdList(opts, undefined, null, "bootstrap");
+    return;
+  }
+
+  const sha = await mergeProcess("bootstrap", [], [], { ...opts, yes: true });
+  await cmdList(opts, undefined, sha, "bootstrap");
 }
 
 export async function cmdSelect(opts: Options): Promise<void> {

@@ -99,13 +99,17 @@ One caveat for CI specifically: in a shallow clone git counts only within the fe
 
 ## Pipeline context in CI
 
-When git-fi runs inside a CI pipeline (`CI=true`), commit messages include pipeline context:
+When git-fi runs inside a CI pipeline (`CI=true`), commit messages open with pipeline context:
 
 ```text
-Re-merge fi branch triggered by build 12345 due to commit on feature-auth. Was originally: --- ...
+Re-merge fi branch triggered by build 12345 due to commit on main.
 
-(feature-auth, feature-search)@[a1b2c3d]
+Removed feature-search.
+
+(feature-auth)@[a1b2c3d]
 ```
+
+The first line names the pipeline that wrote the commit, whose job log has the rebuild's outcome. The rest is what every fi commit carries ([Commit and push](merge-process.md#_7-commit-and-push)): what the run changed, then the branch list git-fi reads back. The [typical CI job](#typical-ci-workflow) runs `git fi -g`, which adds nothing, so in CI the change line names the branches it pruned, as here after `feature-search` merged to `main`. A rebuild that prunes nothing leaves it out.
 
 The variables below are GitLab CI's predefined names; a future forge integration would read that forge's equivalents.
 

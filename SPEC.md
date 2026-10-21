@@ -591,6 +591,22 @@ When parsing the fi branch's commit message, if this legacy format is detected �
 
 > **Rollout note.** git-fi writes `legacy` for now so downstream consumers that parse the fi commit message keep working unchanged. The switch to writing the preferred terse format (`STORAGE-01`) is scheduled for after the rollout window (~2026-09) — a one-line change to the default write format. Reading is unaffected by the switch; both formats are always accepted.
 
+### Message Shape
+
+`STORAGE-05` The fi commit message shall be up to three paragraphs separated by blank lines, in this order:
+
+1. The pipeline line, in CI only (`MERGE-13`).
+2. What the operation changed, compared with the branch list read from `origin/fi` before it: `Added <names>.`, `Removed <names>.`, or `Added <names>; removed <names>.`, with names comma-separated in the order fi lists them. A removal covers every branch that leaves fi, whether by `--remove`, `--force`, or pruning (`MERGE-06`, `MERGE-07`). When the list is unchanged, as on a plain rebuild, the paragraph is omitted.
+3. The signature in the current write format (`STORAGE-04`).
+
+```text
+Added cool-feature-branch-2; removed old-branch.
+
+Merge remote-tracking branches 'origin/feature-a' and 'origin/cool-feature-branch-2' into fi
+```
+
+The signature is always the final paragraph, and it is the only one git-fi parses (`STORAGE-02`, `STORAGE-03`). The change paragraph names branches bare, never as `'origin/<name>'`, so a reader that scans the whole message for that form (as the Ruby gem's `latest_merged_branches` did) cannot take a removed branch as still in fi. No text from the previous fi commit is carried forward, so the message's size depends only on the operation.
+
 ## Default Branch Detection
 
 `BRANCH-05` git-fi shall determine the mainline branch for the repository (typically `main` or `master`) via `git symbolic-ref refs/remotes/origin/HEAD`, extracting the last path component. If the symbolic ref is not set, then git-fi shall fall back to probing `origin/main` and `origin/master`.
@@ -677,15 +693,17 @@ Where the emoji will not be drawn as a glyph, the word is shown instead (`TERM-1
 
 ## CI Integration
 
-`MERGE-13` When git-fi runs inside a GitLab CI pipeline (detected via the `CI` environment variable), git-fi shall include pipeline context in the commit message for traceability:
+`MERGE-13` When git-fi runs inside a GitLab CI pipeline (detected via the `CI` environment variable), git-fi shall open the commit message with a pipeline line for traceability, ahead of the paragraphs `STORAGE-05` defines:
 
 ```text
-Re-merge fi branch triggered by build <CI_PIPELINE_ID> due to commit on <CI_COMMIT_REF_NAME>. Was originally: --- <previous_fi_commit_message>
+Re-merge fi branch triggered by build <CI_PIPELINE_ID> due to commit on <CI_COMMIT_REF_NAME>.
 
-(branch-a, branch-b)@[shorthash]
+Removed branch-b.
+
+(branch-a)@[shorthash]
 ```
 
-The trailing signature line — written in the current write format (`STORAGE-04`; the example above shows the preferred terse format) — ensures round-tripping works (`STORAGE-02`, `STORAGE-03`) even when the previous commit message is embedded in the `Was originally:` preamble.
+The pipeline ID is the trace back to the build that wrote the commit (the example shows the preferred terse signature; the write format is `STORAGE-04`'s). A `fi` commit written by an earlier version embeds every previous message in its preamble; since git-fi parses only the final paragraph, it still yields its current branch list, and the next re-merge replaces it with the `STORAGE-05` shape.
 
 | Variable             | Purpose                                                        |
 |----------------------|----------------------------------------------------------------|

@@ -12,7 +12,6 @@
     "gen:docs": "node --import tsx scripts/gen-docs.ts",
     "build": "tsc && npm run gen:docs",
     "prepare": "tsc",
-    "postinstall": "node scripts/postinstall.mjs",
     "test": "tsc && npm run verify:generated && node scripts/run-tests.mjs",
     "verify:generated": "node --import tsx scripts/gen-docs.ts --check",
     "prepublishOnly": "npm test",
@@ -23,8 +22,7 @@
   "files": [
     "dist",
     "man",
-    "completions",
-    "scripts/postinstall.mjs"
+    "completions"
   ],
   "publishConfig": {
     "access": "public"

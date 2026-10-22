@@ -78,6 +78,11 @@ export const SUBCOMMANDS: Subcommand[] = [
   { usage: "install-completions --write <dir>", desc: "Write both zsh completion files onto an fpath directory" },
 ];
 
+export const COMPLETION_SETUP: { shell: string; how: string }[] = [
+  { shell: "zsh", how: `git fi install-completions --write "\${fpath[1]}"` },
+  { shell: "bash", how: "add to ~/.bashrc: source <(git fi install-completions bash)" },
+];
+
 // A long-only flag is indented by the width of the "-x, " it does not have, so
 // every long form still starts in the same column.
 function flagLabel(f: Flag): string {
@@ -109,6 +114,9 @@ export function renderHelp(): string {
     `\n` +
     `Commands:\n` +
     SUBCOMMANDS.map(cmdLine).join("\n") + "\n" +
+    `\n` +
+    `Tab completion:\n` +
+    COMPLETION_SETUP.map((c) => `  ${c.shell.padEnd(6)}${c.how}`).join("\n") + "\n" +
     `\n` +
     `Full documentation: ${DOCS_URL}\n`
   );

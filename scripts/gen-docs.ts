@@ -10,7 +10,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { ACTIONS, OPTIONS, SUBCOMMANDS, TAGLINE, DOCS_URL, longForm, type Flag } from "../src/help.js";
+import { ACTIONS, OPTIONS, SUBCOMMANDS, COMPLETION_SETUP, TAGLINE, DOCS_URL, longForm, type Flag } from "../src/help.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
@@ -58,6 +58,8 @@ const man =
   OPTIONS.map(manEntry).join("\n") + "\n" +
   `.SH COMMANDS\n` +
   SUBCOMMANDS.map((c) => `.TP\n.B ${roff(c.usage)}\n${roff(c.desc)}`).join("\n") + "\n" +
+  `.SH SHELL COMPLETION\n` +
+  COMPLETION_SETUP.map((c) => `.TP\n.B ${c.shell}\n${roff(c.how)}`).join("\n") + "\n" +
   `.SH SEE ALSO\n` +
   `Full documentation: ${roff(DOCS_URL)}\n`;
 

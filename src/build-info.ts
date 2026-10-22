@@ -9,8 +9,7 @@ const PKG_ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 /**
  * A checkout carries a `.git`; a published tarball never does, because npm's
- * `files` list ships only `dist`, `man`, `completions`, and the postinstall
- * script. That marker at the *package* root — not the user's cwd, which is
+ * `files` list ships only `dist`, `man`, and `completions`. That marker at the *package* root — not the user's cwd, which is
  * a git repo on every ordinary run — is what separates a `just trial-on` link
  * from an installed copy (BUILD-01), and it costs one stat.
  */

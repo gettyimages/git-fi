@@ -8,6 +8,14 @@ git-fi is a git subcommand: once the `git-fi` binary is on your `PATH`, invoke i
 npm install -g @gettyimages/git-fi
 ```
 
+Then turn on tab completion, so `git fi --add <TAB>` offers your branches. In zsh:
+
+```zsh
+git fi install-completions --write "${fpath[1]}"
+```
+
+In bash, add `source <(git fi install-completions bash)` to `~/.bashrc`. [Shell completion](#shell-completion) has the details.
+
 To try it without installing, run `npx @gettyimages/git-fi --help` (this runs as `npx @gettyimages/git-fi`, not `git fi`).
 
 On older git, or upgrading from the Ruby gem? See [Troubleshooting](/troubleshooting).
@@ -94,13 +102,21 @@ git fi --help    # opens the man page
 
 ### Shell completion
 
-In zsh, `npm install -g` sets this up for you — open a new shell and press `<TAB>`:
+In zsh, write both completion files onto your `fpath`. The command creates the directory if needed and names each file it wrote:
+
+```zsh
+git fi install-completions --write "${fpath[1]}"
+```
+
+Open a new shell and press `<TAB>`:
 
 ```zsh
 git fi <TAB>          # actions, options, subcommands
 git fi --add <TAB>    # origin branches not yet in fi
 git fi --remove <TAB> # only branches currently in fi
 ```
+
+If `${fpath[1]}` isn't writable (a root-owned `/usr/local`, say), the command stops and shows how to install into a directory you own instead. Run it again after `git fi --update` so completion picks up new flags.
 
 For bash, add one line to `~/.bashrc` (git's bash completion has to be loaded first):
 

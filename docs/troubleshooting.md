@@ -2,7 +2,7 @@
 
 ## Your git is older than 2.41.0
 
-The install checks git first and stops if it is older than 2.41.0, naming the version it found. Where the git you have is the one your platform gives you (a long-support distribution, Apple's command line tools), install the last release that runs on git 2.13 and newer:
+Every `git fi` command checks git first and stops if it is older than 2.41.0, naming the version it found. Where the git you have is the one your platform gives you (a long-support distribution, Apple's command line tools), install the last release that runs on git 2.13 and newer:
 
 ```bash
 npm install -g @gettyimages/git-fi@1.2.2
@@ -55,7 +55,7 @@ npm install -g @gettyimages/git-fi
 
 ## Tab completion offers filenames
 
-`npm install -g` writes the zsh completion files into npm's own prefix (`$(npm config get prefix)/share/zsh/site-functions`), the directory Homebrew and `/usr/local` zsh setups already read. If `git fi <TAB>` offers filenames instead, that directory isn't on your `fpath`. Install into one that is; this creates it if needed and tells you what it wrote:
+git-fi's completion isn't loaded. Install it into a directory on your `fpath`; this creates the directory if needed and tells you what it wrote:
 
 ```zsh
 git fi install-completions --write "${fpath[1]}"

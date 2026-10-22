@@ -261,131 +261,36 @@ describe("--update (UPDATE-05)", () => {
   });
 });
 
-describe("postinstall completion install (COMPLETE-07)", () => {
-  const script = fileURLToPath(new URL("../scripts/postinstall.mjs", import.meta.url));
-  let dir: string;
-  before(() => {
-    dir = mkdtempSync(join(tmpdir(), "git-fi-prefix-"));
-  });
-  after(() => rmSync(dir, { recursive: true, force: true }));
-
-  /** Run the postinstall as npm would, with the given npm_config_* env. */
-  const run = (env: Record<string, string>) =>
-    spawnSync(process.execPath, [script], { encoding: "utf-8", env: { ...process.env, ...env } });
-
-  test("a global install writes both zsh files under npm's prefix", () => {
-    const prefix = join(dir, "global");
-    const r = run({ npm_config_global: "true", npm_config_prefix: prefix });
-    assert.equal(r.status, 0, r.stderr);
-    const dest = join(prefix, "share", "zsh", "site-functions");
-    assert.match(readFileSync(join(dest, "_git-fi"), "utf8"), /^#compdef git-fi/);
-    assert.match(readFileSync(join(dest, "_git_fi"), "utf8"), /^#autoload/);
-    assert.match(r.stdout, /installed zsh completion/);
-  });
-
-  test("a local install writes nothing and says nothing", () => {
-    const prefix = join(dir, "local");
-    const r = run({ npm_config_global: "", npm_config_prefix: prefix });
-    assert.equal(r.status, 0, r.stderr);
-    assert.equal(r.stdout.trim(), "");
-    assert.throws(() => readFileSync(join(prefix, "share", "zsh", "site-functions", "_git-fi")));
-  });
-
-  test("an unwritable prefix reports the manual command without failing", () => {
-    // A postinstall that exits non-zero fails `npm install -g` outright, so a
-    // root-owned prefix has to degrade to advice, not an error.
-    const blocker = join(dir, "not-a-prefix");
-    writeFileSync(blocker, "");
-    const r = run({ npm_config_global: "true", npm_config_prefix: join(blocker, "nope") });
-    assert.equal(r.status, 0, r.stderr);
-    assert.match(r.stdout, /install-completions --write/);
-  });
-
-  test("installs exactly the files --write installs", () => {
-    // The names live in both places (the postinstall can't import the compiled
-    // TypeScript — npm runs it before the build), so pin them together.
-    const prefix = join(dir, "parity");
-    assert.equal(run({ npm_config_global: "true", npm_config_prefix: prefix }).status, 0);
-    const written = join(dir, "parity-write");
-    assert.equal(runFi(["install-completions", "--write", written], dir).status, 0);
-    assert.deepEqual(
-      readdirSync(join(prefix, "share", "zsh", "site-functions")).sort(),
-      readdirSync(written).sort()
-    );
-  });
-});
-
-describe("postinstall git floor (PRE-06)", () => {
-  const script = fileURLToPath(new URL("../scripts/postinstall.mjs", import.meta.url));
-  const gitTs = fileURLToPath(new URL("../src/git.ts", import.meta.url));
+describe("git floor (PRE-02)", () => {
   let dir: string;
   let bin: string;
   before(() => {
     dir = mkdtempSync(join(tmpdir(), "git-fi-floor-"));
+    mkdirSync(join(dir, ".git"));
     bin = join(dir, "bin");
-    mkdirSync(bin, { recursive: true });
-    // A shell shim only: the postinstall spawns git without a shell, and node
-    // refuses to spawn a .cmd that way (the CVE-2024-27980 hardening, see
-    // updateSelf), so Windows has no shape of this fake that git would resolve.
+    mkdirSync(bin);
+    // A shell shim only: git-fi spawns git without a shell, and node refuses to
+    // spawn a .cmd that way (the CVE-2024-27980 hardening, see updateSelf), so
+    // Windows has no shape of this fake that git would resolve.
     writeFileSync(join(bin, "git"), `#!/bin/sh\necho "git version 2.39.5"\n`, { mode: 0o755 });
   });
   after(() => rmSync(dir, { recursive: true, force: true }));
 
-  const prefix = () => join(dir, "prefix");
-  const run = (path: string) =>
-    spawnSync(process.execPath, [script], {
-      encoding: "utf-8",
-      env: { ...process.env, PATH: path, npm_config_global: "true", npm_config_prefix: prefix() },
-    });
-
-  const notWindows = { skip: process.platform === "win32" };
-
-  test("a git below the floor fails the install", notWindows, () => {
-    const r = run(bin + delimiter + process.env.PATH);
+  test("a git below the floor aborts before any command runs", { skip: process.platform === "win32" }, () => {
+    const r = runFi([], dir, { PATH: bin + delimiter + process.env.PATH });
     assert.equal(r.status, 1);
-    assert.match(r.stderr, /requires git 2\.41\.0 or newer, and this system has git 2\.39\.5/);
-    // The escape hatch for a git the user does not control (PRE-06): without it
-    // the reader is told to upgrade and given nowhere to go if they cannot.
-    assert.match(r.stderr, /npm install -g @gettyimages\/git-fi@1\.2\.2/);
-    // Refusing means refusing everything, not installing half of it.
-    assert.throws(() => readdirSync(join(prefix(), "share", "zsh", "site-functions")));
+    assert.match(r.stderr, /git version 2\.39\.5 is too old, please upgrade to at least 2\.41\.0\./);
   });
 
-  test("a missing git fails the install", notWindows, () => {
-    const empty = join(dir, "empty");
-    mkdirSync(empty, { recursive: true });
-    const r = run(empty);
-    assert.equal(r.status, 1);
-    assert.match(r.stderr, /no working git was found on PATH/);
-  });
-
-  const pick = (src: string, re: RegExp, what: string): string => {
-    const m = src.match(re);
-    assert.ok(m, `${re} found nothing: ${what} moved somewhere this test cannot see`);
-    return m[1];
-  };
-
-  test("engines.git states the floor as a >= range (PRE-02, PRE-06)", () => {
-    // Both readers strip a leading `>=` and compare what is left as a dotted
-    // triple. Any other range shape — `^2.41.0`, `2.41.x` — survives that strip
-    // and makes `ordinal` return NaN, so every comparison is false and the floor
-    // stops being enforced without anything failing.
+  test("engines.git states the floor as a >= range", () => {
+    // preflightChecks strips a leading `>=` and compares what is left as a
+    // dotted triple. Any other range shape (`^2.41.0`, `2.41.x`) survives that
+    // strip and makes `ordinal` return NaN, so every comparison is false and the
+    // floor stops being enforced without anything failing.
     const { engines } = JSON.parse(
       readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8")
     );
     assert.match(engines.git, /^>=\d+\.\d+\.\d+$/);
-  });
-
-  test("both enforcers compare the floor the same way (PRE-02)", () => {
-    // The postinstall cannot import the compiled comparison — npm runs it before
-    // the build — so `ordinal` is written out in both files. Agreeing on the
-    // floor while disagreeing on the radix refuses an install at one version and
-    // aborts a command at another.
-    const body = /ordinal = \(v(?:: string)?\)(?:: number)? =>\s*(v\.split[^;]+);/;
-    assert.equal(
-      pick(readFileSync(script, "utf8"), body, "the comparison"),
-      pick(readFileSync(gitTs, "utf8"), body, "the comparison")
-    );
   });
 });
 

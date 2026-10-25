@@ -104,11 +104,9 @@ export function gitExitCode(args: string[], gitOpts: GitOpts = {}): number {
   return gitOutcome(args, gitOpts).status;
 }
 
-// The git floor lives in package.json's `engines.git` (PRE-02, PRE-06), which
-// npm records but does not enforce — so this and scripts/postinstall.mjs both
-// read it and do the enforcing. package.json rather than a shared module
-// because npm runs the postinstall before the build, so there is no dist/ to
-// import from; a test pins the range's shape and the comparison below.
+// The git floor lives in package.json's `engines.git` (PRE-02), which npm
+// records but does not enforce, so preflightChecks does. A test pins the
+// range's shape to what the strip below expects.
 const MIN_GIT = createRequire(import.meta.url)("../package.json")
   .engines.git.replace(/^>=/, "");
 

@@ -2,7 +2,7 @@
 
 Tracks implementation status of each requirement in [SPEC.md](/SPEC.md).
 
-**Last updated:** 2026-09-23
+**Last updated:** 2026-10-22
 
 Locations name the file and the enclosing symbol rather than a line range, so an
 edit elsewhere in the same file leaves the row correct. `git grep` the symbol to
@@ -12,8 +12,8 @@ land on it.
 
 | Status  | Count |
 |---------|-------|
-| Covered | 137   |
-| Total   | 137   |
+| Covered | 138   |
+| Total   | 138   |
 
 ## `PRE`
 
@@ -26,7 +26,6 @@ Pre-flight Checks
 | PRE-03 | Push config                | Covered | `src/git.ts` (`preflightChecks`)|
 | PRE-04 | Fetch                      | Covered | `src/git.ts` (`ensureFetched`)  |
 | PRE-05 | `GIT_FI_NO_FETCH` skips fetch | Covered | `src/git.ts` (`ensureFetched`) |
-| PRE-06 | Install-time git floor | Covered | `scripts/postinstall.mjs` (`refuse`) |
 
 ## `OPTION`
 
@@ -69,7 +68,7 @@ Shell Completion
 | COMPLETE-04 | Offline membership          | Covered | `scripts/completion/git-fi.bash.tmpl` (`GIT_FI_NO_FETCH`), `src/git.ts` (`ensureFetched`) |
 | COMPLETE-05 | `install-completions` subcommand | Covered | `src/install-completions.ts` (`scriptFor`, `installCompletions`), `src/index.ts` (`parseArgs`) |
 | COMPLETE-06 | `--write <dir>` onto the fpath | Covered | `src/install-completions.ts` (`writeToFpath`) |
-| COMPLETE-07 | Completion installed on `npm i -g` | Covered | `scripts/postinstall.mjs`, `package.json` (`postinstall`, `files`) |
+| COMPLETE-08 | Completion setup shown in help | Covered | `src/help.ts` (`COMPLETION_SETUP`, `renderHelp`), `scripts/gen-docs.ts` |
 
 ## `TERM`
 

@@ -69,5 +69,12 @@ Print the shell completion script (zsh\-git: for git's own zsh wrapper)
 .TP
 .B install\-completions \-\-write <dir>
 Write both zsh completion files onto an fpath directory
+.SH SHELL COMPLETION
+.TP
+.B zsh
+git fi install\-completions \-\-write "${fpath[1]}"
+.TP
+.B bash
+add to ~/.bashrc: source <(git fi install\-completions bash)
 .SH SEE ALSO
 Full documentation: https://gettyimages.github.io/git\-fi/

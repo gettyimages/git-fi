@@ -45,6 +45,16 @@ Get-Command git-fi -All
 
 `Get-Command` cannot run a launcher with no file extension, so it leaves that one out. If `git fi` fails with `Program 'git-fi' failed to run` or `Maybe git-fi is broken?`, check Ruby's `bin` directory directly.
 
+## Help fails on Windows
+
+On Windows, `git fi --help` fails with:
+
+```text
+fatal: 'C:/Program Files/Git/mingw64/share/doc/git-doc/git-fi.html': documentation file not found
+```
+
+git handles `--help` itself, before git-fi runs. Git for Windows opens an HTML page from its own install directory, and git-fi ships a man page, not HTML. Use `git fi -h` or `git fi help` for the summary, or read the [Commands](commands.md) page.
+
 ## Update reports an unknown option
 
 If `git fi --update` reports an unknown option, you're on a version that predates the flag. Update once with npm and you'll have it:

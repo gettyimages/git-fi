@@ -98,7 +98,7 @@ git fi help      # same summary (a plain subcommand)
 git fi --help    # opens the man page
 ```
 
-`git` itself intercepts `git fi --help` and routes it to `man git-fi` — so it works once the man page is installed (it ships with the npm package). `git fi -h` and `git fi help` reach git-fi directly and always print the summary.
+`git` itself intercepts `git fi --help` and opens git-fi's documentation in git's configured help format. On macOS and Linux that's `man git-fi`, which works once the npm package's man page is installed. Git for Windows looks for an HTML page instead, which git-fi doesn't ship, so use `git fi -h` there ([Troubleshooting](troubleshooting.md#help-fails-on-windows)). `git fi -h` and `git fi help` reach git-fi directly and always print the summary.
 
 ### Shell completion
 

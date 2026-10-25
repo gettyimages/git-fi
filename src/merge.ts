@@ -41,46 +41,60 @@ import { branchJson, writeJson } from "./json.js";
 // keep working; scheduled to switch to "terse" after the rollout (~2026-09).
 const DEFAULT_WRITE_FORMAT: CommitFormat = "legacy";
 
-function buildLegacyMessage(branches: string[]): string {
-  const shortNames = branches.map(localBranchName);
-  if (shortNames.length === 0) {
-    return "Merge remote-tracking branch into fi";
-  }
-  const quoted = shortNames.map((b) => `'origin/${b}'`);
-  if (quoted.length === 1) {
-    return `Merge remote-tracking branch ${quoted[0]} into fi`;
-  }
-  const last = quoted.pop()!;
-  return `Merge remote-tracking branches ${quoted.join(", ")} and ${last} into fi`;
-}
-
-function buildTerseSignature(branches: string[], defBranch: string): string {
-  const baseHash = git(["rev-parse", "--short", `origin/${defBranch}`])!;
-  const shortNames = branches.map(localBranchName);
-  if (shortNames.length === 0) return `@[${baseHash}]`;
-  return `(${shortNames.join(", ")})@[${baseHash}]`;
-}
-
-function buildCommitMessage(
+function buildSignature(
   branches: string[],
   defBranch: string,
   format: CommitFormat
 ): string {
+  const shortNames = branches.map(localBranchName);
+  if (format === "legacy") {
+    if (shortNames.length === 0) {
+      return "Merge remote-tracking branch into fi";
+    }
+    const quoted = shortNames.map((b) => `'origin/${b}'`);
+    if (quoted.length === 1) {
+      return `Merge remote-tracking branch ${quoted[0]} into fi`;
+    }
+    const last = quoted.pop()!;
+    return `Merge remote-tracking branches ${quoted.join(", ")} and ${last} into fi`;
+  }
+  const baseHash = git(["rev-parse", "--short", `origin/${defBranch}`])!;
+  if (shortNames.length === 0) return `@[${baseHash}]`;
+  return `(${shortNames.join(", ")})@[${baseHash}]`;
+}
+
+// Names are written bare, never as 'origin/<name>': a reader that scans the
+// whole message for that form (the Ruby gem's did) would take a removed branch
+// as still in fi.
+function describeChange(prior: string[], branches: string[]): string | null {
+  const before = prior.map(localBranchName);
+  const after = branches.map(localBranchName);
+  const added = after.filter((b) => !before.includes(b));
+  const removed = before.filter((b) => !after.includes(b));
+  const clauses: string[] = [];
+  if (added.length > 0) clauses.push(`added ${added.join(", ")}`);
+  if (removed.length > 0) clauses.push(`removed ${removed.join(", ")}`);
+  if (clauses.length === 0) return null;
+  const sentence = clauses.join("; ");
+  return `${sentence[0].toUpperCase()}${sentence.slice(1)}.`;
+}
+
+function buildCommitMessage(
+  prior: string[],
+  branches: string[],
+  defBranch: string,
+  format: CommitFormat
+): string {
+  const paragraphs: string[] = [];
   if (process.env.CI) {
     const pipelineId = process.env.CI_PIPELINE_ID || "unknown";
     const refName = process.env.CI_COMMIT_REF_NAME || "unknown";
-    const previousMsg =
-      git(["log", "-1", "--format=%B", "origin/fi"], { allowFailure: true }) ||
-      "";
-    const signature = format === "legacy"
-      ? buildLegacyMessage(branches)
-      : buildTerseSignature(branches, defBranch);
-    const preamble = `Re-merge fi branch triggered by build ${pipelineId} due to commit on ${refName}. Was originally: --- ${previousMsg.trim()}`;
-    return `${preamble}\n\n${signature}`;
+    paragraphs.push(`Re-merge fi branch triggered by build ${pipelineId} due to commit on ${refName}.`);
   }
-
-  if (format === "legacy") return buildLegacyMessage(branches);
-  return buildTerseSignature(branches, defBranch);
+  const change = describeChange(prior, branches);
+  if (change !== null) paragraphs.push(change);
+  paragraphs.push(buildSignature(branches, defBranch, format));
+  return paragraphs.join("\n\n");
 }
 
 const ACTION_INITIAL: Record<string, string> = {
@@ -365,7 +379,12 @@ export async function mergeProcess(
 
   if (outcome.outcome === "merged") {
     updateProgress("committing");
-    const commitMsg = buildCommitMessage(mergeable, defBranch, commitFormat);
+    const commitMsg = buildCommitMessage(
+      currentFiBranches(defBranch),
+      mergeable,
+      defBranch,
+      commitFormat
+    );
     // The parents a merge commit carries: the default branch fi is rebuilt
     // from, then each branch in the order it was merged.
     const parents = [defBranch, ...mergeable].flatMap((p) => [

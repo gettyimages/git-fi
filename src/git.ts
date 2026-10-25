@@ -230,12 +230,8 @@ export function detectCommitFormat(commitMsg: string): CommitFormat {
 }
 
 export function parseBranchList(commitMsg: string, defBranch: string): string[] {
-  // The CI commit message (MERGE-13) is `<preamble>\n\n<signature>`, where the
-  // preamble embeds the previous fi message ("Was originally: ---") — which can
-  // itself quote branch names or carry an old signature line. git-fi always
-  // appends the signature it just wrote as the final paragraph, so parse only
-  // that paragraph; otherwise branches removed in this operation resurface from
-  // the embedded history and accumulate across CI re-merges.
+  // The signature is the final paragraph (STORAGE-05); text above it can name
+  // branches no longer in fi, so parse only that paragraph.
   const sep = commitMsg.lastIndexOf("\n\n");
   const sig = sep === -1 ? commitMsg : commitMsg.slice(sep + 2);
 

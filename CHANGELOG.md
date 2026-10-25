@@ -5,6 +5,29 @@ GitHub Release by the release workflow (`.github/workflows/release.yml`).
 
 <!-- releases below -->
 
+## v1.4.0 (2026-10-25)
+
+### Upgrading
+
+- Installing git-fi runs no script, so tab completion is a step you run yourself. Run it once after upgrading, so completion offers `--bootstrap`:
+  - zsh: `git fi install-completions --write "${fpath[1]}"`
+  - bash: add `source <(git fi install-completions bash)` to `~/.bashrc`
+- The git version check (2.41.0 or newer) happens when `git fi` runs, not at install.
+
+### Features
+
+- `git fi --bootstrap` creates an empty `fi` without prompting, so a repository or a CI job can set up `fi` before anything is added. Where `fi` already exists, it lists the branches and leaves `fi` alone.
+- Each `fi` commit message says what the run changed, for example `Added feature-d.` or `Removed feature-b.`.
+
+### Fixes
+
+- In CI, the `fi` commit message stays the same size from one rebuild to the next. An oversized message shrinks on the next rebuild.
+
+### Other
+
+- The docs explain that `git fi --help` fails on Git for Windows and point to `git fi -h` instead.
+
+
 ## v1.3.4 (2026-10-09)
 
 ### Fixes

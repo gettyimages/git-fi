@@ -289,7 +289,7 @@ Install Integrity
 
 | ID     | Description                      | Status  | Location                       |
 |--------|----------------------------------|---------|--------------------------------|
-| INSTALL-01 | `--version` reports a launcher ahead of this copy | Covered | `src/which.ts` (`gitFiOnPath`, `shadowingLauncher`, `shadowNotice`, `warnIfShadowed`), `src/index.ts` (`parseArgs`) |
+| INSTALL-01 | `--version` reports a launcher ahead of this copy | Covered | `src/which.ts` (`gitFiOnPath`, `shadowingLauncher`, `isSameInstall`, `launcherTarget`, `shadowNotice`, `warnIfShadowed`), `src/index.ts` (`parseArgs`) |
 
 ## `UPDATE`
 

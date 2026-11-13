@@ -252,6 +252,57 @@ describe("shadowingLauncher (INSTALL-01)", () => {
   });
 });
 
+describe("pnpm launchers (INSTALL-01)", () => {
+  /**
+   * A pnpm global install: the launcher pnpm writes into its bin directory, and
+   * the entry point it hands node, under the global directory beside it. The
+   * script is cut down from the one pnpm writes, keeping the lines that name the
+   * entry point — on every platform it is a generated script, never a symlink.
+   */
+  function pnpmInstall(recordTarget: boolean, hash = "abc123") {
+    const home = mkdtempSync(join(tmpdir(), "git-fi-pnpm-"));
+    const relative = `global/v11/${hash}/node_modules/@gettyimages/git-fi/dist/index.js`;
+    const target = join(home, relative);
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, "");
+    const launcher = join(home, "bin", "git-fi");
+    mkdirSync(dirname(launcher));
+    writeFileSync(
+      launcher,
+      `#!/bin/sh\n` +
+        `if [ -x "$basedir/node" ]; then\n` +
+        `  exec "$basedir/node"  "$basedir_abs/../${relative}" "$@"\n` +
+        `else\n` +
+        `  exec node  "$basedir_abs/../${relative}" "$@"\n` +
+        `fi\n` +
+        (recordTarget ? `# cmd-shim-target=${target}\n` : ""),
+      { mode: 0o755 }
+    );
+    return { launcher, target };
+  }
+
+  test("the launcher's recorded target is this install", () => {
+    const { launcher, target } = pnpmInstall(true);
+    assert.equal(isSameInstall(launcher, target), true);
+  });
+
+  test("a launcher without the record leads here through its relative path", () => {
+    const { launcher, target } = pnpmInstall(false);
+    assert.equal(isSameInstall(launcher, target), true);
+  });
+
+  test("stays silent when pnpm's launcher is the one PATH resolves", () => {
+    const { launcher, target } = pnpmInstall(true);
+    assert.equal(shadowingLauncher(target, onPath(dirname(launcher))), null);
+  });
+
+  test("another pnpm install's launcher is not this one", () => {
+    const mine = pnpmInstall(true, "mine");
+    const theirs = pnpmInstall(true, "theirs");
+    assert.equal(isSameInstall(theirs.launcher, mine.target), false);
+  });
+});
+
 describe("shadowNotice (INSTALL-01)", () => {
   const s = makeStyle(OPTS);
 
@@ -264,6 +315,7 @@ describe("shadowNotice (INSTALL-01)", () => {
   test("gives both ways out, not just deletion", () => {
     const notice = shadowNotice("/ruby/bin/git-fi", "/npm/git-fi", s);
     assert.ok(notice.includes("npm config get prefix"), notice);
+    assert.ok(notice.includes("pnpm bin -g"), notice);
   });
 });
 

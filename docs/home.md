@@ -8,6 +8,7 @@ A git plugin that maintains a temporary integration branch named `fi`. Merge mul
 
 ```bash
 npm install -g @gettyimages/git-fi   # needs Node.js 22+ and git 2.41+
+pnpm add -g @gettyimages/git-fi      # or with pnpm
 ```
 
 </div>

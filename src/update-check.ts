@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import type { Options } from "./types.js";
 import { makeStyle, hintsEnabled } from "./style.js";
 import { isDevBuild } from "./build-info.js";
+import { PackageManager } from "./package-manager.js";
 
 const ONE_DAY_MS = 1000 * 60 * 60 * 24;
 
@@ -95,9 +96,10 @@ export function notifyUpdate(name: string, current: string, opts: Options): void
 }
 
 /**
- * Hand the update to npm and exit with its verdict. npm's stdio is inherited
- * and its exit code becomes ours, so a registry outage, a permissions error, or
- * a successful install all read exactly as npm already reports them.
+ * Hand the update to the package manager that installed this copy (UPDATE-05),
+ * and exit with its verdict. Its stdio is inherited and its exit code becomes
+ * ours, so a registry outage, a permissions error, or a successful install all
+ * read exactly as the package manager already reports them.
  *
  * The cache is deliberately not consulted first: the 24-hour throttle (UPDATE-02)
  * exists to keep a *passive* notice cheap, whereas `--update` is the user asking
@@ -105,17 +107,12 @@ export function notifyUpdate(name: string, current: string, opts: Options): void
  * than a redundant reinstall.
  */
 export function updateSelf(name: string): never {
-  const npm = spawnSync("npm", ["install", "-g", `${name}@latest`], {
-    stdio: "inherit",
-    // On Windows npm is npm.cmd, which node refuses to spawn directly (EINVAL,
-    // the CVE-2024-27980 hardening) and finds by bare name not at all — so the
-    // shell does the PATHEXT lookup. Every argument here is a fixed literal,
-    // so there is nothing for cmd's parser to mangle.
-    shell: process.platform === "win32",
-  });
-  if (npm.error) {
-    process.stderr.write(`Could not run npm: ${npm.error.message}\n`);
+  const pm = PackageManager.detect(name);
+  const result = pm.installLatest(name);
+  if (result.error) {
+    process.stderr.write(`Could not run ${pm.command}: ${result.error.message}\n`);
+    if (pm.notFoundHint) process.stderr.write(`${pm.notFoundHint}\n`);
     process.exit(1);
   }
-  process.exit(npm.status ?? 1);
+  process.exit(result.status ?? 1);
 }

@@ -8,6 +8,12 @@ git-fi is a git subcommand: once the `git-fi` binary is on your `PATH`, invoke i
 npm install -g @gettyimages/git-fi
 ```
 
+Or with pnpm, if that is your preferred package manager:
+
+```bash
+pnpm add -g @gettyimages/git-fi
+```
+
 Then turn on tab completion, so `git fi --add <TAB>` offers your branches. In zsh:
 
 ```zsh

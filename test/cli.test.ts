@@ -1,10 +1,10 @@
 import { test, before, after, beforeEach, afterEach, describe } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync, readFileSync, readdirSync, writeFileSync, chmodSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, readFileSync, readdirSync, writeFileSync, chmodSync, existsSync, realpathSync, symlinkSync, unlinkSync } from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
 import { tmpdir } from "node:os";
-import { join, delimiter } from "node:path";
+import { join, delimiter, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { runFi, runFiOnTty, makeSandbox, DIST_INDEX, type Sandbox } from "./helpers.ts";
@@ -173,41 +173,119 @@ describe("--update (UPDATE-05)", () => {
   let dir: string;
   let path: string;
   let argvLog: string;
+  let pnpmLog: string;
+  let pnpmEntry: string;
+
+  /**
+   * A stand-in package manager: records the arguments git-fi handed it and the
+   * directory it ran in, and exits with whatever the test asks for. Running the
+   * real one would reinstall the developer's global git-fi mid-suite.
+   *
+   * The recording lives in a node script behind a per-platform launcher: the
+   * shebang a lone `sh` shim relies on means nothing to Windows, which needs
+   * a `.cmd` to match how it resolves npm and pnpm on PATH.
+   */
+  function fakeTool(bin: string, tool: string, log: string, exitVar: string): void {
+    const shim = join(dir, `${tool}-shim.mjs`);
+    writeFileSync(
+      shim,
+      `import { writeFileSync } from "node:fs";\n` +
+        `writeFileSync(${JSON.stringify(log)}, process.argv.slice(2).join("\\n") + "\\n");\n` +
+        `writeFileSync(${JSON.stringify(log + "-cwd")}, process.cwd());\n` +
+        `process.exit(Number(process.env.${exitVar} ?? 0));\n`
+    );
+    if (process.platform === "win32") {
+      writeFileSync(
+        join(bin, `${tool}.cmd`),
+        `@echo off\r\n"${process.execPath}" "${shim}" %*\r\nexit /b %ERRORLEVEL%\r\n`
+      );
+    } else {
+      writeFileSync(join(bin, tool), `#!/bin/sh\nexec "${process.execPath}" "${shim}" "$@"\n`, {
+        mode: 0o755,
+      });
+    }
+  }
 
   before(() => {
     dir = mkdtempSync(join(tmpdir(), "git-fi-update-"));
     const bin = join(dir, "bin");
     argvLog = join(dir, "npm-argv");
+    pnpmLog = join(dir, "pnpm-argv");
     mkdirSync(bin);
-    // Stand-in npm: records the arguments git-fi handed it, and exits with
-    // whatever the test asks for. Running the real npm would reinstall the
-    // developer's global git-fi mid-suite.
-    //
-    // The recording lives in a node script behind a per-platform launcher: the
-    // shebang a lone `sh` shim relies on means nothing to Windows, which needs
-    // an `npm.cmd` to match how it resolves npm on PATH.
-    const shim = join(dir, "npm-shim.mjs");
-    writeFileSync(
-      shim,
-      `import { writeFileSync } from "node:fs";\n` +
-        `writeFileSync(${JSON.stringify(argvLog)}, process.argv.slice(2).join("\\n") + "\\n");\n` +
-        `process.exit(Number(process.env.FAKE_NPM_EXIT ?? 0));\n`
-    );
-    if (process.platform === "win32") {
-      writeFileSync(
-        join(bin, "npm.cmd"),
-        `@echo off\r\n"${process.execPath}" "${shim}" %*\r\nexit /b %ERRORLEVEL%\r\n`
-      );
-    } else {
-      writeFileSync(join(bin, "npm"), `#!/bin/sh\nexec "${process.execPath}" "${shim}" "$@"\n`, {
-        mode: 0o755,
-      });
-    }
+    fakeTool(bin, "npm", argvLog, "FAKE_NPM_EXIT");
+    fakeTool(bin, "pnpm", pnpmLog, "FAKE_PNPM_EXIT");
     path = bin + delimiter + process.env.PATH;
+
+    // A pnpm-shaped global install of this checkout: pnpm's marker beside the
+    // package, which is linked in the way pnpm 11+ links it from the store.
+    // pnpmEntry is the path pnpm's launcher would hand node.
+    const modules = join(dir, "pnpm-global", "node_modules");
+    mkdirSync(join(modules, "@gettyimages"), { recursive: true });
+    writeFileSync(join(modules, ".modules.yaml"), "layoutVersion: 5\n");
+    symlinkSync(dirname(dirname(DIST_INDEX)), join(modules, "@gettyimages", "git-fi"), "junction");
+    pnpmEntry = join(modules, "@gettyimages", "git-fi", "dist", "index.js");
   });
-  after(() => rmSync(dir, { recursive: true, force: true }));
+  after(() => {
+    // Drop the link to the checkout on its own first, so the recursive removal
+    // below can never reach through it into the repo.
+    unlinkSync(join(dir, "pnpm-global", "node_modules", "@gettyimages", "git-fi"));
+    rmSync(dir, { recursive: true, force: true });
+  });
+  beforeEach(() => {
+    rmSync(argvLog, { force: true });
+    rmSync(pnpmLog, { force: true });
+  });
 
   const npmArgv = () => readFileSync(argvLog, "utf8").trim().split("\n");
+  const pnpmArgv = () => readFileSync(pnpmLog, "utf8").trim().split("\n");
+  const pnpmCwd = () => realpathSync(readFileSync(pnpmLog + "-cwd", "utf8"));
+
+  describe("installed with pnpm", () => {
+    let project: string;
+    before(() => {
+      // A repo pinned to another package manager: corepack refuses pnpm here,
+      // and would pick a pinned pnpm's own global directory.
+      project = join(dir, "yarn-project");
+      mkdirSync(project);
+      writeFileSync(
+        join(project, "package.json"),
+        JSON.stringify({ name: "app", packageManager: "yarn@4.0.0" })
+      );
+    });
+
+    test("updates through pnpm, not npm", () => {
+      const r = runFi(["--update"], project, { PATH: path }, pnpmEntry);
+      assert.equal(r.status, 0, r.stderr);
+      assert.deepEqual(pnpmArgv(), ["add", "-g", `${name}@latest`]);
+      assert.equal(existsSync(argvLog), false, "npm was called");
+    });
+
+    test("runs pnpm outside the project, so its packageManager field cannot steer it", () => {
+      runFi(["--update"], project, { PATH: path }, pnpmEntry);
+      assert.equal(pnpmCwd(), realpathSync(tmpdir()));
+      assert.notEqual(pnpmCwd(), realpathSync(project));
+    });
+
+    test("exits with pnpm's exit code and adds no wrapper output", () => {
+      const r = runFi(["--update"], project, { PATH: path, FAKE_PNPM_EXIT: "17" }, pnpmEntry);
+      assert.equal(r.status, 17);
+      assert.equal(r.stdout, "");
+      assert.equal(r.stderr, "");
+    });
+
+    // On Windows the shell resolves pnpm (see updateSelf), so a missing one is
+    // cmd's error to report, as for npm below.
+    test("names pnpm and how to get it onto PATH, rather than falling back to npm", {
+      skip: process.platform === "win32",
+    }, () => {
+      const empty = join(dir, "empty");
+      mkdirSync(empty, { recursive: true });
+      const r = runFi(["--update"], project, { PATH: empty }, pnpmEntry);
+      assert.equal(r.status, 1);
+      assert.match(r.stderr, /Could not run pnpm/);
+      assert.match(r.stderr, /corepack enable pnpm/);
+    });
+  });
 
   test("installs the latest published version, from outside a git repo", () => {
     // `dir` is a bare temp directory: updating must not require a repo.

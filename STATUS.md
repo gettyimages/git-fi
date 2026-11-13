@@ -301,4 +301,4 @@ Update Notification
 | UPDATE-02 | Throttled background check | Covered | `src/update-check.ts` (`notifyUpdate`), `src/update-worker.ts` |
 | UPDATE-03 | Suppression conditions   | Covered | `src/style.ts` (`hintsEnabled`), `src/update-check.ts` (`suppressed`), `src/build-info.ts` (`isDevBuild`) |
 | UPDATE-04 | Cache location           | Covered | `src/update-check.ts` (`cachePath`) |
-| UPDATE-05 | `--update` installs the latest version | Covered | `src/update-check.ts` (`updateSelf`), `src/index.ts` (`parseArgs`, `main`) |
+| UPDATE-05 | `--update` installs the latest version | Covered | `src/update-check.ts` (`updateSelf`), `src/package-manager.ts` (`PackageManager.detect`, `Npm`, `Pnpm`), `src/index.ts` (`parseArgs`, `main`) |

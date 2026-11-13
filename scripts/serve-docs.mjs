@@ -1,5 +1,5 @@
 // Serves docs/ the way GitHub Pages does, for previewing the Docsify site
-// locally (npm run docs). Docsify renders in the browser, so any static server
+// locally (pnpm run docs). Docsify renders in the browser, so any static server
 // works; this one keeps the preview free of extra dependencies.
 //
 // The spec page includes spec-body.md, which the Pages workflow copies from

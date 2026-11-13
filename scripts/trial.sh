@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Local trial helper (npm run trial:on / trial:off). Points `git fi` at this
+# Local trial helper (pnpm run trial:on / trial:off). Points `git fi` at this
 # working copy and loads the completion the way a user installs it, so the change
 # can be run for a few days before shipping, then reverts. Not published (see
 # package.json "files").
@@ -21,19 +21,25 @@ pkg="@gettyimages/git-fi"
 
 # What the global install is right now: a version for a registry install,
 # `linked` where it already points at a checkout, or empty where the package is
-# absent. `npm link` overwrites that install, so the answer has to be taken
-# before it runs and kept for `off` to restore. `npm ls` exits non-zero on some
-# tree problems while still printing usable JSON, so its status is discarded
-# rather than aborting the run under `pipefail`.
+# absent. Linking the checkout overwrites that install, so the answer has to be
+# taken before it runs and kept for `off` to restore. `pnpm ls` can exit
+# non-zero while still printing usable JSON, so its status is discarded rather
+# than aborting the run under `pipefail`.
 installed_state() {
-	{ npm ls -g --depth=0 --json "$pkg" 2>/dev/null || true; } | node -e '
-		const raw = require("fs").readFileSync(0, "utf8");
+	{ pnpm ls -g --depth=0 --json 2>/dev/null || true; } | node -e '
+		const fs = require("fs");
+		const raw = fs.readFileSync(0, "utf8");
 		try {
-			const dep = (JSON.parse(raw).dependencies ?? {})[process.argv[1]];
+			const dep = JSON.parse(raw)
+				.map((tree) => (tree.dependencies ?? {})[process.argv[1]])
+				.find(Boolean);
 			if (!dep) process.exit(0);
-			// A linked checkout reports `resolved` as a file: URL; only a
-			// registry install names a version to come back to.
-			if (String(dep.resolved ?? "").startsWith("file:")) process.stdout.write("linked");
+			// pnpm reports a linked checkout with the version its package.json
+			// holds, so the version alone cannot tell the two apart. A registry
+			// install resolves into a node_modules (the global directory or the
+			// store); a linked one resolves to the checkout itself.
+			const real = fs.realpathSync(dep.path);
+			if (!/[\\/]node_modules[\\/]/.test(real)) process.stdout.write("linked");
 			else if (dep.version) process.stdout.write(dep.version);
 		} catch (e) {
 			process.stderr.write(`could not read the global ${process.argv[1]}: ${e.message}\n`);
@@ -44,7 +50,7 @@ installed_state() {
 case "${1:-}" in
 on)
 	cd "$root"
-	npm run build
+	pnpm run build
 
 	mkdir -p "$root/.trial"
 	if [ ! -f "$restore" ]; then
@@ -65,7 +71,9 @@ on)
 		esac
 	fi
 
-	npm link
+	# A directory added globally is saved as a `link:` dependency, so later
+	# builds take effect without reinstalling (pnpm 12 has no `link --global`).
+	pnpm add -g "$root"
 
 	node "$root/dist/index.js" install-completions --write "$compdir"
 
@@ -94,8 +102,8 @@ off)
 	version=""
 	[ -f "$restore" ] && version="$(cat "$restore")"
 
-	# `npm i -g <pkg>@<spec>` takes far more than a version — a URL, a git ref,
-	# a `file:` path, an `npm:` alias — and this value comes off disk. Anything
+	# `pnpm add -g <pkg>@<spec>` takes far more than a version — a URL, a git
+	# ref, a `file:` path, an `npm:` alias — and this value comes off disk. Anything
 	# that isn't a bare version is refused rather than fetched.
 	case "$version" in
 	"") ;;
@@ -127,24 +135,24 @@ off)
 	if [ -n "$version" ]; then
 		# The exact version the trial displaced, not whatever is newest: a trial
 		# should hand back the install it borrowed.
-		npm rm -g "$pkg" || true
-		npm i -g "$pkg@$version"
+		pnpm rm -g "$pkg" || true
+		pnpm add -g "$pkg@$version"
 	elif [ -n "$state" ] && [ "$state" != "linked" ]; then
 		# Nothing is linked, so no trial is running and this install is someone's
 		# own choice. Reinstalling here would replace it with whatever is newest,
 		# which is the outcome the recorded version exists to prevent.
 		echo "No trial to revert; $pkg@$state is installed from the registry. Leaving it alone."
 	else
-		npm rm -g "$pkg" || true
+		pnpm rm -g "$pkg" || true
 		echo "No recorded version to come back to; installing the latest $pkg."
-		npm i -g "$pkg"
+		pnpm add -g "$pkg"
 	fi
 
 	echo
 	echo "Reverted. Open a new terminal, then \`git fi --version\` to confirm."
 	;;
 *)
-	echo "usage: npm run trial:on | npm run trial:off" >&2
+	echo "usage: pnpm run trial:on | pnpm run trial:off" >&2
 	exit 1
 	;;
 esac

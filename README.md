@@ -17,20 +17,22 @@ The git floor tracks the newest git feature the code calls rather than a support
 ```bash
 git clone https://github.com/gettyimages/git-fi.git
 cd git-fi
-npm install                 # dev dependencies (tsx, typescript)
+pnpm install                # dev dependencies (tsx, typescript)
 ```
+
+The tooling runs on [pnpm](https://pnpm.io), at the version `packageManager` in `package.json` pins; pnpm and corepack both switch to it inside the checkout.
 
 Day-to-day, git-fi runs straight from source — no global install needed:
 
 ```bash
-npm start -- --help         # run src/ directly via tsx
-npm run build               # compile TypeScript to dist/
-npm test                    # build, then run the integration suite
+pnpm start --help           # run src/ directly via tsx
+pnpm run build              # compile TypeScript to dist/
+pnpm test                   # build, then run the integration suite
 ```
 
-With [just](https://github.com/casey/just) installed, `just` lists the same tasks under shorter names — `just run --help`, `just build`, `just test`. The recipes delegate to the npm scripts rather than restating them, so `package.json` stays the one place a command is defined; CI and `prepublishOnly` call npm directly either way.
+With [just](https://github.com/casey/just) installed, `just` lists the same tasks under shorter names — `just run --help`, `just build`, `just test`. The recipes delegate to the package scripts rather than restating them, so `package.json` stays the one place a command is defined; CI and `prepublishOnly` call pnpm directly either way.
 
-`npm test` is the primary feedback loop: it drives the compiled binary against throwaway git repositories (a bare `origin` plus a working clone), exercising real `git fetch`/`merge`/`push` behavior end-to-end. `scripts/run-tests.mjs` hands node's runner explicit paths rather than a glob, so a pattern that stops matching fails loudly instead of reporting a green suite that ran nothing.
+`pnpm test` is the primary feedback loop: it drives the compiled binary against throwaway git repositories (a bare `origin` plus a working clone), exercising real `git fetch`/`merge`/`push` behavior end-to-end. `scripts/run-tests.mjs` hands node's runner explicit paths rather than a glob, so a pattern that stops matching fails loudly instead of reporting a green suite that ran nothing.
 
 CI runs the suite on Linux and Windows across Node 22, 24, and 26 — both active LTS lines plus Current. Windows is in the matrix because git-fi behaves differently where the platform has no POSIX file modes: it stores the token without setting or checking `0600` (`AUTH-04`), and `--update` has to reach npm or pnpm through the shell there (`UPDATE-05`).
 
@@ -43,24 +45,24 @@ The implementation follows [SPEC.md](SPEC.md), which defines every requirement w
 To run the checkout as `git fi` in other repositories for a while:
 
 ```bash
-npm run trial:on            # build, npm link, load this copy's completion
-npm run trial:off           # unlink, restore the version it replaced
+pnpm run trial:on           # build, link globally with pnpm, load this copy's completion
+pnpm run trial:off          # unlink, restore the version it replaced
 ```
 
-`trial:on` symlinks the checkout onto your `PATH`, so later `npm run build`s take effect without reinstalling. It also runs `install-completions --write .trial/completions` and appends a marked block to `~/.zshrc` that puts that directory on your `fpath` — the same command, writing the same two files, that a user installs with (`COMPLETE-06`), so a trial exercises the shipped install path rather than a shortcut around it. Only `~/.zshrc` is touched; under bash you get the linked binary and wire the completion yourself. `trial:off` deletes the block and `.trial/`, then reinstalls the exact version the trial displaced, which `trial:on` recorded before linking over it (`BUILD-03`). Where that reference has been copied outside the marked block, `trial:off` names the lines rather than editing them, since the directory they point at is the one it just removed (`BUILD-04`). Open a new terminal after either one.
+`trial:on` links the checkout into pnpm's global directory (`pnpm add -g <checkout>`), so later `pnpm run build`s take effect without reinstalling. It also runs `install-completions --write .trial/completions` and appends a marked block to `~/.zshrc` that puts that directory on your `fpath` — the same command, writing the same two files, that a user installs with (`COMPLETE-06`), so a trial exercises the shipped install path rather than a shortcut around it. Only `~/.zshrc` is touched; under bash you get the linked binary and wire the completion yourself. `trial:off` deletes the block and `.trial/`, then reinstalls the exact version the trial displaced, which `trial:on` recorded before linking over it (`BUILD-03`). Where that reference has been copied outside the marked block, `trial:off` names the lines rather than editing them, since the directory they point at is the one it just removed (`BUILD-04`). Open a new terminal after either one.
 
 `git fi --version` is what says which build is in force: a trial answers `<version>-dev.g<sha>`, an installed copy answers the bare version (`BUILD-02`).
 
 If `git fi` runs something other than what you expect, `which -a git-fi` lists every `git-fi` on your `PATH` in resolution order.
 
-The published package — `npm install -g @gettyimages/git-fi`, documented on the [docs site](https://gettyimages.github.io/git-fi/#/quickstart) — is the official install for end users. Reach for it here mainly to test the distribution itself; local development runs from source.
+The published package — `npm install -g @gettyimages/git-fi` or `pnpm add -g @gettyimages/git-fi`, documented on the [docs site](https://gettyimages.github.io/git-fi/#/quickstart) — is the official install for end users. Reach for it here mainly to test the distribution itself; local development runs from source.
 
 ## Project Structure
 
 ```text
 SPEC.md        Behavioral specification
 STATUS.md      Requirement coverage
-justfile       Task runner wrapping the npm scripts
+justfile       Task runner wrapping the package scripts
 src/           TypeScript implementation
 test/          Integration suite (Node test runner)
 docs/          Docsify documentation site

@@ -24,13 +24,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # pnpm's version comes from `packageManager` in package.json.
+      - uses: pnpm/action-setup@v6
+        with:
+          cache: true
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-          cache: npm
 
-      - run: npm ci
-      - run: npm test
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
 
   # The matrix above drives the compiled binary straight out of the checkout, so
   # nothing there installs globally or reaches git-fi by the name a shell
@@ -38,8 +42,16 @@ jobs:
   # the Ruby gem had a launcher left in Ruby's bin directory, ahead of npm's
   # prefix on PATH, and `git fi` ran that one instead. Windows PowerShell rather
   # than pwsh because that is the shell the report came from.
+  #
+  # Once per package manager a user installs git-fi with: npm and pnpm lay a
+  # global install out differently, and write different launchers, so the
+  # same-install check has a different shape to get right for each.
   windows-install:
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        installer: [npm, pnpm]
     defaults:
       run:
         # INSTALL-01 writes its report to stderr, and this shell defaults
@@ -49,19 +61,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v6
+        with:
+          cache: true
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
 
-      - run: npm ci
-      - run: npm pack
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm pack
+
+      - name: install the tarball globally with ${{ matrix.installer }}
+        run: ./.github/scripts/install-global.ps1 -Installer ${{ matrix.installer }}
 
       - name: git fi reaches the global install, and says nothing extra
         run: |
           $ErrorActionPreference = 'Continue'
-          $tgz = (Get-ChildItem gettyimages-git-fi-*.tgz).FullName
-          npm install -g $tgz
           $v = (git fi --version) -join ''
           if ($v -notmatch '^git-fi \d+\.\d+\.\d+$') { throw "git fi --version said: $v" }
 
@@ -95,8 +111,7 @@ jobs:
           # Reached by path rather than by name, which is the only way the copy
           # being shadowed gets to say anything at all (`npx` for the user who
           # hit this).
-          $prefix = (npm config get prefix).Trim()
-          $entry = Join-Path $prefix 'node_modules\@gettyimages\git-fi\dist\index.js'
+          $entry = $env:ENTRY
 
           $stdout = & node $entry --version 2>$null
           if (($stdout -join '') -notmatch '^git-fi \d+\.\d+\.\d+$') {
@@ -142,23 +157,30 @@ jobs:
   # after it is removed by hand.
   windows-leftover-gem:
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        installer: [npm, pnpm]
     defaults:
       run:
         shell: powershell
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v6
+        with:
+          cache: true
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm pack
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm pack
+
+      - name: install the tarball globally with ${{ matrix.installer }}
+        run: ./.github/scripts/install-global.ps1 -Installer ${{ matrix.installer }}
 
       - name: install a git-munge-shaped gem the way its README said to
         run: |
           $ErrorActionPreference = 'Continue'
-          $tgz = (Get-ChildItem gettyimages-git-fi-*.tgz).FullName
-          npm install -g $tgz
 
           "=== ruby on this runner ==="
           & ruby --version 2>&1
@@ -221,9 +243,7 @@ jobs:
             throw "the gem launcher should be what git fi reaches, got: $reached"
           }
 
-          $prefix = (npm config get prefix).Trim()
-          $entry = Join-Path $prefix 'node_modules\@gettyimages\git-fi\dist\index.js'
-          $all = (& node $entry --version 2>&1 | Out-String)
+          $all = (& node $env:ENTRY --version 2>&1 | Out-String)
           if ($all -notmatch 'ahead of this one') { throw "expected the shadow report, got: $all" }
 
       - name: and still shadows it once the gem files are deleted by hand
@@ -245,9 +265,7 @@ jobs:
             throw "the leftover links are not in git's way, so there is nothing to report: $broken"
           }
 
-          $prefix = (npm config get prefix).Trim()
-          $entry = Join-Path $prefix 'node_modules\@gettyimages\git-fi\dist\index.js'
-          $all = (& node $entry --version 2>&1 | Out-String)
+          $all = (& node $env:ENTRY --version 2>&1 | Out-String)
           if ($all -notmatch 'ahead of this one') { throw "expected the shadow report, got: $all" }
 
   # Fail if the committed man page, completions, or docs tables are stale — i.e.
@@ -255,24 +273,27 @@ jobs:
   # generated artifacts honest, since they ship in the npm package and the docs
   # site without being regenerated at publish time.
   #
-  # The check itself is the `verify:generated` npm script, so a contributor can
-  # reproduce this failure locally with the same command rather than reading it
-  # out of this file. (`npm test` regenerates as it runs, so it can't catch
+  # The check itself is the `verify:generated` package script, so a contributor
+  # can reproduce this failure locally with the same command rather than reading
+  # it out of this file. (`pnpm test` regenerates as it runs, so it can't catch
   # drift — this job is what guards a commit that skipped the test loop.)
   generated:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v6
+        with:
+          cache: true
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
       - name: Verify generated files are up to date
         run: |
-          npm run verify:generated || {
-            echo "::error::Generated files are stale. Run 'npm run gen:docs' and commit the result."
+          pnpm run verify:generated || {
+            echo "::error::Generated files are stale. Run 'pnpm run gen:docs' and commit the result."
             exit 1
           }

@@ -5,16 +5,16 @@ git-fi is a git subcommand (`git fi`), written in TypeScript for Node >= 22, tha
 ## Commands
 
 ```bash
-npm install                 # dev dependencies (tsx, typescript)
-npm start -- --help         # run src/ directly via tsx
-npm run build               # tsc to dist/, then regenerate man/, completions/, docs tables
-npm test                    # tsc, verify:generated, then the whole suite
-npm run verify:generated    # fail if a committed generated file is stale
-npm run trial:on            # link this checkout as `git fi` on PATH (trial:off reverts)
-npm run docs                # serve the Docsify site at http://127.0.0.1:3000/
+pnpm install                # dev dependencies (tsx, typescript)
+pnpm start --help           # run src/ directly via tsx
+pnpm run build              # tsc to dist/, then regenerate man/, completions/, docs tables
+pnpm test                   # tsc, verify:generated, then the whole suite
+pnpm run verify:generated   # fail if a committed generated file is stale
+pnpm run trial:on           # link this checkout as `git fi` on PATH (trial:off reverts)
+pnpm run docs               # serve the Docsify site at http://127.0.0.1:3000/
 ```
 
-`just` lists the same tasks under shorter names; most recipes delegate to an npm script, so `package.json` is where a command is defined.
+The tooling is pnpm, pinned by `packageManager` in `package.json`; don't reintroduce npm commands or a `package-lock.json`. `just` lists the same tasks under shorter names; most recipes delegate to a package script, so `package.json` is where a command is defined.
 
 Run one test file, or filter by name:
 
@@ -23,7 +23,7 @@ node --import tsx --test test/parse.test.ts
 node --import tsx --test --test-name-pattern='<name>' test/cli.test.ts
 ```
 
-Most suites drive the compiled binary (`dist/index.js`, see `test/helpers.ts`) against throwaway repos (a bare `origin` plus a working clone), so run `npx tsc` first when a change touches `src/`. There is no linter; `tsc` and `verify:generated` are the static checks.
+Most suites drive the compiled binary (`dist/index.js`, see `test/helpers.ts`) against throwaway repos (a bare `origin` plus a working clone), so run `pnpm exec tsc` first when a change touches `src/`. There is no linter; `tsc` and `verify:generated` are the static checks.
 
 ## Spec-driven
 
@@ -41,7 +41,7 @@ Most suites drive the compiled binary (`dist/index.js`, see `test/helpers.ts`) a
 
 ## Generated files
 
-`src/help.ts` is the single source of truth for flags. `scripts/gen-docs.ts` generates `man/git-fi.1`, `completions/*`, and the marked `<!-- BEGIN GENERATED -->` tables in `docs/commands.md`. Completion logic lives in `scripts/completion/*.tmpl`. Edit those sources and run `npm run build`; never hand-edit the outputs.
+`src/help.ts` is the single source of truth for flags. `scripts/gen-docs.ts` generates `man/git-fi.1`, `completions/*`, and the marked `<!-- BEGIN GENERATED -->` tables in `docs/commands.md`. Completion logic lives in `scripts/completion/*.tmpl`. Edit those sources and run `pnpm run build`; never hand-edit the outputs.
 
 ## Releases
 

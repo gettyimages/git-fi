@@ -3,6 +3,7 @@
   "version": "1.4.0",
   "description": "Git plugin that maintains a temporary integration branch for early conflict detection",
   "type": "module",
+  "packageManager": "pnpm@12.16.1",
   "bin": {
     "git-fi": "./dist/index.js"
   },
@@ -10,11 +11,11 @@
   "scripts": {
     "start": "tsx src/index.ts",
     "gen:docs": "node --import tsx scripts/gen-docs.ts",
-    "build": "tsc && npm run gen:docs",
+    "build": "tsc && pnpm run gen:docs",
     "prepare": "tsc",
-    "test": "tsc && npm run verify:generated && node scripts/run-tests.mjs",
+    "test": "tsc && pnpm run verify:generated && node scripts/run-tests.mjs",
     "verify:generated": "node --import tsx scripts/gen-docs.ts --check",
-    "prepublishOnly": "npm test",
+    "prepublishOnly": "pnpm test",
     "trial:on": "bash scripts/trial.sh on",
     "trial:off": "bash scripts/trial.sh off",
     "docs": "node scripts/serve-docs.mjs"

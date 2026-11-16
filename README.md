@@ -32,7 +32,7 @@ With [just](https://github.com/casey/just) installed, `just` lists the same task
 
 `npm test` is the primary feedback loop: it drives the compiled binary against throwaway git repositories (a bare `origin` plus a working clone), exercising real `git fetch`/`merge`/`push` behavior end-to-end. `scripts/run-tests.mjs` hands node's runner explicit paths rather than a glob, so a pattern that stops matching fails loudly instead of reporting a green suite that ran nothing.
 
-CI runs the suite on Linux and Windows across Node 22, 24, and 26 — both active LTS lines plus Current. Windows is in the matrix because git-fi behaves differently where the platform has no POSIX file modes: it stores the token without setting or checking `0600` (`AUTH-04`), and `--update` has to reach npm through the shell there (`UPDATE-05`).
+CI runs the suite on Linux and Windows across Node 22, 24, and 26 — both active LTS lines plus Current. Windows is in the matrix because git-fi behaves differently where the platform has no POSIX file modes: it stores the token without setting or checking `0600` (`AUTH-04`), and `--update` has to reach npm or pnpm through the shell there (`UPDATE-05`).
 
 When something is slow, `--debug` traces every git command with its elapsed time (`OPTION-11`) — which is how the fetch's `--no-tags` came about (`PRE-04`). How much that flag saves depends on the server, so measure with `--debug` in the repository in question rather than assuming.
 
@@ -53,7 +53,7 @@ npm run trial:off           # unlink, restore the version it replaced
 
 If `git fi` runs something other than what you expect, `which -a git-fi` lists every `git-fi` on your `PATH` in resolution order.
 
-The published package — `npm install -g @gettyimages/git-fi`, documented on the [docs site](https://gettyimages.github.io/git-fi/#/quickstart) — is the official install for end users. Reach for it here mainly to test the distribution itself; local development runs from source.
+The published package, installed as the [docs site](https://gettyimages.github.io/git-fi/#/quickstart?id=install) describes, is the official install for end users. Reach for it here mainly to test the distribution itself; local development runs from source.
 
 ## Project Structure
 

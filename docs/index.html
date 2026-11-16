@@ -146,8 +146,43 @@
       color: var(--gf-heading);
       max-width: 38em;
     }
-    .markdown-section .gf-start pre { border-left: 3px solid var(--gf-accent); }
-    .markdown-section .gf-start .docsify-copy-code-button { opacity: 1; }
+    /* Install switch: the installSwitch plugin's command blocks, one per
+       package manager, framed as one code surface under the switch. */
+    .markdown-section .gf-install {
+      margin: 1em 0;
+      border: 1px solid var(--gf-divider);
+      border-radius: 10px;
+      background: var(--code-theme-background);
+      overflow: hidden;
+    }
+    .markdown-section .gf-install pre {
+      margin: 0;
+      border: 0;
+      border-radius: 0;
+    }
+    .gf-install-switch {
+      display: flex;
+      gap: 1.25rem;
+      padding: 0 1.25rem;
+      border-bottom: 1px solid var(--gf-divider);
+    }
+    .gf-install-switch button {
+      appearance: none;
+      background: none;
+      border: 0;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      padding: 0.6rem 0 0.5rem;
+      font: 500 0.8rem/1 var(--code-font-family);
+      color: var(--gf-muted);
+      cursor: pointer;
+      transition: color 0.2s ease, border-color 0.2s ease;
+    }
+    .gf-install-switch button:hover { color: var(--gf-accent-hover); }
+    .gf-install-switch button[aria-pressed="true"] {
+      color: var(--gf-heading);
+      border-bottom-color: var(--gf-accent);
+    }
 
     /* Visible focus ring (keyboard accessibility, >= 3:1) */
     a:focus-visible,
@@ -270,7 +305,6 @@
 
     @media screen and (min-width: 768px) {
       .sidebar-toggle { display: none; }
-      .markdown-section .gf-start pre { font-size: 1.02rem; }
     }
   </style>
 </head>
@@ -340,6 +374,67 @@
       });
     }
 
+    // The one place the docs say how each package manager installs git-fi.
+    // A page names only the package, in a fenced `install` block:
+    //
+    //   ```install
+    //   @gettyimages/git-fi
+    //   ```
+    //
+    // and this expands it, before docsify renders the page, into one bash
+    // block per manager (so they get highlighting and a copy button like any
+    // other), then joins them under a switch that shows one at a time, so the
+    // copy button copies the command on screen. The first manager is the
+    // default; a reader's choice is remembered.
+    // Hand-rolled rather than docsify-tabs, which forgets the choice when
+    // the browser session ends and would need restyling to match the theme.
+    function installSwitch(hook) {
+      var MANAGERS = [
+        { name: 'pnpm', command: 'pnpm add -g ' },
+        { name: 'npm', command: 'npm install -g ' }
+      ];
+      var KEY = 'git-fi.install-manager';
+      var remembered = null;
+      try { remembered = localStorage.getItem(KEY); } catch (e) { /* storage blocked */ }
+      hook.beforeEach(function (markdown) {
+        return markdown.replace(/^```install\r?\n(.+)\r?\n```$/gm, function (block, pkg) {
+          return '<div class="gf-install">\n\n' + MANAGERS.map(function (manager) {
+            return '```bash\n' + manager.command + pkg.trim() + '\n```';
+          }).join('\n\n') + '\n\n</div>';
+        });
+      });
+      hook.doneEach(function () {
+        document.querySelectorAll('.gf-install').forEach(function (box) {
+          var bar = document.createElement('div');
+          bar.className = 'gf-install-switch';
+          bar.setAttribute('role', 'group');
+          bar.setAttribute('aria-label', 'Package manager');
+          var options = Array.prototype.map.call(box.querySelectorAll('pre'), function (pre, i) {
+            var button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = MANAGERS[i].name;
+            bar.appendChild(button);
+            return { name: MANAGERS[i].name, pre: pre, button: button };
+          });
+          box.insertBefore(bar, box.firstChild);
+          function show(chosen) {
+            options.forEach(function (o) {
+              o.pre.hidden = o !== chosen;
+              o.button.setAttribute('aria-pressed', String(o === chosen));
+            });
+          }
+          options.forEach(function (o) {
+            o.button.addEventListener('click', function () {
+              remembered = o.name;
+              try { localStorage.setItem(KEY, remembered); } catch (e) { /* storage blocked */ }
+              show(o);
+            });
+          });
+          show(options.find(function (o) { return o.name === remembered; }) || options[0]);
+        });
+      });
+    }
+
     window.$docsify = {
       name: 'git-fi',
       // nameLink is intentionally omitted: Docsify defaults it to
@@ -359,7 +454,7 @@
         noData: 'No results',
         depth: 5
       },
-      plugins: [searchPlainText, mermaidLinks],
+      plugins: [searchPlainText, mermaidLinks, installSwitch],
       mermaidConfig: {
         querySelector: '.mermaid',
         theme: 'dark',

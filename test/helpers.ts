@@ -22,11 +22,16 @@ export interface RunResult {
   stderr: string;
 }
 
-/** Run the compiled git-fi binary in `cwd`. Never throws on non-zero exit. */
+/**
+ * Run the compiled git-fi binary in `cwd`. Never throws on non-zero exit.
+ * `entry` stands in for the path a launcher hands node, for a test that needs
+ * the binary reached through an installed layout rather than the checkout.
+ */
 export function runFi(
   args: string[],
   cwd: string,
-  extraEnv: Record<string, string> = {}
+  extraEnv: Record<string, string> = {},
+  entry: string = DIST_INDEX
 ): RunResult {
   // Start from a clean slate so the host's CI / GitLab / color settings can't
   // leak into the assertions; tests opt back into those vars explicitly.
@@ -41,7 +46,7 @@ export function runFi(
 
   // spawnSync (not execFileSync) so both stdout and stderr are captured
   // regardless of exit code — success-path messages land on stderr too.
-  const r = spawnSync(process.execPath, [DIST_INDEX, ...args], {
+  const r = spawnSync(process.execPath, [entry, ...args], {
     cwd,
     encoding: "utf-8",
     env: { ...env, ...extraEnv },

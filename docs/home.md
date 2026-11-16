@@ -2,17 +2,7 @@
 
 A git plugin that maintains a temporary integration branch named `fi`. Merge multiple in-progress feature branches together to detect conflicts early and test features in collaboration — before they land on `main`.
 
-## Get Started
-
-<div class="gf-start">
-
-```bash
-npm install -g @gettyimages/git-fi   # needs Node.js 22+ and git 2.41+
-```
-
-</div>
-
-Then run your first integration with the [Quick Start](/quickstart), or follow a branch from first commit to `main` in the [Daily Workflow](/daily-workflow).
+Install it and run your first integration with the [Quick Start](/quickstart), or follow a branch from first commit to `main` in the [Daily Workflow](/daily-workflow).
 
 ## The Problem
 

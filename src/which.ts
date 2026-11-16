@@ -108,9 +108,14 @@ function resolved(path: string): string | null {
 }
 
 /**
- * The entry point a generated launcher names, resolved against the launcher's
- * own directory — the form npm's `.cmd` and `.ps1` shims write it in
- * (`%~dp0\node_modules\...`, `$basedir/node_modules/...`).
+ * The entry point a generated launcher names.
+ *
+ * pnpm's launchers record it outright, as a `cmd-shim-target=` comment holding
+ * an absolute path, so that is read first. Otherwise the path is the one the
+ * shim gives relative to its own directory: npm's `.cmd` and `.ps1` shims write
+ * `%~dp0\node_modules\...` and `$basedir/node_modules/...`, and pnpm's (older
+ * ones lack the comment) write `$basedir_abs/../global/...`, a directory npm's
+ * pattern never reaches.
  */
 function launcherTarget(launcher: string): string | null {
   let text: string;
@@ -119,10 +124,15 @@ function launcherTarget(launcher: string): string | null {
   } catch {
     return null;
   }
-  const named = text.match(/node_modules[\\/][^\s"']*\.[cm]?js/);
+  const recorded = text.match(/cmd-shim-target=(\S+)/);
+  if (recorded) return recorded[1];
+
+  const named =
+    text.match(/(?:\$basedir\w*|%~dp0|%dp0%)[\\/]([^\s"']*\.[cm]?js)/)?.[1] ??
+    text.match(/node_modules[\\/][^\s"']*\.[cm]?js/)?.[0];
   // The shim is written for its own platform, so it may carry backslashes that
   // are ordinary filename characters anywhere else.
-  return named ? join(dirname(launcher), named[0].replace(/\\/g, "/")) : null;
+  return named ? join(dirname(launcher), named.replace(/\\/g, "/")) : null;
 }
 
 /**
@@ -169,7 +179,8 @@ export function shadowNotice(
     `  git fi reaches  ${winner}\n` +
     `  this copy is    ${entry}\n` +
     `Delete the one above, or put npm's bin directory (${npmBinHint()})\n` +
-    `earlier on your PATH. A launcher left behind by the Ruby gem lands in\n` +
+    `or pnpm's (pnpm bin -g) earlier on your PATH, whichever installed\n` +
+    `this copy. A launcher left behind by the Ruby gem lands in\n` +
     `Ruby's bin directory, which removing the gem's own files does not touch.\n`
   );
 }

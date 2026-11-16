@@ -2,17 +2,13 @@
 
 ## Install
 
-git-fi is a git subcommand: once the `git-fi` binary is on your `PATH`, invoke it as `git fi`. Requires Node.js >= 22 and git >= 2.41.0.
+git-fi is a git subcommand: once the `git-fi` binary is on your `PATH`, invoke it as `git fi`.
 
-```bash
-npm install -g @gettyimages/git-fi
+```install
+@gettyimages/git-fi
 ```
 
-Or with pnpm, if that is your preferred package manager:
-
-```bash
-pnpm add -g @gettyimages/git-fi
-```
+Needs Node.js 22+ and git 2.41+.
 
 Then turn on tab completion, so `git fi --add <TAB>` offers your branches. In zsh:
 

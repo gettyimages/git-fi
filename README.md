@@ -53,7 +53,7 @@ npm run trial:off           # unlink, restore the version it replaced
 
 If `git fi` runs something other than what you expect, `which -a git-fi` lists every `git-fi` on your `PATH` in resolution order.
 
-The published package — `npm install -g @gettyimages/git-fi`, documented on the [docs site](https://gettyimages.github.io/git-fi/#/quickstart) — is the official install for end users. Reach for it here mainly to test the distribution itself; local development runs from source.
+The published package, installed as the [docs site](https://gettyimages.github.io/git-fi/#/quickstart?id=install) describes, is the official install for end users. Reach for it here mainly to test the distribution itself; local development runs from source.
 
 ## Project Structure
 

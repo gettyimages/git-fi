@@ -19,6 +19,13 @@ zshrc="${HOME}/.zshrc"
 marker="git-fi-trial"
 pkg="@gettyimages/git-fi"
 
+# pnpm's global commands, run from outside the checkout. Inside it pnpm sees the
+# `packageManager` pin and warns on every one that --global skips that check,
+# which is about this project rather than the global directory being changed.
+pnpm_g() {
+	pnpm --dir "$HOME" "$@" -g
+}
+
 # What the global install is right now: a version for a registry install,
 # `linked` where it already points at a checkout, or empty where the package is
 # absent. Linking the checkout overwrites that install, so the answer has to be
@@ -26,7 +33,7 @@ pkg="@gettyimages/git-fi"
 # non-zero while still printing usable JSON, so its status is discarded rather
 # than aborting the run under `pipefail`.
 installed_state() {
-	{ pnpm ls -g --depth=0 --json 2>/dev/null || true; } | node -e '
+	{ pnpm_g ls --depth=0 --json 2>/dev/null || true; } | node -e '
 		const fs = require("fs");
 		const raw = fs.readFileSync(0, "utf8");
 		try {
@@ -50,6 +57,25 @@ installed_state() {
 case "${1:-}" in
 on)
 	cd "$root"
+
+	# installed_state sees only pnpm's global directory. A copy installed with
+	# npm would sit beside the link rather than be replaced by it, and trial:off
+	# would then add a second copy instead of handing the first one back.
+	if command -v npm >/dev/null && npm ls -g --depth=0 "$pkg" >/dev/null 2>&1; then
+		echo "! $pkg is installed with npm, so a pnpm trial would sit beside it rather than replace it." >&2
+		echo "  Remove it first (npm rm -g $pkg), then re-run." >&2
+		exit 1
+	fi
+
+	# pnpm refuses a global add while its bin directory is off PATH, which is the
+	# state of any terminal opened before `pnpm setup` edited the rc file. Asked
+	# here, before the build and before anything lands under .trial/:
+	# `pnpm bin -g` makes the same check and prints pnpm's own error.
+	if ! pnpm_g bin >/dev/null; then
+		echo "! Run \`pnpm setup\` if you never have, then open a new terminal (or \`exec zsh\`) and re-run." >&2
+		exit 1
+	fi
+
 	pnpm run build
 
 	mkdir -p "$root/.trial"
@@ -73,9 +99,11 @@ on)
 
 	# A directory added globally is saved as a `link:` dependency, so later
 	# builds take effect without reinstalling (pnpm 12 has no `link --global`).
-	pnpm add -g "$root"
+	pnpm_g add "$root"
 
-	node "$root/dist/index.js" install-completions --write "$compdir"
+	# install-completions tells a user how to get the directory onto their fpath;
+	# the block below is how the trial does that, so its advice is noise here.
+	node "$root/dist/index.js" install-completions --write "$compdir" >/dev/null
 
 	if ! grep -qF "# BEGIN ${marker}" "$zshrc" 2>/dev/null; then
 		# Autoload the two files directly rather than re-running compinit: this
@@ -135,17 +163,17 @@ off)
 	if [ -n "$version" ]; then
 		# The exact version the trial displaced, not whatever is newest: a trial
 		# should hand back the install it borrowed.
-		pnpm rm -g "$pkg" || true
-		pnpm add -g "$pkg@$version"
+		pnpm_g rm "$pkg" || true
+		pnpm_g add "$pkg@$version"
 	elif [ -n "$state" ] && [ "$state" != "linked" ]; then
 		# Nothing is linked, so no trial is running and this install is someone's
 		# own choice. Reinstalling here would replace it with whatever is newest,
 		# which is the outcome the recorded version exists to prevent.
 		echo "No trial to revert; $pkg@$state is installed from the registry. Leaving it alone."
 	else
-		pnpm rm -g "$pkg" || true
+		pnpm_g rm "$pkg" || true
 		echo "No recorded version to come back to; installing the latest $pkg."
-		pnpm add -g "$pkg"
+		pnpm_g add "$pkg"
 	fi
 
 	echo

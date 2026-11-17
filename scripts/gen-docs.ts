@@ -1,10 +1,10 @@
 // Generates the man page, shell completions, and the docs reference tables from
 // src/help.ts so the flag list has a single source of truth. Run via
-// `npm run gen:docs` (wired into `npm run build`). The generated files under
+// `pnpm run gen:docs` (wired into `pnpm run build`). The generated files under
 // man/ and completions/, and the marked table regions in docs/, are committed —
 // do not hand-edit them.
 //
-// `--check` (via `npm run verify:generated`, which `npm test` and CI both run)
+// `--check` (via `pnpm run verify:generated`, which `pnpm test` and CI both run)
 // reports whether the committed files match what this script would write, and
 // writes nothing.
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
@@ -217,7 +217,7 @@ if (process.argv.includes("--check")) {
     process.stderr.write(
       `Generated files are out of date with src/help.ts:\n` +
         stale.map((o) => `  ${o.relPath}\n`).join("") +
-        `\nRun 'npm run gen:docs' and commit the result.\n`
+        `\nRun 'pnpm run gen:docs' and commit the result.\n`
     );
     process.exit(1);
   }

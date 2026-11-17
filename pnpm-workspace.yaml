@@ -1,0 +1,8 @@
+# pnpm settings for this checkout; the repo is a single package, not a
+# workspace.
+#
+# pnpm runs no dependency's install script unless it is allowed here, and fails
+# the install over one it skipped. esbuild (under tsx) uses its script to check
+# its platform binary.
+allowBuilds:
+  esbuild: true

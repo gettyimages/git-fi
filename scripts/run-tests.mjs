@@ -4,7 +4,7 @@
 // glob matches nothing: report `tests 0` and exit 0. A pattern that drifts —
 // a renamed directory, a changed suffix — then reads as a green suite that ran
 // nothing, which is the one test-harness failure no test can catch.
-// Passing explicit paths also keeps the shell out of it, so `npm test` behaves
+// Passing explicit paths also keeps the shell out of it, so `pnpm test` behaves
 // the same under sh and cmd.
 import { readdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";

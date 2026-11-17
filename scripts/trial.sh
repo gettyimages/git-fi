@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Local trial helper (npm run trial:on / trial:off). Points `git fi` at this
+# Local trial helper (pnpm run trial:on / trial:off). Points `git fi` at this
 # working copy and loads the completion the way a user installs it, so the change
 # can be run for a few days before shipping, then reverts. Not published (see
 # package.json "files").
@@ -19,21 +19,34 @@ zshrc="${HOME}/.zshrc"
 marker="git-fi-trial"
 pkg="@gettyimages/git-fi"
 
+# pnpm's global commands, run from outside the checkout. Inside it pnpm sees the
+# `packageManager` pin and warns on every one that --global skips that check,
+# which is about this project rather than the global directory being changed.
+pnpm_g() {
+	pnpm --dir "$HOME" "$@" -g
+}
+
 # What the global install is right now: a version for a registry install,
 # `linked` where it already points at a checkout, or empty where the package is
-# absent. `npm link` overwrites that install, so the answer has to be taken
-# before it runs and kept for `off` to restore. `npm ls` exits non-zero on some
-# tree problems while still printing usable JSON, so its status is discarded
-# rather than aborting the run under `pipefail`.
+# absent. Linking the checkout overwrites that install, so the answer has to be
+# taken before it runs and kept for `off` to restore. `pnpm ls` can exit
+# non-zero while still printing usable JSON, so its status is discarded rather
+# than aborting the run under `pipefail`.
 installed_state() {
-	{ npm ls -g --depth=0 --json "$pkg" 2>/dev/null || true; } | node -e '
-		const raw = require("fs").readFileSync(0, "utf8");
+	{ pnpm_g ls --depth=0 --json 2>/dev/null || true; } | node -e '
+		const fs = require("fs");
+		const raw = fs.readFileSync(0, "utf8");
 		try {
-			const dep = (JSON.parse(raw).dependencies ?? {})[process.argv[1]];
+			const dep = JSON.parse(raw)
+				.map((tree) => (tree.dependencies ?? {})[process.argv[1]])
+				.find(Boolean);
 			if (!dep) process.exit(0);
-			// A linked checkout reports `resolved` as a file: URL; only a
-			// registry install names a version to come back to.
-			if (String(dep.resolved ?? "").startsWith("file:")) process.stdout.write("linked");
+			// pnpm reports a linked checkout with the version its package.json
+			// holds, so the version alone cannot tell the two apart. A registry
+			// install resolves into a node_modules (the global directory or the
+			// store); a linked one resolves to the checkout itself.
+			const real = fs.realpathSync(dep.path);
+			if (!/[\\/]node_modules[\\/]/.test(real)) process.stdout.write("linked");
 			else if (dep.version) process.stdout.write(dep.version);
 		} catch (e) {
 			process.stderr.write(`could not read the global ${process.argv[1]}: ${e.message}\n`);
@@ -44,7 +57,26 @@ installed_state() {
 case "${1:-}" in
 on)
 	cd "$root"
-	npm run build
+
+	# installed_state sees only pnpm's global directory. A copy installed with
+	# npm would sit beside the link rather than be replaced by it, and trial:off
+	# would then add a second copy instead of handing the first one back.
+	if command -v npm >/dev/null && npm ls -g --depth=0 "$pkg" >/dev/null 2>&1; then
+		echo "! $pkg is installed with npm, so a pnpm trial would sit beside it rather than replace it." >&2
+		echo "  Remove it first (npm rm -g $pkg), then re-run." >&2
+		exit 1
+	fi
+
+	# pnpm refuses a global add while its bin directory is off PATH, which is the
+	# state of any terminal opened before `pnpm setup` edited the rc file. Asked
+	# here, before the build and before anything lands under .trial/:
+	# `pnpm bin -g` makes the same check and prints pnpm's own error.
+	if ! pnpm_g bin >/dev/null; then
+		echo "! Run \`pnpm setup\` if you never have, then open a new terminal (or \`exec zsh\`) and re-run." >&2
+		exit 1
+	fi
+
+	pnpm run build
 
 	mkdir -p "$root/.trial"
 	if [ ! -f "$restore" ]; then
@@ -65,9 +97,13 @@ on)
 		esac
 	fi
 
-	npm link
+	# A directory added globally is saved as a `link:` dependency, so later
+	# builds take effect without reinstalling (pnpm 12 has no `link --global`).
+	pnpm_g add "$root"
 
-	node "$root/dist/index.js" install-completions --write "$compdir"
+	# install-completions tells a user how to get the directory onto their fpath;
+	# the block below is how the trial does that, so its advice is noise here.
+	node "$root/dist/index.js" install-completions --write "$compdir" >/dev/null
 
 	if ! grep -qF "# BEGIN ${marker}" "$zshrc" 2>/dev/null; then
 		# Autoload the two files directly rather than re-running compinit: this
@@ -94,8 +130,8 @@ off)
 	version=""
 	[ -f "$restore" ] && version="$(cat "$restore")"
 
-	# `npm i -g <pkg>@<spec>` takes far more than a version — a URL, a git ref,
-	# a `file:` path, an `npm:` alias — and this value comes off disk. Anything
+	# `pnpm add -g <pkg>@<spec>` takes far more than a version — a URL, a git
+	# ref, a `file:` path, an `npm:` alias — and this value comes off disk. Anything
 	# that isn't a bare version is refused rather than fetched.
 	case "$version" in
 	"") ;;
@@ -127,24 +163,24 @@ off)
 	if [ -n "$version" ]; then
 		# The exact version the trial displaced, not whatever is newest: a trial
 		# should hand back the install it borrowed.
-		npm rm -g "$pkg" || true
-		npm i -g "$pkg@$version"
+		pnpm_g rm "$pkg" || true
+		pnpm_g add "$pkg@$version"
 	elif [ -n "$state" ] && [ "$state" != "linked" ]; then
 		# Nothing is linked, so no trial is running and this install is someone's
 		# own choice. Reinstalling here would replace it with whatever is newest,
 		# which is the outcome the recorded version exists to prevent.
 		echo "No trial to revert; $pkg@$state is installed from the registry. Leaving it alone."
 	else
-		npm rm -g "$pkg" || true
+		pnpm_g rm "$pkg" || true
 		echo "No recorded version to come back to; installing the latest $pkg."
-		npm i -g "$pkg"
+		pnpm_g add "$pkg"
 	fi
 
 	echo
 	echo "Reverted. Open a new terminal, then \`git fi --version\` to confirm."
 	;;
 *)
-	echo "usage: npm run trial:on | npm run trial:off" >&2
+	echo "usage: pnpm run trial:on | pnpm run trial:off" >&2
 	exit 1
 	;;
 esac

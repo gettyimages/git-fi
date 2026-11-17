@@ -17,20 +17,22 @@ The git floor tracks the newest git feature the code calls rather than a support
 ```bash
 git clone https://github.com/gettyimages/git-fi.git
 cd git-fi
-npm install                 # dev dependencies (tsx, typescript)
+pnpm install                # dev dependencies (tsx, typescript)
 ```
+
+The tooling runs on [pnpm](https://pnpm.io), at the version `packageManager` in `package.json` pins; pnpm and corepack both switch to it inside the checkout.
 
 Day-to-day, git-fi runs straight from source — no global install needed:
 
 ```bash
-npm start -- --help         # run src/ directly via tsx
-npm run build               # compile TypeScript to dist/
-npm test                    # build, then run the integration suite
+pnpm start --help           # run src/ directly via tsx
+pnpm run build              # compile TypeScript to dist/
+pnpm test                   # build, then run the integration suite
 ```
 
-With [just](https://github.com/casey/just) installed, `just` lists the same tasks under shorter names — `just run --help`, `just build`, `just test`. The recipes delegate to the npm scripts rather than restating them, so `package.json` stays the one place a command is defined; CI and `prepublishOnly` call npm directly either way.
+With [just](https://github.com/casey/just) installed, `just` lists the same tasks under shorter names — `just run --help`, `just build`, `just test`. The recipes delegate to the package scripts rather than restating them, so `package.json` stays the one place a command is defined; CI and `prepublishOnly` call pnpm directly either way.
 
-`npm test` is the primary feedback loop: it drives the compiled binary against throwaway git repositories (a bare `origin` plus a working clone), exercising real `git fetch`/`merge`/`push` behavior end-to-end. `scripts/run-tests.mjs` hands node's runner explicit paths rather than a glob, so a pattern that stops matching fails loudly instead of reporting a green suite that ran nothing.
+`pnpm test` is the primary feedback loop: it drives the compiled binary against throwaway git repositories (a bare `origin` plus a working clone), exercising real `git fetch`/`merge`/`push` behavior end-to-end. `scripts/run-tests.mjs` hands node's runner explicit paths rather than a glob, so a pattern that stops matching fails loudly instead of reporting a green suite that ran nothing.
 
 CI runs the suite on Linux and Windows across Node 22, 24, and 26 — both active LTS lines plus Current. Windows is in the matrix because git-fi behaves differently where the platform has no POSIX file modes: it stores the token without setting or checking `0600` (`AUTH-04`), and `--update` has to reach npm or pnpm through the shell there (`UPDATE-05`).
 
@@ -43,11 +45,11 @@ The implementation follows [SPEC.md](SPEC.md), which defines every requirement w
 To run the checkout as `git fi` in other repositories for a while:
 
 ```bash
-npm run trial:on            # build, npm link, load this copy's completion
-npm run trial:off           # unlink, restore the version it replaced
+pnpm run trial:on           # build, link globally with pnpm, load this copy's completion
+pnpm run trial:off          # unlink, restore the version it replaced
 ```
 
-`trial:on` symlinks the checkout onto your `PATH`, so later `npm run build`s take effect without reinstalling. It also runs `install-completions --write .trial/completions` and appends a marked block to `~/.zshrc` that puts that directory on your `fpath` — the same command, writing the same two files, that a user installs with (`COMPLETE-06`), so a trial exercises the shipped install path rather than a shortcut around it. Only `~/.zshrc` is touched; under bash you get the linked binary and wire the completion yourself. `trial:off` deletes the block and `.trial/`, then reinstalls the exact version the trial displaced, which `trial:on` recorded before linking over it (`BUILD-03`). Where that reference has been copied outside the marked block, `trial:off` names the lines rather than editing them, since the directory they point at is the one it just removed (`BUILD-04`). Open a new terminal after either one.
+`trial:on` links the checkout into pnpm's global directory (`pnpm add -g <checkout>`), so later `pnpm run build`s take effect without reinstalling. It also runs `install-completions --write .trial/completions` and appends a marked block to `~/.zshrc` that puts that directory on your `fpath` — the same command, writing the same two files, that a user installs with (`COMPLETE-06`), so a trial exercises the shipped install path rather than a shortcut around it. Only `~/.zshrc` is touched; under bash you get the linked binary and wire the completion yourself. `trial:off` deletes the block and `.trial/`, then reinstalls the exact version the trial displaced, which `trial:on` recorded before linking over it (`BUILD-03`). Where that reference has been copied outside the marked block, `trial:off` names the lines rather than editing them, since the directory they point at is the one it just removed (`BUILD-04`). Open a new terminal after either one.
 
 `git fi --version` is what says which build is in force: a trial answers `<version>-dev.g<sha>`, an installed copy answers the bare version (`BUILD-02`).
 
@@ -60,7 +62,7 @@ The published package, installed as the [docs site](https://gettyimages.github.i
 ```text
 SPEC.md        Behavioral specification
 STATUS.md      Requirement coverage
-justfile       Task runner wrapping the npm scripts
+justfile       Task runner wrapping the package scripts
 src/           TypeScript implementation
 test/          Integration suite (Node test runner)
 docs/          Docsify documentation site
@@ -69,7 +71,7 @@ man/           Generated man page (git-fi.1)
 completions/   Generated bash + zsh completions (_git-fi, _git_fi, git-fi.bash)
 ```
 
-The man page and shell completions are generated by `scripts/gen-docs.ts`, which draws the flag list from `src/help.ts` — the single source of truth for git-fi's flags. The completion logic itself lives in real shell files under `scripts/completion/` (`*.tmpl`); the generator injects the flag list and stamps a banner. `npm run build` regenerates the outputs (via `npm run gen:docs`); those under `man/` and `completions/` are committed, so edit `src/help.ts` (flags) or `scripts/completion/*.tmpl` (completion logic) and rebuild rather than editing the generated files by hand. `npm test` and CI both run `npm run verify:generated`, which fails naming any committed artifact that no longer matches what the generator would write, so stale generated files surface before review rather than during it.
+The man page and shell completions are generated by `scripts/gen-docs.ts`, which draws the flag list from `src/help.ts` — the single source of truth for git-fi's flags. The completion logic itself lives in real shell files under `scripts/completion/` (`*.tmpl`); the generator injects the flag list and stamps a banner. `pnpm run build` regenerates the outputs (via `pnpm run gen:docs`); those under `man/` and `completions/` are committed, so edit `src/help.ts` (flags) or `scripts/completion/*.tmpl` (completion logic) and rebuild rather than editing the generated files by hand. `pnpm test` and CI both run `pnpm run verify:generated`, which fails naming any committed artifact that no longer matches what the generator would write, so stale generated files surface before review rather than during it.
 
 Three completion files ship because `git fi` is dispatched by two different providers: `_git-fi` drives zsh's built-in `_git`; `git-fi.bash` (defining `_git_fi`, git-completion style) drives git's own completion wrapper in bash; and `_git_fi` is the same `_git_fi` body on the zsh fpath, for git's wrapper under zsh. The git-native body (`git-fi.bash.tmpl`) is shared by the last two, so they can't drift. Each file has an `install-completions` target that prints it — `bash`, `zsh`, `zsh-git` respectively — and `--write <dir>` installs the zsh pair onto an fpath directory (`COMPLETE-06`); adding a file here means adding its target in `src/install-completions.ts`.
 

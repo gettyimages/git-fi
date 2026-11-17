@@ -5,6 +5,21 @@ GitHub Release by the release workflow (`.github/workflows/release.yml`).
 
 <!-- releases below -->
 
+## v1.5.0 (2026-11-17)
+
+### Features
+
+- `git fi --update` now updates with pnpm when you installed git-fi with pnpm, instead of installing a second copy with npm. If pnpm isn't on your `PATH`, it tells you how to add it.
+
+### Fixes
+
+- On a pnpm install, `git fi --version` no longer reports that a different git-fi is ahead of this one on your `PATH`.
+
+### Other
+
+- The docs show both pnpm and npm install commands, and the Troubleshooting page covers pnpm.
+
+
 ## v1.4.0 (2026-10-25)
 
 ### Upgrading

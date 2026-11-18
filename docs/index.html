@@ -386,12 +386,16 @@
     // other), then joins them under a switch that shows one at a time, so the
     // copy button copies the command on screen. The first manager is the
     // default; a reader's choice is remembered.
+    // pnpm's command exempts git-fi alone from its minimumReleaseAge (a day by
+    // default since pnpm 11), which would otherwise install the previous
+    // release for a day after each one ships; the same exemption
+    // `git fi --update` passes (UPDATE-05).
     // Hand-rolled rather than docsify-tabs, which forgets the choice when
     // the browser session ends and would need restyling to match the theme.
     function installSwitch(hook) {
       var MANAGERS = [
-        { name: 'pnpm', command: 'pnpm add -g ' },
-        { name: 'npm', command: 'npm install -g ' }
+        { name: 'pnpm', command: 'pnpm add -g ', options: function (name) { return ' --config.minimumReleaseAgeExclude=' + name; } },
+        { name: 'npm', command: 'npm install -g ', options: function () { return ''; } }
       ];
       var KEY = 'git-fi.install-manager';
       var remembered = null;
@@ -399,7 +403,9 @@
       hook.beforeEach(function (markdown) {
         return markdown.replace(/^```install\r?\n(.+)\r?\n```$/gm, function (block, pkg) {
           return '<div class="gf-install">\n\n' + MANAGERS.map(function (manager) {
-            return '```bash\n' + manager.command + pkg.trim() + '\n```';
+            // The exemption names the package without a pinned version.
+            var name = pkg.trim().replace(/(.)@[^/]*$/, '$1');
+            return '```bash\n' + manager.command + pkg.trim() + manager.options(name) + '\n```';
           }).join('\n\n') + '\n\n</div>';
         });
       });

@@ -256,7 +256,7 @@ describe("--update (UPDATE-05)", () => {
     test("updates through pnpm, not npm", () => {
       const r = runFi(["--update"], project, { PATH: path }, pnpmEntry);
       assert.equal(r.status, 0, r.stderr);
-      assert.deepEqual(pnpmArgv(), ["add", "-g", `${name}@latest`]);
+      assert.deepEqual(pnpmArgv(), ["add", "-g", `${name}@latest`, `--config.minimumReleaseAgeExclude=${name}`]);
       assert.equal(existsSync(argvLog), false, "npm was called");
     });
 

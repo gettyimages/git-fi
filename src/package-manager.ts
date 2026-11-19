@@ -71,8 +71,15 @@ export class Npm extends PackageManager {
 export class Pnpm extends PackageManager {
   readonly command = "pnpm";
 
+  /**
+   * `minimumReleaseAge` (on by default, at a day, since pnpm 11) makes pnpm
+   * resolve `@latest` to the newest version past that age instead, so the
+   * release the update notice named would be skipped for a day after it ships.
+   * Exempting git-fi alone, for this one install, leaves the cool-down on
+   * anything else the install resolves; older pnpm ignores the setting.
+   */
   protected installLatestArgs(pkg: string): string[] {
-    return ["add", "-g", `${pkg}@latest`];
+    return ["add", "-g", `${pkg}@latest`, `--config.minimumReleaseAgeExclude=${pkg}`];
   }
 
   /**
